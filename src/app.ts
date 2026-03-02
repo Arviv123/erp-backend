@@ -128,7 +128,8 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
     method:  req.method,
     path:    req.path,
   });
-  res.status(500).json({ success: false, error: 'Internal server error' });
+  // TEMP: expose error detail for debugging (remove before go-live)
+  res.status(500).json({ success: false, error: 'Internal server error', _debug: err.message });
 });
 
 // ─── 404 Handler ──────────────────────────────────────────────────
