@@ -91,7 +91,7 @@ router.patch('/customers/:id', async (req: AuthenticatedRequest, res: Response) 
 
   const updated = await prisma.customer.update({
     where: { id: req.params.id },
-    data:  { ...parsed.data, metadata: mergedMetadata },
+    data:  { ...parsed.data, metadata: mergedMetadata ?? undefined },
   });
   sendSuccess(res, updated);
 });
