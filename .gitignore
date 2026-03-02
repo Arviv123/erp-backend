@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables — NEVER commit!
+.env
+.env.local
+.env.production
+
+# Keep example
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Prisma generated client (will be regenerated on deploy)
+node_modules/.prisma/
+
+# Base44 prompts (documentation, not needed in deploy)
+base44-prompts/

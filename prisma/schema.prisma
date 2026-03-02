@@ -1,0 +1,1295 @@
+// ============================================================
+// ERP System - Prisma Schema (PostgreSQL / Supabase)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  ACCOUNTANT
+  HR_MANAGER
+  EMPLOYEE
+  SALESPERSON
+}
+
+enum AccountType {
+  ASSET       // נכסים
+  LIABILITY   // התחייבויות
+  EQUITY      // הון עצמי
+  REVENUE     // הכנסות
+  EXPENSE     // הוצאות
+}
+
+enum TransactionStatus {
+  DRAFT
+  POSTED
+  VOID
+}
+
+enum EmploymentType {
+  FULL_TIME   // משרה מלאה
+  PART_TIME   // משרה חלקית
+  HOURLY      // שעתי
+  CONTRACTOR  // קבלן
+}
+
+enum CustomerStatus {
+  LEAD
+  ACTIVE
+  INACTIVE
+  BLOCKED
+}
+
+enum CustomerType {
+  B2B
+  B2C
+  GOVERNMENT
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CREDIT_CARD
+  CHECK
+  OTHER
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ActivityType {
+  CALL
+  EMAIL
+  MEETING
+  NOTE
+  TASK
+}
+
+enum DealStage {
+  LEAD
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+}
+
+enum StockMovementType {
+  IN          // קניה / קבלת סחורה
+  OUT         // מכירה / הוצאת סחורה
+  TRANSFER    // העברה בין מחסנים
+  ADJUSTMENT  // ספירת מלאי / תיקון
+  RETURN_IN   // החזרה מלקוח
+  RETURN_OUT  // החזרה לספק
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CANCELLED
+}
+
+enum BillStatus {
+  DRAFT
+  POSTED
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum AssetStatus {
+  ACTIVE
+  DISPOSED
+  UNDER_MAINTENANCE
+}
+
+enum DepreciationMethod {
+  STRAIGHT_LINE     // קו ישר
+  DECLINING_BALANCE // יתרה פוחתת
+}
+
+enum ExpenseStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+enum BudgetStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum WebhookStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum PosSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum PosTransactionType {
+  SALE
+  RETURN
+  VOID
+}
+
+// ─────────────────────────────────────────────
+// TENANTS (עסקים)
+// ─────────────────────────────────────────────
+
+model Tenant {
+  id             String   @id @default(cuid())
+  name           String
+  businessNumber String   @unique // ח.פ. / ע.מ.
+  vatNumber      String?           // מע"מ
+  address        Json              // { street, city, zip, country }
+  phone          String?
+  email          String?
+  logoUrl        String?
+
+  // הגדרות מס ישראלי
+  taxSettings    Json     @default("{\"vatRate\": 0.18, \"taxYear\": 2025}")
+  settings       Json     @default("{}")
+
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  users              User[]
+  employees          Employee[]
+  accounts           Account[]
+  transactions       Transaction[]
+  customers          Customer[]
+  attendanceLogs     AttendanceLog[]
+  payrollRuns        PayrollRun[]
+  invoices           Invoice[]
+  leaveTypes         LeaveType[]
+  leaveRequests      LeaveRequest[]
+  holidayCalendar    HolidayCalendar[]
+  activities         Activity[]
+  deals              Deal[]
+  auditLogs          AuditLog[]
+  // New modules
+  productCategories  ProductCategory[]
+  products           Product[]
+  warehouses         Warehouse[]
+  stockLevels        StockLevel[]
+  stockMovements     StockMovement[]
+  vendors            Vendor[]
+  purchaseOrders     PurchaseOrder[]
+  bills              Bill[]
+  fixedAssets        FixedAsset[]
+  expenseReports     ExpenseReport[]
+  budgets            Budget[]
+  webhooks           Webhook[]
+  apiKeys            ApiKey[]
+  passwordResetTokens PasswordResetToken[]
+  posTerminals       PosTerminal[]
+  posSessions        PosSession[]
+
+  @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// USERS & RBAC
+// ─────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  email        String
+  passwordHash String
+  role         UserRole
+  firstName    String
+  lastName     String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  employee     Employee?
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────
+// EMPLOYEES (עובדים)
+// ─────────────────────────────────────────────
+
+model Employee {
+  id             String         @id @default(cuid())
+  tenantId       String
+  userId         String?        @unique
+
+  // Personal Info
+  firstName      String
+  lastName       String
+  idNumber       String                    // ת.ז.
+  birthDate      DateTime
+  gender         String
+  address        Json                      // { street, city, zip }
+  phone          String
+  personalEmail  String
+  bankAccount    Json?                     // { bank, branch, accountNumber }
+
+  // Employment
+  startDate      DateTime
+  endDate        DateTime?
+  jobTitle       String
+  department     String
+  employmentType EmploymentType @default(FULL_TIME)
+  directManagerId String?
+
+  // Salary
+  grossSalary    Decimal        @db.Decimal(12, 2)
+  salaryType     String         @default("MONTHLY") // MONTHLY | HOURLY
+  hourlyRate     Decimal?       @db.Decimal(10, 2)
+
+  // Pension (פנסיה ישראלי - %)
+  pensionFund     String?
+  pensionEmployee Decimal       @default(6.00)  @db.Decimal(5, 2) // % עובד
+  pensionEmployer Decimal       @default(6.50)  @db.Decimal(5, 2) // % מעסיק
+  severancePay    Decimal       @default(8.33)  @db.Decimal(5, 2) // % פיצויים
+
+  // Tax (מס)
+  taxCredits      Decimal       @default(2.25)  @db.Decimal(5, 2) // נקודות זיכוי
+  taxExemptions   Json          @default("[]")                     // פטורים נוספים
+
+  isActive       Boolean        @default(true)
+  metadata       Json           @default("{}")   // שדות גמישים
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  user           User?          @relation(fields: [userId], references: [id])
+  salaryHistory  SalaryHistory[]
+  attendanceLogs AttendanceLog[]
+  payslips       Payslip[]
+  leaveRequests  LeaveRequest[]
+  expenseReports ExpenseReport[]
+
+  @@unique([tenantId, idNumber])
+  @@index([tenantId])
+  @@map("employees")
+}
+
+model SalaryHistory {
+  id           String   @id @default(cuid())
+  employeeId   String
+  grossSalary  Decimal  @db.Decimal(12, 2)
+  changedAt    DateTime @default(now())
+  changedBy    String   // userId
+  reason       String?
+
+  employee     Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("salary_history")
+}
+
+// ─────────────────────────────────────────────
+// ACCOUNTING - Chart of Accounts (מצב חשבון)
+// ─────────────────────────────────────────────
+
+model Account {
+  id        String      @id @default(cuid())
+  tenantId  String
+  code      String                    // קוד חשבון e.g. "1100"
+  name      String                    // שם בעברית
+  nameEn    String?                   // שם באנגלית
+  type      AccountType
+  parentId  String?
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+
+  tenant      Tenant    @relation(fields: [tenantId], references: [id])
+  parent      Account?  @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children    Account[] @relation("AccountHierarchy")
+  debitLines  TransactionLine[] @relation("DebitAccount")
+  creditLines TransactionLine[] @relation("CreditAccount")
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("accounts")
+}
+
+// ─────────────────────────────────────────────
+// FINANCIAL TRANSACTIONS (Double-Entry)
+// ─────────────────────────────────────────────
+
+model Transaction {
+  id          String            @id @default(cuid())
+  tenantId    String
+  date        DateTime
+  reference   String            // מספר מסמך מקור
+  description String
+  status      TransactionStatus @default(DRAFT)
+
+  // מקור הרשומה
+  sourceType  String            // INVOICE | PAYROLL | MANUAL | PAYMENT | EXPENSE
+  sourceId    String?           // FK לאובייקט המקור
+
+  totalAmount Decimal           @db.Decimal(12, 2)
+  currency    String            @default("ILS")
+  createdBy   String            // userId
+  postedAt    DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  lines       TransactionLine[]
+
+  @@index([tenantId, date])
+  @@index([tenantId, sourceType, sourceId])
+  @@map("transactions")
+}
+
+// שורות רישום (חובה/זכות)
+model TransactionLine {
+  id              String      @id @default(cuid())
+  transactionId   String
+  debitAccountId  String      // חשבון חובה
+  creditAccountId String      // חשבון זכות
+  amount          Decimal     @db.Decimal(12, 2)
+  description     String?
+  sortOrder       Int         @default(0)
+
+  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  debitAccount    Account     @relation("DebitAccount",  fields: [debitAccountId],  references: [id])
+  creditAccount   Account     @relation("CreditAccount", fields: [creditAccountId], references: [id])
+
+  @@map("transaction_lines")
+}
+
+// ─────────────────────────────────────────────
+// PAYROLL (שכר)
+// ─────────────────────────────────────────────
+
+model PayrollRun {
+  id           String        @id @default(cuid())
+  tenantId     String
+  period       String        // "2025-01" (YYYY-MM)
+  status       PayrollStatus @default(DRAFT)
+
+  totalGross   Decimal       @db.Decimal(12, 2)
+  totalNet     Decimal       @db.Decimal(12, 2)
+  totalTax     Decimal       @db.Decimal(12, 2)
+  totalNI      Decimal       @db.Decimal(12, 2)  // ביטוח לאומי
+  totalPension Decimal       @db.Decimal(12, 2)  // סה"כ פנסיה מעסיק
+
+  approvedBy   String?
+  approvedAt   DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime      @default(now())
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
+  payslips     Payslip[]
+
+  @@unique([tenantId, period])
+  @@index([tenantId])
+  @@map("payroll_runs")
+}
+
+model Payslip {
+  id             String     @id @default(cuid())
+  payrollRunId   String
+  employeeId     String
+  tenantId       String
+  period         String
+
+  // Gross → Net Breakdown
+  grossSalary    Decimal    @db.Decimal(12, 2)
+  taxableIncome  Decimal    @db.Decimal(12, 2)
+
+  // ניכויים עובד
+  incomeTax        Decimal  @db.Decimal(12, 2)  // מס הכנסה
+  nationalInsurance Decimal @db.Decimal(12, 2)  // ביטוח לאומי עובד
+  healthInsurance   Decimal @db.Decimal(12, 2)  // ביטוח בריאות
+  pensionEmployee   Decimal @db.Decimal(12, 2)  // פנסיה עובד
+
+  netSalary        Decimal  @db.Decimal(12, 2)
+
+  // עלות מעסיק
+  pensionEmployer  Decimal  @db.Decimal(12, 2)  // פנסיה מעסיק
+  severancePay     Decimal  @db.Decimal(12, 2)  // פיצויים
+  niEmployer       Decimal  @db.Decimal(12, 2)  // ביטוח לאומי מעסיק
+
+  totalEmployerCost Decimal @db.Decimal(12, 2)
+
+  // פירוט מלא ב-JSON
+  breakdown        Json     // { taxBrackets: [...], niCalc: {...} }
+
+  createdAt        DateTime @default(now())
+
+  payrollRun       PayrollRun @relation(fields: [payrollRunId], references: [id])
+  employee         Employee   @relation(fields: [employeeId],   references: [id])
+
+  @@unique([payrollRunId, employeeId])
+  @@index([tenantId, period])
+  @@map("payslips")
+}
+
+// ─────────────────────────────────────────────
+// CRM - Customers
+// ─────────────────────────────────────────────
+
+model Customer {
+  id           String         @id @default(cuid())
+  tenantId     String
+  name         String
+  businessId   String?        // ח.פ. / ת.ז.
+  email        String?
+  phone        String?
+  address      Json?
+  type         CustomerType   @default(B2B)
+  status       CustomerStatus @default(LEAD)
+  assignedTo   String?        // userId of salesperson
+
+  // JSONB - שדות גמישים לפי סוג לקוח
+  metadata     Json           @default("{}")
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+  invoices     Invoice[]
+  activities   Activity[]
+  deals        Deal[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, type])
+  @@map("customers")
+}
+
+// ─────────────────────────────────────────────
+// ATTENDANCE (נוכחות)
+// ─────────────────────────────────────────────
+
+model AttendanceLog {
+  id           String    @id @default(cuid())
+  tenantId     String
+  employeeId   String
+  date         DateTime  @db.Date
+  clockIn      DateTime
+  clockOut     DateTime?
+  breakMinutes Int       @default(0)
+
+  // Metadata
+  ipAddress    String?
+  gpsLocation  Json?     // { lat, lng }
+  deviceInfo   String?
+  notes        String?
+  approvedBy   String?   // userId
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  employee     Employee  @relation(fields: [employeeId], references: [id])
+
+  @@index([tenantId, date])
+  @@index([tenantId, employeeId, date])
+  @@map("attendance_logs")
+}
+
+// ─────────────────────────────────────────────
+// INVOICES (חשבוניות)
+// ─────────────────────────────────────────────
+
+model Invoice {
+  id                   String        @id @default(cuid())
+  tenantId             String
+  customerId           String
+  number               String        // INV-2026-0001 (auto-generated)
+  date                 DateTime
+  dueDate              DateTime
+  status               InvoiceStatus @default(DRAFT)
+  subtotal             Decimal       @db.Decimal(12, 2)
+  vatAmount            Decimal       @db.Decimal(12, 2)
+  total                Decimal       @db.Decimal(12, 2)
+  currency             String        @default("ILS")
+  notes                String?
+  paymentTerms         String?       // "30 days", "COD", etc.
+  journalTransactionId String?       // FK → auto-created accounting entry
+  createdBy            String
+  sentAt               DateTime?
+  paidAt               DateTime?
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  tenant    Tenant         @relation(fields: [tenantId], references: [id])
+  customer  Customer       @relation(fields: [customerId], references: [id])
+  lines     InvoiceLine[]
+  payments  InvoicePayment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, customerId])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  productId   String?   // optional link to product catalog
+  description String
+  quantity    Decimal @db.Decimal(10, 3)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  vatRate     Decimal @db.Decimal(5, 4) @default(0.18) // 18% מע"מ
+  lineTotal   Decimal @db.Decimal(12, 2)
+  sortOrder   Int     @default(0)
+
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product     Product? @relation("ProductInvoiceLines", fields: [productId], references: [id])
+
+  @@map("invoice_lines")
+}
+
+model InvoicePayment {
+  id                   String        @id @default(cuid())
+  invoiceId            String
+  tenantId             String
+  amount               Decimal       @db.Decimal(12, 2)
+  method               PaymentMethod
+  date                 DateTime
+  reference            String?       // bank reference / check number
+  notes                String?
+  journalTransactionId String?       // FK → accounting entry
+  createdBy            String
+  createdAt            DateTime      @default(now())
+
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@index([tenantId, invoiceId])
+  @@map("invoice_payments")
+}
+
+// ─────────────────────────────────────────────
+// HR - Leave Management (חופשות והיעדרויות)
+// ─────────────────────────────────────────────
+
+model LeaveType {
+  id                String  @id @default(cuid())
+  tenantId          String
+  name              String  // חופשה שנתית / מחלה / לידה / אבל / מילואים
+  isPaid            Boolean @default(true)
+  maxDaysPerYear    Int?
+  requiresApproval  Boolean @default(true)
+  colorHex          String  @default("#3B82F6")
+
+  tenant         Tenant         @relation(fields: [tenantId], references: [id])
+  leaveRequests  LeaveRequest[]
+
+  @@unique([tenantId, name])
+  @@map("leave_types")
+}
+
+model LeaveRequest {
+  id           String      @id @default(cuid())
+  tenantId     String
+  employeeId   String
+  leaveTypeId  String
+  startDate    DateTime    @db.Date
+  endDate      DateTime    @db.Date
+  totalDays    Int
+  status       LeaveStatus @default(PENDING)
+  notes        String?
+  approvedBy   String?
+  approvedAt   DateTime?
+  rejectedReason String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  employee    Employee    @relation(fields: [employeeId], references: [id])
+  leaveType   LeaveType   @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
+  @@map("leave_requests")
+}
+
+model HolidayCalendar {
+  id         String   @id @default(cuid())
+  tenantId   String
+  name       String
+  date       DateTime @db.Date
+  isNational Boolean  @default(true)
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, date])
+  @@index([tenantId])
+  @@map("holiday_calendar")
+}
+
+// ─────────────────────────────────────────────
+// CRM ENHANCEMENT - Activities & Deals
+// ─────────────────────────────────────────────
+
+model Activity {
+  id          String       @id @default(cuid())
+  tenantId    String
+  customerId  String
+  userId      String       // who logged this
+  type        ActivityType
+  subject     String
+  content     String?
+  scheduledAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  customer    Customer     @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, customerId])
+  @@map("activities")
+}
+
+model Deal {
+  id                String    @id @default(cuid())
+  tenantId          String
+  customerId        String
+  title             String
+  value             Decimal?  @db.Decimal(12, 2)
+  currency          String    @default("ILS")
+  stage             DealStage @default(LEAD)
+  probability       Int       @default(0)   // 0-100%
+  expectedCloseDate DateTime?
+  assignedTo        String?   // userId
+  notes             String?
+  wonAt             DateTime?
+  lostAt            DateTime?
+  lostReason        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  customer  Customer @relation(fields: [customerId], references: [id])
+
+  @@index([tenantId, stage])
+  @@index([tenantId, customerId])
+  @@map("deals")
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOG (יומן ביקורת)
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  tenantId    String
+  userId      String?
+  action      AuditAction
+  entityType  String      // EMPLOYEE | INVOICE | PAYROLL | USER | CUSTOMER
+  entityId    String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@map("audit_logs")
+}
+
+// ══════════════════════════════════════════════
+// PRODUCTS & INVENTORY (מוצרים ומלאי)
+// ══════════════════════════════════════════════
+
+model ProductCategory {
+  id        String  @id @default(cuid())
+  tenantId  String
+  name      String
+  parentId  String?
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id])
+  parent   ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children ProductCategory[] @relation("CategoryHierarchy")
+  products Product[]
+
+  @@unique([tenantId, name])
+  @@map("product_categories")
+}
+
+model Product {
+  id            String   @id @default(cuid())
+  tenantId      String
+  categoryId    String?
+  sku           String              // מק"ט
+  name          String
+  description   String?
+  unitOfMeasure String   @default("יחידה") // יחידה / ק"ג / מטר...
+  costPrice     Decimal  @db.Decimal(12, 2)
+  sellingPrice  Decimal  @db.Decimal(12, 2)
+  vatRate       Decimal  @default(0.18) @db.Decimal(5, 4)
+  isService     Boolean  @default(false)  // שירות - אין מלאי
+  isActive      Boolean  @default(true)
+  barcode       String?
+  imageUrl      String?
+  metadata      Json     @default("{}")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  category       ProductCategory? @relation(fields: [categoryId], references: [id])
+  stockLevels    StockLevel[]
+  stockMovements StockMovement[]
+  invoiceLines   InvoiceLine[]   @relation("ProductInvoiceLines")
+  poLines        PurchaseOrderLine[]
+  billLines      BillLine[]
+
+  @@unique([tenantId, sku])
+  @@index([tenantId])
+  @@map("products")
+}
+
+model Warehouse {
+  id        String  @id @default(cuid())
+  tenantId  String
+  name      String
+  address   Json?
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  stockLevels    StockLevel[]
+  stockMovements StockMovement[]
+
+  @@unique([tenantId, name])
+  @@map("warehouses")
+}
+
+model StockLevel {
+  id                String   @id @default(cuid())
+  tenantId          String
+  productId         String
+  warehouseId       String
+  quantity          Decimal  @default(0) @db.Decimal(12, 3)
+  reservedQuantity  Decimal  @default(0) @db.Decimal(12, 3) // locked for orders
+  reorderPoint      Decimal? @db.Decimal(12, 3)
+  reorderQuantity   Decimal? @db.Decimal(12, 3)
+  updatedAt         DateTime @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@unique([productId, warehouseId])
+  @@index([tenantId])
+  @@map("stock_levels")
+}
+
+model StockMovement {
+  id           String            @id @default(cuid())
+  tenantId     String
+  productId    String
+  warehouseId  String
+  type         StockMovementType
+  quantity     Decimal           @db.Decimal(12, 3)
+  unitCost     Decimal?          @db.Decimal(12, 2)
+  totalCost    Decimal?          @db.Decimal(12, 2)
+  reference    String?           // מסמך מקור
+  sourceType   String?           // INVOICE | PO | ADJUSTMENT
+  sourceId     String?
+  notes        String?
+  createdBy    String
+  createdAt    DateTime          @default(now())
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  product   Product   @relation(fields: [productId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+
+  @@index([tenantId, productId])
+  @@index([tenantId, createdAt])
+  @@map("stock_movements")
+}
+
+// ══════════════════════════════════════════════
+// VENDORS & PURCHASING (ספקים ורכש)
+// ══════════════════════════════════════════════
+
+model Vendor {
+  id           String  @id @default(cuid())
+  tenantId     String
+  name         String
+  businessId   String?   // ח.פ.
+  vatNumber    String?
+  email        String?
+  phone        String?
+  address      Json?
+  paymentTerms String?   // "30 days"
+  status       String    @default("ACTIVE") // ACTIVE | INACTIVE
+  metadata     Json      @default("{}")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  bills          Bill[]
+
+  @@index([tenantId])
+  @@map("vendors")
+}
+
+model PurchaseOrder {
+  id             String              @id @default(cuid())
+  tenantId       String
+  vendorId       String
+  number         String              // PO-2026-0001
+  date           DateTime
+  expectedDate   DateTime?
+  status         PurchaseOrderStatus @default(DRAFT)
+  subtotal       Decimal             @db.Decimal(12, 2)
+  vatAmount      Decimal             @db.Decimal(12, 2)
+  total          Decimal             @db.Decimal(12, 2)
+  notes          String?
+  createdBy      String
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  tenant  Tenant              @relation(fields: [tenantId], references: [id])
+  vendor  Vendor              @relation(fields: [vendorId], references: [id])
+  lines   PurchaseOrderLine[]
+  bills   Bill[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderLine {
+  id          String   @id @default(cuid())
+  poId        String
+  productId   String?
+  description String
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitCost    Decimal  @db.Decimal(12, 2)
+  vatRate     Decimal  @default(0.18) @db.Decimal(5, 4)
+  lineTotal   Decimal  @db.Decimal(12, 2)
+  receivedQty Decimal  @default(0) @db.Decimal(12, 3)
+  sortOrder   Int      @default(0)
+
+  po      PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  product Product?      @relation(fields: [productId], references: [id])
+
+  @@map("purchase_order_lines")
+}
+
+model Bill {
+  id                   String     @id @default(cuid())
+  tenantId             String
+  vendorId             String
+  purchaseOrderId      String?
+  number               String              // BILL-2026-0001
+  vendorRef            String?             // ספק מספר חשבונית
+  date                 DateTime
+  dueDate              DateTime
+  status               BillStatus @default(DRAFT)
+  subtotal             Decimal    @db.Decimal(12, 2)
+  vatAmount            Decimal    @db.Decimal(12, 2)
+  total                Decimal    @db.Decimal(12, 2)
+  notes                String?
+  journalTransactionId String?
+  createdBy            String
+  paidAt               DateTime?
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id])
+  vendor        Vendor        @relation(fields: [vendorId], references: [id])
+  purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  lines         BillLine[]
+  payments      BillPayment[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@map("bills")
+}
+
+model BillLine {
+  id          String   @id @default(cuid())
+  billId      String
+  productId   String?
+  accountId   String?  // expense account
+  description String
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitCost    Decimal  @db.Decimal(12, 2)
+  vatRate     Decimal  @default(0.18) @db.Decimal(5, 4)
+  lineTotal   Decimal  @db.Decimal(12, 2)
+  sortOrder   Int      @default(0)
+
+  bill    Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@map("bill_lines")
+}
+
+model BillPayment {
+  id                   String        @id @default(cuid())
+  billId               String
+  tenantId             String
+  amount               Decimal       @db.Decimal(12, 2)
+  method               PaymentMethod
+  date                 DateTime
+  reference            String?
+  notes                String?
+  journalTransactionId String?
+  createdBy            String
+  createdAt            DateTime      @default(now())
+
+  bill Bill @relation(fields: [billId], references: [id])
+
+  @@map("bill_payments")
+}
+
+// ══════════════════════════════════════════════
+// FIXED ASSETS (רכוש קבוע)
+// ══════════════════════════════════════════════
+
+model FixedAsset {
+  id                              String             @id @default(cuid())
+  tenantId                        String
+  code                            String             // FA-001
+  name                            String
+  category                        String             // מחשב / רכב / ציוד
+  purchaseDate                    DateTime
+  purchasePrice                   Decimal            @db.Decimal(12, 2)
+  salvageValue                    Decimal            @default(0) @db.Decimal(12, 2)
+  usefulLifeYears                 Int
+  depreciationMethod              DepreciationMethod @default(STRAIGHT_LINE)
+  assetAccountId                  String?            // חשבון נכס (2100)
+  depreciationExpenseAccountId    String?            // הוצאות פחת (7800)
+  accumulatedDepreciationAccountId String?           // פחת נצבר (2900)
+  status                          AssetStatus        @default(ACTIVE)
+  disposedAt                      DateTime?
+  disposalPrice                   Decimal?           @db.Decimal(12, 2)
+  notes                           String?
+  createdAt                       DateTime           @default(now())
+  updatedAt                       DateTime           @updatedAt
+
+  tenant             Tenant               @relation(fields: [tenantId], references: [id])
+  depreciationLedger AssetDepreciation[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("fixed_assets")
+}
+
+model AssetDepreciation {
+  id                   String   @id @default(cuid())
+  assetId              String
+  tenantId             String
+  period               String   // "2026-03"
+  amount               Decimal  @db.Decimal(12, 2)
+  bookValueAfter       Decimal  @db.Decimal(12, 2)
+  journalTransactionId String?
+  postedAt             DateTime?
+  createdAt            DateTime @default(now())
+
+  asset FixedAsset @relation(fields: [assetId], references: [id])
+
+  @@unique([assetId, period])
+  @@map("asset_depreciation")
+}
+
+// ══════════════════════════════════════════════
+// EXPENSES (הוצאות ודיווחי הוצאות)
+// ══════════════════════════════════════════════
+
+model ExpenseReport {
+  id          String        @id @default(cuid())
+  tenantId    String
+  employeeId  String
+  title       String
+  period      String        // "2026-03"
+  status      ExpenseStatus @default(DRAFT)
+  totalAmount Decimal       @db.Decimal(12, 2) @default(0)
+  notes       String?
+  approvedBy  String?
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  rejectedReason String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  employee Employee  @relation(fields: [employeeId], references: [id])
+  expenses Expense[]
+
+  @@index([tenantId, status])
+  @@map("expense_reports")
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  reportId    String
+  tenantId    String
+  date        DateTime
+  category    String   // נסיעות / ארוחות / ציוד / אחר
+  description String
+  amount      Decimal  @db.Decimal(12, 2)
+  vatAmount   Decimal  @default(0) @db.Decimal(12, 2)
+  receiptUrl  String?  // Supabase Storage URL
+  accountId   String?  // expense account FK
+  notes       String?
+
+  report ExpenseReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@map("expenses")
+}
+
+// ══════════════════════════════════════════════
+// BUDGET (תקציב)
+// ══════════════════════════════════════════════
+
+model Budget {
+  id          String       @id @default(cuid())
+  tenantId    String
+  name        String
+  year        Int
+  status      BudgetStatus @default(DRAFT)
+  totalBudget Decimal      @db.Decimal(14, 2) @default(0)
+  notes       String?
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id])
+  lines  BudgetLine[]
+
+  @@unique([tenantId, name, year])
+  @@index([tenantId])
+  @@map("budgets")
+}
+
+model BudgetLine {
+  id        String  @id @default(cuid())
+  budgetId  String
+  accountId String
+  amount    Decimal @db.Decimal(12, 2)
+  notes     String?
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetId, accountId])
+  @@map("budget_lines")
+}
+
+// ══════════════════════════════════════════════
+// WEBHOOKS & INTEGRATIONS
+// ══════════════════════════════════════════════
+
+model Webhook {
+  id            String   @id @default(cuid())
+  tenantId      String
+  name          String
+  url           String
+  secret        String   // HMAC secret for signature
+  events        Json     // ["invoice.created", "payroll.approved", ...]
+  isActive      Boolean  @default(true)
+  failureCount  Int      @default(0)
+  lastDeliveredAt DateTime?
+  createdAt     DateTime @default(now())
+
+  tenant     Tenant            @relation(fields: [tenantId], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@index([tenantId])
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id           String        @id @default(cuid())
+  webhookId    String
+  event        String
+  payload      Json
+  status       WebhookStatus @default(PENDING)
+  responseCode Int?
+  responseBody String?
+  duration     Int?          // ms
+  createdAt    DateTime      @default(now())
+
+  webhook Webhook @relation(fields: [webhookId], references: [id])
+
+  @@index([webhookId])
+  @@map("webhook_deliveries")
+}
+
+// ══════════════════════════════════════════════
+// AUTH ENHANCEMENTS
+// ══════════════════════════════════════════════
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([token])
+  @@map("password_reset_tokens")
+}
+
+model ApiKey {
+  id         String   @id @default(cuid())
+  tenantId   String
+  name       String
+  keyHash    String   @unique   // bcrypt hash of the key
+  keyPrefix  String             // first 8 chars shown in UI (e.g. "erpk_abc")
+  scopes     Json               // ["read:invoices", "write:employees"]
+  isActive   Boolean  @default(true)
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdBy  String
+  createdAt  DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("api_keys")
+}
+
+// ══════════════════════════════════════════════
+// POS - POINT OF SALE (קופה)
+// ══════════════════════════════════════════════
+
+model PosTerminal {
+  id        String  @id @default(cuid())
+  tenantId  String
+  name      String  // "קופה ראשית" / "קופה 2"
+  location  String?
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  tenant   Tenant       @relation(fields: [tenantId], references: [id])
+  sessions PosSession[]
+
+  @@index([tenantId])
+  @@map("pos_terminals")
+}
+
+model PosSession {
+  id           String           @id @default(cuid())
+  tenantId     String
+  terminalId   String
+  openedBy     String           // userId
+  closedBy     String?
+  status       PosSessionStatus @default(OPEN)
+  openingFloat Decimal          @db.Decimal(12, 2) // מזומן פתיחה
+  closingFloat Decimal?         @db.Decimal(12, 2) // מזומן סגירה
+  totalSales   Decimal          @default(0) @db.Decimal(12, 2)
+  totalReturns Decimal          @default(0) @db.Decimal(12, 2)
+  openedAt     DateTime         @default(now())
+  closedAt     DateTime?
+
+  tenant       Tenant           @relation(fields: [tenantId], references: [id])
+  terminal     PosTerminal      @relation(fields: [terminalId], references: [id])
+  transactions PosTransaction[]
+
+  @@index([tenantId])
+  @@map("pos_sessions")
+}
+
+model PosTransaction {
+  id           String             @id @default(cuid())
+  tenantId     String
+  sessionId    String
+  customerId   String?
+  type         PosTransactionType @default(SALE)
+  subtotal     Decimal            @db.Decimal(12, 2)
+  vatAmount    Decimal            @db.Decimal(12, 2)
+  total        Decimal            @db.Decimal(12, 2)
+  discount     Decimal            @default(0) @db.Decimal(12, 2)
+  paymentMethod PaymentMethod
+  amountPaid   Decimal            @db.Decimal(12, 2)
+  change       Decimal            @default(0) @db.Decimal(12, 2)
+  receiptNumber String?
+  invoiceId    String?            // if receipt was converted to invoice
+  notes        String?
+  createdAt    DateTime           @default(now())
+
+  session  PosSession        @relation(fields: [sessionId], references: [id])
+  lines    PosTransactionLine[]
+
+  @@index([tenantId, sessionId])
+  @@map("pos_transactions")
+}
+
+model PosTransactionLine {
+  id            String  @id @default(cuid())
+  transactionId String
+  productId     String?
+  description   String
+  quantity      Decimal @db.Decimal(12, 3)
+  unitPrice     Decimal @db.Decimal(12, 2)
+  discount      Decimal @default(0) @db.Decimal(12, 2)
+  vatRate       Decimal @db.Decimal(5, 4)
+  lineTotal     Decimal @db.Decimal(12, 2)
+
+  transaction PosTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+
+  @@map("pos_transaction_lines")
+}

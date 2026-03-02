@@ -1,0 +1,43 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL (for local dev without Supabase) ─────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: erp-postgres
+    environment:
+      POSTGRES_USER:     erp_user
+      POSTGRES_PASSWORD: erp_password
+      POSTGRES_DB:       erp_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U erp_user -d erp_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── ERP Backend ──────────────────────────────────────────────────
+  app:
+    build: .
+    container_name: erp-backend
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV:         production
+      DATABASE_URL:     postgresql://erp_user:erp_password@postgres:5432/erp_db
+      DIRECT_URL:       postgresql://erp_user:erp_password@postgres:5432/erp_db
+      JWT_SECRET:       change-this-to-a-real-secret-min-32-chars
+      JWT_EXPIRES_IN:   7d
+      PORT:             3000
+      ALLOWED_ORIGINS:  http://localhost:3000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma migrate deploy && node dist/app.js"
+
+volumes:
+  postgres_data:
