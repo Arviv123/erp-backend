@@ -87,10 +87,6 @@ app.get('/health/db', async (_req, res) => {
   }
 });
 
-// ─── Debug (TEMP) ─────────────────────────────────────────────────
-app.get('/debug/ping', (_req, res) => {
-  res.json({ ok: true, jwt_secret: !!process.env.JWT_SECRET, node: process.version });
-});
 
 // ─── Swagger Docs ─────────────────────────────────────────────────
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -128,8 +124,7 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
     method:  req.method,
     path:    req.path,
   });
-  // TEMP: expose error detail for debugging (remove before go-live)
-  res.status(500).json({ success: false, error: 'Internal server error', _debug: err.message });
+  res.status(500).json({ success: false, error: 'Internal server error' });
 });
 
 // ─── 404 Handler ──────────────────────────────────────────────────
