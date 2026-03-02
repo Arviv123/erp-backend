@@ -7,6 +7,7 @@ import swaggerUi from 'swagger-ui-express';
 
 // Logging
 import { logger } from './config/logger';
+import { prisma } from './config/database';
 
 // Routes — Core
 import tenantsRouter    from './modules/tenants/tenants.routes';
@@ -38,8 +39,9 @@ const PORT = process.env.PORT ?? 3000;
 
 // ─── Security ─────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false })); // disable CSP for Swagger UI
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean);
 app.use(cors({
-  origin:      (process.env.ALLOWED_ORIGINS ?? '').split(',').filter(Boolean),
+  origin:      allowedOrigins.includes('*') ? '*' : allowedOrigins,
   credentials: true,
 }));
 
@@ -72,6 +74,17 @@ app.get('/health', (_req, res) => {
     timestamp: new Date().toISOString(),
     env:       process.env.NODE_ENV ?? 'development',
   });
+});
+
+// ─── DB Health Check (for debugging) ──────────────────────────────
+app.get('/health/db', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: 'ok', db: 'connected' });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    res.status(503).json({ status: 'error', db: 'disconnected', detail: msg });
+  }
 });
 
 // ─── Swagger Docs ─────────────────────────────────────────────────
