@@ -15,7 +15,7 @@ const router = Router();
 
 // ─── Public: Login ────────────────────────────────────────────────
 
-router.post('/auth/login', async (req, res: Response) => {
+router.post('/auth/login', asyncHandler(async (req, res: Response) => {
   const schema = z.object({
     email:    z.string().email(),
     password: z.string().min(1),
@@ -30,7 +30,7 @@ router.post('/auth/login', async (req, res: Response) => {
     include: { tenant: { select: { isActive: true } } },
   });
 
-  if (!user || !user.isActive || !user.tenant.isActive) {
+  if (!user || !user.isActive || !user.tenant?.isActive) {
     sendError(res, 'Invalid credentials', 401);
     return;
   }
@@ -53,7 +53,7 @@ router.post('/auth/login', async (req, res: Response) => {
     token,
     user: { id: user.id, email: user.email, role: user.role, firstName: user.firstName, lastName: user.lastName },
   });
-});
+}));
 
 // ─── Protected Routes ─────────────────────────────────────────────
 
