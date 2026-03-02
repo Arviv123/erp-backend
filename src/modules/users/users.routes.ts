@@ -19,14 +19,18 @@ router.post('/auth/login', asyncHandler(async (req, res: Response) => {
   const schema = z.object({
     email:    z.string().email(),
     password: z.string().min(1),
-    tenantId: z.string().min(1),
+    tenantId: z.string().optional(), // optional — lookup by email if not provided
   });
 
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { sendError(res, parsed.error.message); return; }
 
+  const whereClause = parsed.data.tenantId
+    ? { email: parsed.data.email, tenantId: parsed.data.tenantId }
+    : { email: parsed.data.email };
+
   const user = await prisma.user.findFirst({
-    where:   { email: parsed.data.email, tenantId: parsed.data.tenantId },
+    where:   whereClause,
     include: { tenant: { select: { isActive: true } } },
   });
 
