@@ -87,33 +87,9 @@ app.get('/health/db', async (_req, res) => {
   }
 });
 
-// ─── Debug Login (TEMP — remove after fix) ────────────────────────
-app.post('/debug/login', async (req, res) => {
-  try {
-    const { email, password, tenantId } = req.body;
-    const bcrypt = await import('bcryptjs');
-    const jwt    = await import('jsonwebtoken');
-    const step1 = 'parse ok';
-    const user = await prisma.user.findFirst({
-      where: { email, tenantId },
-      include: { tenant: { select: { isActive: true } } },
-    });
-    if (!user) return res.json({ step: step1, result: 'user not found' });
-    const step2 = 'user found: ' + user.id;
-    const match = await bcrypt.default.compare(password, user.passwordHash);
-    if (!match) return res.json({ step: step2, result: 'bad password' });
-    const step3 = 'password ok';
-    const secret = process.env.JWT_SECRET;
-    if (!secret) return res.json({ step: step3, result: 'NO JWT_SECRET' });
-    const token = jwt.default.sign({ userId: user.id }, secret, { expiresIn: '7d' });
-    const step4 = 'jwt ok';
-    await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    res.json({ step: step4, result: 'ALL OK', tokenStart: token.substring(0, 20) });
-  } catch(err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack?.split('\n')[1] : '';
-    res.status(500).json({ error: msg, at: stack });
-  }
+// ─── Debug (TEMP) ─────────────────────────────────────────────────
+app.get('/debug/ping', (_req, res) => {
+  res.json({ ok: true, jwt_secret: !!process.env.JWT_SECRET, node: process.version });
 });
 
 // ─── Swagger Docs ─────────────────────────────────────────────────
