@@ -158,6 +158,31 @@ router.patch(
   }
 );
 
+// PATCH /employees/:id/bank  — update bank account details
+router.patch(
+  '/:id/bank',
+  requireMinRole('HR_MANAGER') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const schema = z.object({
+      bank:          z.string().min(1),
+      branchCode:    z.string().min(1),
+      accountNumber: z.string().min(1),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+    const emp = await prisma.employee.findUnique({ where: { id: req.params.id } });
+    if (!emp || emp.tenantId !== req.user.tenantId) { sendError(res, 'Employee not found', 404); return; }
+
+    const updated = await prisma.employee.update({
+      where: { id: req.params.id },
+      data:  { bankAccount: parsed.data },
+    });
+
+    sendSuccess(res, updated);
+  }
+);
+
 // DELETE /employees/:id  (soft delete)
 router.delete(
   '/:id',

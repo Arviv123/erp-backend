@@ -187,6 +187,63 @@ router.get(
   }
 );
 
+// ─── PATCH /payroll/payslips/:id  (edit payslip — DRAFT only) ─────
+router.patch(
+  '/payslips/:id',
+  requireMinRole('HR_MANAGER') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = adjustmentSchema.safeParse(req.body);
+    if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+    try {
+      const updated = await PayrollService.editPayslip(
+        req.params.id,
+        req.user.tenantId,
+        parsed.data as any
+      );
+      sendSuccess(res, updated);
+    } catch (err: any) {
+      sendError(res, err.message, 400);
+    }
+  }
+);
+
+// ─── DELETE /payroll/runs/:id  (delete DRAFT run) ─────────────────
+router.delete(
+  '/runs/:id',
+  requireMinRole('HR_MANAGER') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const result = await PayrollService.deletePayrollRun(
+        req.params.id,
+        req.user.tenantId
+      );
+      sendSuccess(res, result);
+    } catch (err: any) {
+      sendError(res, err.message, 400);
+    }
+  }
+);
+
+// ─── GET /payroll/runs/:id/bank-export  (CSV for bank payment) ────
+router.get(
+  '/runs/:id/bank-export',
+  requireMinRole('HR_MANAGER') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const run = await prisma.payrollRun.findUnique({ where: { id: req.params.id } });
+      if (!run || run.tenantId !== req.user.tenantId) { sendError(res, 'Run not found', 404); return; }
+
+      const csv = await PayrollService.generateBankExport(req.params.id, req.user.tenantId);
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="salary-${run.period}.csv"`);
+      res.send(csv);
+    } catch (err: any) {
+      sendError(res, err.message, 400);
+    }
+  }
+);
+
 // ─── GET /payroll/constants  (2026 tax rates reference) ───────────
 router.get('/constants', async (_req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, PAYROLL_CONSTANTS_2026);

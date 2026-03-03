@@ -424,3 +424,155 @@ export async function getMonthlyReport(tenantId: string, period: string) {
     })),
   };
 }
+
+// ─── Edit Payslip (DRAFT only) ────────────────────────────────────
+
+export async function editPayslip(
+  payslipId:   string,
+  tenantId:    string,
+  adjustments: EmployeeAdjustment
+) {
+  // Load payslip + run
+  const payslip = await prisma.payslip.findUnique({
+    where:   { id: payslipId },
+    include: { payrollRun: true },
+  });
+  if (!payslip || payslip.tenantId !== tenantId) throw new Error('Payslip not found');
+  if (payslip.payrollRun.status !== 'DRAFT') throw new Error('Can only edit payslips in DRAFT runs');
+
+  // Load employee
+  const emp = await prisma.employee.findUnique({ where: { id: payslip.employeeId } });
+  if (!emp) throw new Error('Employee not found');
+
+  // Re-calculate
+  const adj = adjustments;
+  let base = Number(emp.grossSalary);
+  if (adj.partialMonthDays && adj.totalWorkDaysInMonth && adj.totalWorkDaysInMonth > 0) {
+    base = Math.round(base * (adj.partialMonthDays / adj.totalWorkDaysInMonth) * 100) / 100;
+  }
+
+  const calc = calculatePayslip({
+    grossSalary:         base,
+    taxCreditPoints:     Number(emp.taxCredits),
+    pensionEmployeeRate: Number(emp.pensionEmployee),
+    pensionEmployerRate: Number(emp.pensionEmployer),
+    severancePayRate:    Number(emp.severancePay),
+    hourlyRate:          emp.hourlyRate ? Number(emp.hourlyRate) : undefined,
+    overtime125Hours:    adj.overtime125Hours  ?? 0,
+    overtime150Hours:    adj.overtime150Hours  ?? 0,
+    travelWorkDays:      adj.travelWorkDays    ?? 21,
+    includeRecuperation: adj.includeRecuperation ?? false,
+    startDate:           emp.startDate ? new Date(emp.startDate) : undefined,
+    period:              payslip.period,
+    bonusAmount:         adj.bonusAmount ?? 0,
+  });
+
+  const manualDeduction = adj.manualDeduction ?? 0;
+  if (manualDeduction > 0) {
+    calc.netSalary       = Math.max(0, Math.round((calc.netSalary - manualDeduction) * 100) / 100);
+    calc.totalDeductions = Math.round((calc.totalDeductions + manualDeduction) * 100) / 100;
+  }
+
+  // Update payslip
+  const updated = await prisma.payslip.update({
+    where: { id: payslipId },
+    data: {
+      grossSalary:       calc.grossSalary,
+      taxableIncome:     calc.taxableIncome,
+      incomeTax:         calc.incomeTax,
+      nationalInsurance: calc.nationalInsuranceEmployee,
+      healthInsurance:   calc.healthInsuranceEmployee,
+      pensionEmployee:   calc.pensionEmployee,
+      netSalary:         calc.netSalary,
+      pensionEmployer:   calc.pensionEmployer,
+      severancePay:      calc.severancePay,
+      niEmployer:        calc.nationalInsuranceEmployer,
+      totalEmployerCost: calc.totalEmployerCost,
+      breakdown: {
+        ...calc,
+        manualDeduction,
+        adjustments: {
+          overtime125Hours:    adj.overtime125Hours   ?? 0,
+          overtime150Hours:    adj.overtime150Hours   ?? 0,
+          travelWorkDays:      adj.travelWorkDays     ?? 21,
+          includeRecuperation: adj.includeRecuperation ?? false,
+          bonusAmount:         adj.bonusAmount        ?? 0,
+        },
+        employeeSnapshot: (payslip.breakdown as any)?.employeeSnapshot ?? {},
+      } as any,
+    },
+  });
+
+  // Recalculate run totals from all payslips
+  const allPayslips = await prisma.payslip.findMany({ where: { payrollRunId: payslip.payrollRunId } });
+  await prisma.payrollRun.update({
+    where: { id: payslip.payrollRunId },
+    data: {
+      totalGross:   Math.round(allPayslips.reduce((s, p) => s + Number(p.grossSalary),       0) * 100) / 100,
+      totalNet:     Math.round(allPayslips.reduce((s, p) => s + Number(p.netSalary),         0) * 100) / 100,
+      totalTax:     Math.round(allPayslips.reduce((s, p) => s + Number(p.incomeTax),         0) * 100) / 100,
+      totalNI:      Math.round(allPayslips.reduce((s, p) => s + Number(p.nationalInsurance), 0) * 100) / 100,
+      totalPension: Math.round(allPayslips.reduce((s, p) => s + Number(p.pensionEmployer),   0) * 100) / 100,
+    },
+  });
+
+  return updated;
+}
+
+// ─── Delete Payroll Run (DRAFT only) ─────────────────────────────
+
+export async function deletePayrollRun(runId: string, tenantId: string) {
+  const run = await prisma.payrollRun.findUnique({ where: { id: runId } });
+  if (!run || run.tenantId !== tenantId) throw new Error('Payroll run not found');
+  if (run.status !== 'DRAFT') throw new Error('Can only delete DRAFT payroll runs');
+
+  await prisma.$transaction([
+    prisma.payslip.deleteMany({ where: { payrollRunId: runId } }),
+    prisma.payrollRun.delete({ where: { id: runId } }),
+  ]);
+
+  return { deleted: true, period: run.period };
+}
+
+// ─── Bank Export CSV ──────────────────────────────────────────────
+
+export async function generateBankExport(runId: string, tenantId: string): Promise<string> {
+  const run = await prisma.payrollRun.findUnique({
+    where:   { id: runId },
+    include: {
+      payslips: {
+        include: {
+          employee: {
+            select: {
+              firstName: true, lastName: true, idNumber: true, bankAccount: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!run || run.tenantId !== tenantId) throw new Error('Payroll run not found');
+  if (run.status === 'DRAFT') throw new Error('Cannot export bank file for DRAFT run — approve first');
+
+  // UTF-8 BOM for Excel Hebrew compatibility
+  const BOM = '\uFEFF';
+  const headers = ['שם עובד', 'מספר ת.ז.', 'שם בנק', 'מספר סניף', 'מספר חשבון', 'סכום לתשלום (₪)', 'הערה'];
+
+  const rows = run.payslips.map(p => {
+    const bank = p.employee?.bankAccount as any;
+    const name = `${p.employee?.firstName ?? ''} ${p.employee?.lastName ?? ''}`.trim();
+    const idNum = p.employee?.idNumber ?? '';
+    const bankName  = bank?.bank          ?? '';
+    const branch    = bank?.branchCode    ?? '';
+    const account   = bank?.accountNumber ?? '';
+    const net       = Number(p.netSalary).toFixed(2);
+    const note      = `שכר ${run.period}`;
+    // Escape CSV fields that might contain commas
+    return [name, idNum, bankName, branch, account, net, note]
+      .map(v => `"${String(v).replace(/"/g, '""')}"`)
+      .join(',');
+  });
+
+  return BOM + [headers.map(h => `"${h}"`).join(','), ...rows].join('\r\n');
+}

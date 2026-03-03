@@ -140,17 +140,15 @@ async function main() {
     console.log('✓ Admin user created (admin@demo.co.il / Admin1234!)');
   }
 
-  // Seed Chart of Accounts
+  // Seed Chart of Accounts (upsert — always update names to fix encoding)
   const accountMap = new Map<string, string>(); // code → id
 
-  // First pass: create parent accounts (no parentCode)
+  // First pass: create/update parent accounts (no parentCode)
   for (const acc of CHART_OF_ACCOUNTS.filter(a => !a.parentCode)) {
-    const existing = await prisma.account.findUnique({
+    const record = await prisma.account.upsert({
       where: { tenantId_code: { tenantId: tenant.id, code: acc.code } },
-    });
-
-    const created = existing ?? await prisma.account.create({
-      data: {
+      update: { name: acc.name, nameEn: acc.nameEn, type: acc.type },
+      create: {
         tenantId: tenant.id,
         code:     acc.code,
         name:     acc.name,
@@ -159,19 +157,17 @@ async function main() {
       },
     });
 
-    accountMap.set(acc.code, created.id);
+    accountMap.set(acc.code, record.id);
   }
 
   // Second pass: child accounts
   for (const acc of CHART_OF_ACCOUNTS.filter(a => a.parentCode)) {
     const parentId = accountMap.get(acc.parentCode!);
 
-    const existing = await prisma.account.findUnique({
+    const record = await prisma.account.upsert({
       where: { tenantId_code: { tenantId: tenant.id, code: acc.code } },
-    });
-
-    const created = existing ?? await prisma.account.create({
-      data: {
+      update: { name: acc.name, nameEn: acc.nameEn, type: acc.type },
+      create: {
         tenantId: tenant.id,
         code:     acc.code,
         name:     acc.name,
@@ -181,10 +177,10 @@ async function main() {
       },
     });
 
-    accountMap.set(acc.code, created.id);
+    accountMap.set(acc.code, record.id);
   }
 
-  console.log(`✓ Chart of Accounts: ${CHART_OF_ACCOUNTS.length} accounts created`);
+  console.log(`✓ Chart of Accounts: ${CHART_OF_ACCOUNTS.length} accounts upserted`);
 
   // Seed Israeli Holidays 2026
   for (const holiday of HOLIDAYS_2026) {
