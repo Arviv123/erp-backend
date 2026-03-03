@@ -293,6 +293,60 @@ router.get(
   }
 );
 
+// ─── GET /payroll/my-payslips — own payslips for logged-in employee ─
+router.get('/my-payslips', async (req: AuthenticatedRequest, res: Response) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+  if (!user || !(user as any).employeeId) { sendSuccess(res, []); return; }
+  const payslips = await prisma.payslip.findMany({
+    where:   { tenantId: req.user.tenantId, employeeId: (user as any).employeeId },
+    include: { payrollRun: { select: { period: true, status: true } } },
+    orderBy: { period: 'desc' },
+  });
+  sendSuccess(res, payslips);
+});
+
+// ─── GET /payroll/attendance-for-payroll/:empId?month=YYYY-MM ──────
+router.get(
+  '/attendance-for-payroll/:employeeId',
+  requireMinRole('PAYROLL_ADMIN') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { month } = req.query;
+    if (!month || !/^\d{4}-\d{2}$/.test(month as string)) {
+      sendError(res, 'month (YYYY-MM) is required'); return;
+    }
+    const [y, m] = (month as string).split('-').map(Number);
+    const from = new Date(y, m - 1, 1);
+    const to   = new Date(y, m,     0, 23, 59, 59);
+
+    const emp = await prisma.employee.findUnique({ where: { id: req.params.employeeId } });
+    if (!emp || emp.tenantId !== req.user.tenantId) { sendError(res, 'Employee not found', 404); return; }
+
+    const logs = await prisma.attendanceLog.findMany({
+      where: { tenantId: req.user.tenantId, employeeId: req.params.employeeId, date: { gte: from, lte: to } },
+      orderBy: { date: 'asc' },
+    });
+
+    let stdH = 0, ot125 = 0, ot150 = 0;
+    for (const log of logs) {
+      if (!log.clockOut) continue;
+      const w = (log.clockOut.getTime() - log.clockIn.getTime()) / 3_600_000 - log.breakMinutes / 60;
+      if (w <= 8)       stdH += w;
+      else if (w <= 10) { stdH += 8; ot125 += w - 8; }
+      else              { stdH += 8; ot125 += 2; ot150 += w - 10; }
+    }
+
+    sendSuccess(res, {
+      employeeId:    req.params.employeeId,
+      period:        month,
+      daysWorked:    logs.filter(l => l.clockOut).length,
+      travelDays:    logs.filter(l => l.clockOut).length,
+      standardHours: Math.round(stdH   * 100) / 100,
+      ot125Hours:    Math.round(ot125  * 100) / 100,
+      ot150Hours:    Math.round(ot150  * 100) / 100,
+    });
+  }
+);
+
 // ─── GET /payroll/constants  (2026 tax rates reference) ───────────
 router.get('/constants', async (_req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, PAYROLL_CONSTANTS_2026);

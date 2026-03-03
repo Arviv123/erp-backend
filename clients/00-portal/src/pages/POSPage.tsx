@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, X, AlertCircle } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, ShoppingCart, CreditCard, Banknote, X, AlertCircle, ScanLine } from 'lucide-react';
 import api from '../lib/api';
+import BarcodeScanner from '../components/BarcodeScanner';
 
 const CART_KEY = 'erp_pos_cart';
 const VAT_RATE = 0.18;
@@ -66,6 +67,7 @@ export default function POSPage() {
   const [errorMsg, setErrorMsg] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState('');
+  const [showScanner, setShowScanner] = useState(false);
 
   // Initialize POS session on mount
   useEffect(() => {
@@ -171,6 +173,23 @@ export default function POSPage() {
     saleMutation.mutate();
   };
 
+  const handleBarcodeScan = useCallback((code: string) => {
+    const found = products.find((p: any) =>
+      p.barcode === code || p.sku === code
+    );
+    if (found) {
+      addToCart(found);
+      setShowScanner(false);
+      setSuccessMsg(`נוסף לעגלה: ${found.name}`);
+      setTimeout(() => setSuccessMsg(''), 2000);
+    } else {
+      setSearch(code); // fallback: put code in search bar
+      setShowScanner(false);
+      setErrorMsg(`ברקוד "${code}" לא נמצא — מחפש...`);
+      setTimeout(() => setErrorMsg(''), 3000);
+    }
+  }, [products, addToCart]);
+
   return (
     <div dir="rtl" className="flex gap-4 h-[calc(100vh-60px)]">
       {/* Session error banner */}
@@ -196,11 +215,19 @@ export default function POSPage() {
             <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               className="w-full border border-gray-300 rounded-lg pr-9 pl-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
-              placeholder="חיפוש פריט..."
+              placeholder="חיפוש פריט / ברקוד..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
+          <button
+            onClick={() => setShowScanner(true)}
+            title="סרוק ברקוד"
+            className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 px-3 py-2 rounded-lg text-sm font-medium transition"
+          >
+            <ScanLine className="w-4 h-4" />
+            <span className="hidden sm:inline">ברקוד</span>
+          </button>
           <select
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
             value={category}
@@ -345,6 +372,11 @@ export default function POSPage() {
           </button>
         </div>
       </div>
+
+      {/* Barcode Scanner modal */}
+      {showScanner && (
+        <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} />
+      )}
 
       {/* Confirm modal */}
       {showConfirm && (

@@ -81,6 +81,10 @@ import SalesSummaryPage from './pages/SalesSummaryPage';
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
+// Employee Self-Service Portal (ESS)
+import EmployeePortalPage from './pages/EmployeePortalPage';
+import EmployeeForm101Page from './pages/EmployeeForm101Page';
+
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
 function ProtectedRoute({ children, module }: { children: ReactNode; module?: ModuleKey }) {
@@ -183,6 +187,12 @@ export default function App() {
               <Route path="/pos" element={<ProtectedRoute module="POS"><POSPage /></ProtectedRoute>} />
               <Route path="/pos/sales" element={<ProtectedRoute module="POS"><SalesHistoryPage /></ProtectedRoute>} />
               <Route path="/pos/summary" element={<ProtectedRoute module="POS"><SalesSummaryPage /></ProtectedRoute>} />
+
+              {/* Employee Self-Service Portal (ESS) — accessible to all logged-in users */}
+              <Route path="/employee" element={<ProtectedRoute module="DASHBOARD"><EmployeePortalPage /></ProtectedRoute>} />
+              <Route path="/employee/payslips" element={<ProtectedRoute module="DASHBOARD"><PayslipsListPage /></ProtectedRoute>} />
+              <Route path="/employee/form101" element={<ProtectedRoute module="DASHBOARD"><EmployeeForm101Page /></ProtectedRoute>} />
+              <Route path="/employee/leave" element={<ProtectedRoute module="DASHBOARD"><LeaveRequestsPage /></ProtectedRoute>} />
 
               {/* Admin only */}
               <Route path="/admin/permissions" element={<AdminRoute><UserPermissionsPage /></AdminRoute>} />

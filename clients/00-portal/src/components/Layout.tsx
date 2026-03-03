@@ -6,7 +6,7 @@ import type { ModuleKey } from '../lib/modules';
 import {
   LayoutDashboard, Users, DollarSign, FileText, BookOpen, UserCheck,
   Umbrella, Clock, Package, ShoppingCart, ChevronDown, ChevronLeft,
-  LogOut, Building2, Menu, X, Shield
+  LogOut, Building2, Menu, X, Shield, Briefcase
 } from 'lucide-react';
 
 interface NavItem {
@@ -109,6 +109,15 @@ const NAV: NavItem[] = [
       { label: 'קופה רושמת', to: '/pos' },
       { label: 'היסטוריית מכירות', to: '/pos/sales' },
       { label: 'סיכום מכירות', to: '/pos/summary' },
+    ],
+  },
+  {
+    label: 'פורטל עובד', icon: Briefcase, module: 'DASHBOARD',
+    children: [
+      { label: 'לוח בקרה אישי', to: '/employee' },
+      { label: 'תלושי שכר שלי', to: '/employee/payslips' },
+      { label: 'טופס 101 דיגיטלי', to: '/employee/form101' },
+      { label: 'בקשות חופשה', to: '/employee/leave' },
     ],
   },
   // Admin-only

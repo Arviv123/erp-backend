@@ -38,6 +38,90 @@ const CreateEmployeeSchema = z.object({
   userRole:       z.enum(['EMPLOYEE', 'HR_MANAGER', 'ACCOUNTANT', 'ADMIN']).default('EMPLOYEE'),
 });
 
+// GET /employees/me — own employee profile for logged-in user
+router.get('/me', async (req: AuthenticatedRequest, res: Response) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+  if (!user || !(user as any).employeeId) {
+    sendError(res, 'No employee profile linked to this user', 404);
+    return;
+  }
+  const emp = await prisma.employee.findUnique({
+    where:   { id: (user as any).employeeId },
+    include: { salaryHistory: { orderBy: { changedAt: 'desc' }, take: 5 } },
+  });
+  if (!emp || emp.tenantId !== req.user.tenantId) { sendError(res, 'Employee not found', 404); return; }
+  sendSuccess(res, emp);
+});
+
+// PATCH /employees/:id/form101 — save Form 101 (tax declaration data)
+router.patch('/:id/form101', async (req: AuthenticatedRequest, res: Response) => {
+  const schema = z.object({
+    // Personal
+    maritalStatus:    z.enum(['SINGLE','MARRIED','DIVORCED','WIDOWED']).optional(),
+    spouseWorking:    z.boolean().optional(),
+    // Credit point details
+    resident:         z.boolean().optional(),
+    newImmigrant:     z.boolean().optional(),
+    newImmigrantDate: z.string().optional(),
+    veteran:          z.boolean().optional(),
+    disability:       z.boolean().optional(),
+    disabilityPct:    z.number().min(0).max(100).optional(),
+    academicDegree:   z.boolean().optional(),
+    singleParent:     z.boolean().optional(),
+    children:         z.array(z.object({ birthYear: z.number(), points: z.number() })).optional(),
+    // Other income
+    otherIncomeSources: z.boolean().optional(),
+    otherIncomeDetails: z.string().optional(),
+    // Bank
+    bankForRefund:    z.object({ bank: z.string(), branch: z.string(), account: z.string() }).optional(),
+    // Signature
+    signedAt:         z.string().optional(),
+  });
+
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+  // Allow: self (EMPLOYEE role with matching employeeId) OR HR_MANAGER+
+  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+  const isSelf = user && (user as any).employeeId === req.params.id;
+  const isHR   = ['HR_MANAGER','ACCOUNTANT','PAYROLL_ADMIN','ADMIN','MANAGER'].includes(req.user.role);
+  if (!isSelf && !isHR) { sendError(res, 'Forbidden', 403); return; }
+
+  const emp = await prisma.employee.findUnique({ where: { id: req.params.id } });
+  if (!emp || emp.tenantId !== req.user.tenantId) { sendError(res, 'Employee not found', 404); return; }
+
+  const { children, ...rest } = parsed.data;
+
+  // Recalculate credit points
+  let points = (emp.creditPoints as any) ?? 2.25;
+  const current = (emp.creditPointsDetails as any) ?? {};
+
+  const merged = { ...current, ...rest, ...(children !== undefined ? { children } : {}) };
+
+  // Auto-calculate points from details
+  points = 0;
+  if (merged.resident !== false)     points += 1.0;
+  if (merged.gender === 'F' || emp.gender === 'F') points += 0.5;
+  if (merged.spouseWorking)          points += 0.5;
+  if (merged.singleParent)           points += 1.0;
+  if (merged.newImmigrant)           points += 1.0;
+  if (merged.veteran)                points += 0.5;
+  if (merged.disability && merged.disabilityPct >= 90) points += 1.0;
+  else if (merged.disability && merged.disabilityPct >= 50) points += 0.5;
+  if (merged.academicDegree)         points += 0.25;
+  for (const c of (merged.children ?? [])) points += c.points;
+
+  const updated = await prisma.employee.update({
+    where: { id: req.params.id },
+    data:  {
+      creditPointsDetails: merged,
+      taxCredits: points,
+      ...(parsed.data.maritalStatus ? { maritalStatus: parsed.data.maritalStatus } as any : {}),
+    },
+  });
+  sendSuccess(res, updated);
+});
+
 // GET /employees
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
   const { page = '1', pageSize = '20', department, isActive } = req.query;

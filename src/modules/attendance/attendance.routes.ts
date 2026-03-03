@@ -109,6 +109,41 @@ router.post('/clock-out', async (req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, { ...updated, workedMinutes });
 });
 
+// GET /attendance/my-summary?month=2026-03 — own attendance for logged-in employee
+router.get('/my-summary', async (req: AuthenticatedRequest, res: Response) => {
+  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+  if (!user || !(user as any).employeeId) {
+    sendSuccess(res, { daysWorked: 0, totalHours: 0, logs: [] }); return;
+  }
+  const empId = (user as any).employeeId as string;
+  const month = req.query.month as string;
+  let startDate: Date, endDate: Date;
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const [y, m] = month.split('-').map(Number);
+    startDate = new Date(y, m - 1, 1);
+    endDate   = new Date(y, m,     0, 23, 59, 59);
+  } else {
+    const n = new Date();
+    startDate = new Date(n.getFullYear(), n.getMonth(), 1);
+    endDate   = new Date(n.getFullYear(), n.getMonth() + 1, 0, 23, 59, 59);
+  }
+  const logs = await prisma.attendanceLog.findMany({
+    where: { tenantId: req.user.tenantId, employeeId: empId, date: { gte: startDate, lte: endDate } },
+    orderBy: { date: 'asc' },
+  });
+  const totalMinutes = logs.reduce((sum, log) => {
+    if (!log.clockOut) return sum;
+    return sum + (log.clockOut.getTime() - log.clockIn.getTime()) / 60_000 - log.breakMinutes;
+  }, 0);
+  sendSuccess(res, {
+    employeeId:   empId, month,
+    daysWorked:   logs.filter(l => l.clockOut).length,
+    totalHours:   Math.round((totalMinutes / 60) * 100) / 100,
+    totalMinutes: Math.round(totalMinutes),
+    logs,
+  });
+});
+
 // GET /attendance  (manager view)
 router.get(
   '/',

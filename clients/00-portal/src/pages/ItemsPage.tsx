@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Search, Eye } from 'lucide-react';
+import { Search, Eye, ScanLine } from 'lucide-react';
 import api from '../lib/api';
+import BarcodeScanner from '../components/BarcodeScanner';
 
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n);
@@ -15,9 +16,10 @@ async function getItems(params: Record<string, string>) {
 }
 
 export default function ItemsPage() {
-  const [search, setSearch]     = useState('');
-  const [category, setCategory] = useState('');
-  const [lowStock, setLowStock] = useState(false);
+  const [search, setSearch]       = useState('');
+  const [category, setCategory]   = useState('');
+  const [lowStock, setLowStock]   = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
 
   const params: Record<string, string> = {};
   if (category) params.category = category;
@@ -26,10 +28,21 @@ export default function ItemsPage() {
   const { data, isLoading } = useQuery({ queryKey: ['inv-items', params], queryFn: () => getItems(params) });
   const items: any[] = Array.isArray(data) ? data : Array.isArray(data?.data) ? data.data : [];
 
-  const filtered = search ? items.filter(i => i.name?.includes(search) || i.sku?.includes(search)) : items;
+  const filtered = search
+    ? items.filter(i => i.name?.includes(search) || i.sku?.includes(search) || i.barcode?.includes(search))
+    : items;
+
+  const handleBarcodeScan = (code: string) => {
+    setSearch(code);
+    setShowScanner(false);
+  };
 
   return (
     <div>
+      {showScanner && (
+        <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} />
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">פריטים</h1>
         <Link to="/inventory/items/new"
@@ -41,9 +54,15 @@ export default function ItemsPage() {
       <div className="flex flex-wrap gap-3 mb-4">
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input type="text" placeholder='חיפוש לפי שם / מק"ט' value={search} onChange={e => setSearch(e.target.value)}
+          <input type="text" placeholder='חיפוש לפי שם / מק"ט / ברקוד' value={search} onChange={e => setSearch(e.target.value)}
             className="w-full border border-gray-300 rounded-lg pr-9 pl-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 outline-none" />
         </div>
+        <button
+          onClick={() => setShowScanner(true)}
+          className="flex items-center gap-1.5 bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-700 px-3 py-2 rounded-lg text-sm font-medium transition"
+        >
+          <ScanLine className="w-4 h-4" /> סרוק ברקוד
+        </button>
         <select value={category} onChange={e => setCategory(e.target.value)}
           className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-orange-500 outline-none bg-white">
           <option value="">כל הקטגוריות</option>
