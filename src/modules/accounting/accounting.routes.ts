@@ -226,4 +226,21 @@ router.get(
   })
 );
 
+// GET /accounting/reports/cash-flow?from=2026-01-01&to=2026-03-31
+router.get(
+  '/reports/cash-flow',
+  requireMinRole('ACCOUNTANT') as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { from, to } = req.query;
+    if (!from || !to) { sendError(res, 'from and to dates are required'); return; }
+
+    const result = await ReportsService.getCashFlowStatement(
+      req.user.tenantId,
+      new Date(from as string),
+      new Date(to   as string)
+    );
+    sendSuccess(res, result);
+  })
+);
+
 export default router;

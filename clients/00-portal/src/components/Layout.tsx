@@ -55,7 +55,18 @@ const NAV: NavItem[] = [
       { label: 'מאזן בוחן', to: '/accounting/trial-balance' },
       { label: 'רווח והפסד', to: '/accounting/reports/pl' },
       { label: 'מאזן', to: '/accounting/reports/balance-sheet' },
-      { label: 'מע"מ', to: '/accounting/reports/vat' },
+      { label: 'מע"מ — טופס 83', to: '/accounting/reports/vat' },
+      { label: 'תזרים מזומנים', to: '/accounting/reports/cash-flow' },
+    ],
+  },
+  {
+    label: 'רכש', icon: ShoppingCart, module: 'ACCOUNTING',
+    children: [
+      { label: 'ספקים', to: '/purchasing/vendors' },
+      { label: 'ספק חדש', to: '/purchasing/vendors/new' },
+      { label: 'חשבוניות ספקים', to: '/purchasing/bills' },
+      { label: 'חשבונית ספק חדשה', to: '/purchasing/bills/new' },
+      { label: 'גיל חוב — AP', to: '/purchasing/ap-aging' },
     ],
   },
   {

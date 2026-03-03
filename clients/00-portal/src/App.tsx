@@ -40,6 +40,14 @@ import TrialBalancePage from './pages/TrialBalancePage';
 import PLReportPage from './pages/PLReportPage';
 import BalanceSheetPage from './pages/BalanceSheetPage';
 import VATReportPage from './pages/VATReportPage';
+import CashFlowPage from './pages/CashFlowPage';
+
+// Purchasing
+import VendorsPage from './pages/VendorsPage';
+import NewVendorPage from './pages/NewVendorPage';
+import BillsListPage from './pages/BillsListPage';
+import NewBillPage from './pages/NewBillPage';
+import APAgingPage from './pages/APAgingPage';
 
 // CRM
 import CustomersPage from './pages/CustomersPage';
@@ -138,6 +146,14 @@ export default function App() {
               <Route path="/accounting/reports/pl" element={<ProtectedRoute module="ACCOUNTING"><PLReportPage /></ProtectedRoute>} />
               <Route path="/accounting/reports/balance-sheet" element={<ProtectedRoute module="ACCOUNTING"><BalanceSheetPage /></ProtectedRoute>} />
               <Route path="/accounting/reports/vat" element={<ProtectedRoute module="ACCOUNTING"><VATReportPage /></ProtectedRoute>} />
+              <Route path="/accounting/reports/cash-flow" element={<ProtectedRoute module="ACCOUNTING"><CashFlowPage /></ProtectedRoute>} />
+
+              {/* Purchasing */}
+              <Route path="/purchasing/vendors" element={<ProtectedRoute module="ACCOUNTING"><VendorsPage /></ProtectedRoute>} />
+              <Route path="/purchasing/vendors/new" element={<ProtectedRoute module="ACCOUNTING"><NewVendorPage /></ProtectedRoute>} />
+              <Route path="/purchasing/bills" element={<ProtectedRoute module="ACCOUNTING"><BillsListPage /></ProtectedRoute>} />
+              <Route path="/purchasing/bills/new" element={<ProtectedRoute module="ACCOUNTING"><NewBillPage /></ProtectedRoute>} />
+              <Route path="/purchasing/ap-aging" element={<ProtectedRoute module="ACCOUNTING"><APAgingPage /></ProtectedRoute>} />
 
               {/* CRM */}
               <Route path="/crm/customers" element={<ProtectedRoute module="CRM"><CustomersPage /></ProtectedRoute>} />

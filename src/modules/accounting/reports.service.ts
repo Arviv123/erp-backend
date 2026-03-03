@@ -172,30 +172,164 @@ export async function getVatReport(tenantId: string, period: string) {
     { subtotal: 0, vatAmount: 0, total: 0 }
   );
 
+  // תשומות — Purchase bills (Input VAT)
+  const purchaseBills = await prisma.bill.findMany({
+    where: {
+      tenantId,
+      status: { in: ['POSTED', 'PARTIALLY_PAID', 'PAID'] },
+      date:   { gte: from, lte: to },
+    },
+    include: { vendor: { select: { name: true, vatNumber: true } } },
+    orderBy: { date: 'asc' },
+  });
+
+  const purchaseTotals = purchaseBills.reduce(
+    (acc, bill) => ({
+      subtotal:  acc.subtotal  + Number(bill.subtotal),
+      vatAmount: acc.vatAmount + Number(bill.vatAmount),
+      total:     acc.total     + Number(bill.total),
+    }),
+    { subtotal: 0, vatAmount: 0, total: 0 }
+  );
+
+  const vatDue = salesTotals.vatAmount - purchaseTotals.vatAmount;
+
   return {
     period,
     reportDate: new Date(),
     // עסקאות (Output VAT)
     sales: {
-      invoices:       salesInvoices.length,
-      subtotal:       round2(salesTotals.subtotal),
-      vatCollected:   round2(salesTotals.vatAmount),
-      total:          round2(salesTotals.total),
-      breakdown:      salesInvoices.map(inv => ({
-        date:       inv.date,
-        number:     inv.number,
-        customer:   inv.customer.name,
-        subtotal:   Number(inv.subtotal),
-        vat:        Number(inv.vatAmount),
-        total:      Number(inv.total),
+      count:        salesInvoices.length,
+      subtotal:     round2(salesTotals.subtotal),
+      vatCollected: round2(salesTotals.vatAmount),
+      total:        round2(salesTotals.total),
+      breakdown:    salesInvoices.map(inv => ({
+        date:     inv.date,
+        number:   inv.number,
+        customer: inv.customer.name,
+        subtotal: Number(inv.subtotal),
+        vat:      Number(inv.vatAmount),
+        total:    Number(inv.total),
       })),
     },
-    // Note: תשומות (Input VAT from purchases) requires purchase/expense module
-    summary: {
-      vatCollected:   round2(salesTotals.vatAmount),
-      vatPaid:        0, // Will be populated when purchase module exists
-      vatDue:         round2(salesTotals.vatAmount), // vatCollected - vatPaid
+    // תשומות (Input VAT)
+    purchases: {
+      count:    purchaseBills.length,
+      subtotal: round2(purchaseTotals.subtotal),
+      vatPaid:  round2(purchaseTotals.vatAmount),
+      total:    round2(purchaseTotals.total),
+      breakdown: purchaseBills.map(bill => ({
+        date:     bill.date,
+        number:   bill.number,
+        vendor:   bill.vendor.name,
+        subtotal: Number(bill.subtotal),
+        vat:      Number(bill.vatAmount),
+        total:    Number(bill.total),
+      })),
     },
+    // סיכום
+    summary: {
+      vatCollected: round2(salesTotals.vatAmount),
+      vatPaid:      round2(purchaseTotals.vatAmount),
+      vatDue:       round2(vatDue),
+      isRefund:     vatDue < 0,
+    },
+    // Legacy fields for backward compat
+    outputVat:            round2(salesTotals.vatAmount),
+    inputVat:             round2(purchaseTotals.vatAmount),
+    totalSales:           round2(salesTotals.subtotal),
+    salesTransactions:    salesInvoices.map(inv => ({
+      reference: inv.number, description: inv.customer.name, amount: Number(inv.subtotal),
+    })),
+    purchaseTransactions: purchaseBills.map(bill => ({
+      reference: bill.number, description: bill.vendor.name, amount: Number(bill.subtotal),
+    })),
+  };
+}
+
+// ─── Cash Flow Statement (IAS 7 — Direct Method) ──────────────────
+
+export async function getCashFlowStatement(tenantId: string, from: Date, to: Date) {
+  // Bank/cash accounts (ASSET type, code 1100–1299)
+  const bankAccounts = await prisma.account.findMany({
+    where: { tenantId, type: 'ASSET', code: { gte: '1100', lt: '1300' }, isActive: true },
+  });
+  const bankIds = bankAccounts.map(a => a.id);
+
+  // All POSTED transactions in period
+  const transactions = await prisma.transaction.findMany({
+    where: { tenantId, status: 'POSTED', date: { gte: from, lte: to } },
+    include: {
+      lines: true,
+    },
+    orderBy: { date: 'asc' },
+  });
+
+  // Classify each transaction by its cash impact
+  const flows: Array<{
+    date: Date; description: string; reference: string;
+    amount: number; category: 'operating' | 'investing' | 'financing'; sourceType: string;
+  }> = [];
+
+  for (const tx of transactions) {
+    // Sum cash impact (debit bank = inflow, credit bank = outflow)
+    let cashAmount = 0;
+    for (const line of tx.lines) {
+      const amt = Number(line.amount);
+      if (bankIds.includes(line.debitAccountId))  cashAmount += amt;
+      if (bankIds.includes(line.creditAccountId)) cashAmount -= amt;
+    }
+    if (cashAmount === 0) continue;
+
+    // Classify
+    let category: 'operating' | 'investing' | 'financing' = 'operating';
+    if (['ASSET_PURCHASE', 'ASSET_SALE', 'INVESTMENT'].includes(tx.sourceType)) category = 'investing';
+    if (['LOAN', 'EQUITY', 'DIVIDEND', 'LOAN_REPAYMENT'].includes(tx.sourceType))  category = 'financing';
+
+    flows.push({
+      date:        tx.date,
+      description: tx.description,
+      reference:   tx.reference,
+      amount:      round2(cashAmount),
+      category,
+      sourceType:  tx.sourceType,
+    });
+  }
+
+  const operating = flows.filter(f => f.category === 'operating');
+  const investing  = flows.filter(f => f.category === 'investing');
+  const financing  = flows.filter(f => f.category === 'financing');
+
+  const operatingNet = round2(operating.reduce((s, f) => s + f.amount, 0));
+  const investingNet  = round2(investing.reduce((s, f)  => s + f.amount, 0));
+  const financingNet  = round2(financing.reduce((s, f)  => s + f.amount, 0));
+  const netCashChange = round2(operatingNet + investingNet + financingNet);
+
+  // Opening cash balance (sum bank accounts up to `from`)
+  const openingData = await Promise.all(bankIds.map(async id => {
+    const [dr, cr] = await Promise.all([
+      prisma.transactionLine.aggregate({
+        where: { debitAccountId: id, transaction: { tenantId, status: 'POSTED', date: { lt: from } } },
+        _sum: { amount: true },
+      }),
+      prisma.transactionLine.aggregate({
+        where: { creditAccountId: id, transaction: { tenantId, status: 'POSTED', date: { lt: from } } },
+        _sum: { amount: true },
+      }),
+    ]);
+    return Number(dr._sum.amount ?? 0) - Number(cr._sum.amount ?? 0);
+  }));
+  const openingCash  = round2(openingData.reduce((s, v) => s + v, 0));
+  const closingCash  = round2(openingCash + netCashChange);
+
+  return {
+    period:     { from, to },
+    openingCash,
+    operating:  { flows: operating,  net: operatingNet },
+    investing:  { flows: investing,   net: investingNet },
+    financing:  { flows: financing,   net: financingNet },
+    netCashChange,
+    closingCash,
   };
 }
 
