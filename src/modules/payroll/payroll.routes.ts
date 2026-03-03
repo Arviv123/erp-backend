@@ -127,6 +127,36 @@ router.post(
   }
 );
 
+// ─── GET /payroll/payslips  (list all for tenant, optional filters) ─
+router.get('/payslips', async (req: AuthenticatedRequest, res: Response) => {
+  const { period, runId, search } = req.query as Record<string, string | undefined>;
+
+  const payslips = await prisma.payslip.findMany({
+    where: {
+      tenantId: req.user.tenantId,
+      ...(runId  ? { payrollRunId: runId }  : {}),
+      ...(period ? { period }               : {}),
+      ...(search ? {
+        employee: {
+          OR: [
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName:  { contains: search, mode: 'insensitive' } },
+            { idNumber:  { contains: search, mode: 'insensitive' } },
+          ],
+        },
+      } : {}),
+    },
+    include: {
+      employee: { select: { firstName: true, lastName: true, idNumber: true, jobTitle: true } },
+      payrollRun: { select: { status: true, period: true } },
+    },
+    orderBy: [{ period: 'desc' }, { createdAt: 'desc' }],
+    take: 500,
+  });
+
+  sendSuccess(res, payslips);
+});
+
 // ─── GET /payroll/payslips/:id ────────────────────────────────────
 router.get('/payslips/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
