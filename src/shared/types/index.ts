@@ -45,10 +45,11 @@ export interface PayslipCalculation {
   travelAllowance:   number;   // דמי נסיעה — פטור ממס הכנסה
   recuperationPay:   number;   // דמי הבראה חודשיים (1/12 מהשנתי)
   bonusAmount:       number;   // בונוס / תשלומים מיוחדים
+  carBenefit:        number;   // שווי רכב צמוד (2.48% ממחירון / 12)
 
-  grossSalary:       number;   // ברוטו כולל (בסיס + שעות נוספות + בונוס + הבראה)
-  grossForNI:        number;   // בסיס לחישוב ב.ל. (כולל נסיעות)
-  taxableIncome:     number;   // הכנסה חייבת במס (ברוטו - נסיעות)
+  grossSalary:       number;   // ברוטו כולל (בסיס + שעות נוספות + בונוס + הבראה + רכב)
+  grossForNI:        number;   // בסיס לחישוב ב.ל. (כולל נסיעות + רכב)
+  taxableIncome:     number;   // הכנסה חייבת במס (כולל עודף קרן השתלמות מעל תקרה)
 
   // ── Employee deductions ────────────────────────────────────────
   incomeTax:                  number;  // מס הכנסה
@@ -56,6 +57,7 @@ export interface PayslipCalculation {
   nationalInsuranceEmployee:  number;  // ביטוח לאומי עובד
   healthInsuranceEmployee:    number;  // ביטוח בריאות (מס בריאות)
   pensionEmployee:            number;  // פנסיה עובד
+  trainingFundEmployee:       number;  // קרן השתלמות — ניכוי מעובד
   totalDeductions:            number;  // סה"כ ניכויים
   netSalary:                  number;  // שכר נטו לתשלום
 
@@ -63,6 +65,7 @@ export interface PayslipCalculation {
   pensionEmployer:            number;  // פנסיה מעסיק
   severancePay:               number;  // פיצויים
   nationalInsuranceEmployer:  number;  // ביטוח לאומי מעסיק
+  trainingFundEmployer:       number;  // קרן השתלמות — הפרשת מעסיק
   totalEmployerCost:          number;  // עלות מעסיק כוללת
 
   // ── Legal checks ───────────────────────────────────────────────

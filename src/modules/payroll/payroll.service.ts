@@ -80,6 +80,12 @@ export async function runPayroll(
       period,
       // Bonus
       bonusAmount:         adj.bonusAmount ?? 0,
+      // Company car — שווי רכב צמוד
+      carListPrice:        emp.carListPrice ? Number(emp.carListPrice) : 0,
+      carType:             (emp.carType as 'REGULAR' | 'HYBRID' | 'PLUGIN_HYBRID' | 'ELECTRIC') ?? 'REGULAR',
+      // Training fund — קרן השתלמות
+      trainingFundEmpRate: Number(emp.trainingFundRate),
+      trainingFundErRate:  Number(emp.trainingFundErRate),
     };
 
     const calc = calculatePayslip(engineParams);
@@ -119,21 +125,24 @@ export async function runPayroll(
     for (const { emp, calc, adj, manualDeduction } of payslipData) {
       await tx.payslip.create({
         data: {
-          payrollRunId:      payrollRun.id,
-          employeeId:        emp.id,
+          payrollRunId:         payrollRun.id,
+          employeeId:           emp.id,
           tenantId,
           period,
-          grossSalary:       calc.grossSalary,
-          taxableIncome:     calc.taxableIncome,
-          incomeTax:         calc.incomeTax,
-          nationalInsurance: calc.nationalInsuranceEmployee,
-          healthInsurance:   calc.healthInsuranceEmployee,
-          pensionEmployee:   calc.pensionEmployee,
-          netSalary:         calc.netSalary,
-          pensionEmployer:   calc.pensionEmployer,
-          severancePay:      calc.severancePay,
-          niEmployer:        calc.nationalInsuranceEmployer,
-          totalEmployerCost: calc.totalEmployerCost,
+          grossSalary:          calc.grossSalary,
+          taxableIncome:        calc.taxableIncome,
+          incomeTax:            calc.incomeTax,
+          nationalInsurance:    calc.nationalInsuranceEmployee,
+          healthInsurance:      calc.healthInsuranceEmployee,
+          pensionEmployee:      calc.pensionEmployee,
+          netSalary:            calc.netSalary,
+          pensionEmployer:      calc.pensionEmployer,
+          severancePay:         calc.severancePay,
+          niEmployer:           calc.nationalInsuranceEmployer,
+          totalEmployerCost:    calc.totalEmployerCost,
+          carBenefit:           calc.carBenefit,
+          trainingFundEmployee: calc.trainingFundEmployee,
+          trainingFundEmployer: calc.trainingFundEmployer,
           // Full breakdown in JSON (includes overtime, travel, recuperation, accruals)
           breakdown: {
             ...calc,
@@ -350,6 +359,10 @@ export async function previewEmployeePayslip(
     startDate:           emp.startDate ? new Date(emp.startDate) : undefined,
     period,
     bonusAmount:         adjustment?.bonusAmount ?? 0,
+    carListPrice:        emp.carListPrice ? Number(emp.carListPrice) : 0,
+    carType:             (emp.carType as 'REGULAR' | 'HYBRID' | 'PLUGIN_HYBRID' | 'ELECTRIC') ?? 'REGULAR',
+    trainingFundEmpRate: Number(emp.trainingFundRate),
+    trainingFundErRate:  Number(emp.trainingFundErRate),
   };
 
   return calculatePayslip(params);
@@ -425,6 +438,147 @@ export async function getMonthlyReport(tenantId: string, period: string) {
   };
 }
 
+// ─── Annual Report — Form 126 ─────────────────────────────────────
+/**
+ * טופס 126 — דוח שנתי של מעסיק לרשות המסים ולביטוח לאומי
+ * מסכם עבור כל עובד: שכר שנתי, מס, ב.ל., פנסיה, קרן השתלמות
+ */
+export async function getAnnualReport(tenantId: string, year: number) {
+  const startPeriod = `${year}-01`;
+  const endPeriod   = `${year}-12`;
+
+  const payslips = await prisma.payslip.findMany({
+    where: {
+      tenantId,
+      period: { gte: startPeriod, lte: endPeriod },
+      payrollRun: { status: { in: ['APPROVED', 'PAID'] } },
+    },
+    include: {
+      employee: {
+        select: {
+          firstName: true, lastName: true, idNumber: true,
+          jobTitle: true, department: true, startDate: true,
+          taxCredits: true, pensionFund: true, bankAccount: true,
+        },
+      },
+    },
+    orderBy: [{ employeeId: 'asc' }, { period: 'asc' }],
+  });
+
+  // Aggregate per employee
+  const byEmployee = new Map<string, {
+    id:                string;
+    idNumber:          string;
+    name:              string;
+    jobTitle:          string;
+    department:        string;
+    startDate:         string | null;
+    pensionFund:       string | null;
+    taxCredits:        number;
+    grossSalary:       number;
+    taxableIncome:     number;
+    carBenefit:        number;
+    incomeTax:         number;
+    niEmployee:        number;
+    hiEmployee:        number;
+    niEmployer:        number;
+    pensionEmployee:   number;
+    pensionEmployer:   number;
+    severancePay:      number;
+    tfEmployee:        number;
+    tfEmployer:        number;
+    net:               number;
+    months:            number;
+  }>();
+
+  for (const p of payslips) {
+    const empId = p.employeeId;
+    const bd = p.breakdown as any ?? {};
+    if (!byEmployee.has(empId)) {
+      byEmployee.set(empId, {
+        id:              empId,
+        idNumber:        p.employee?.idNumber ?? '',
+        name:            `${p.employee?.firstName ?? ''} ${p.employee?.lastName ?? ''}`.trim(),
+        jobTitle:        p.employee?.jobTitle ?? '',
+        department:      p.employee?.department ?? '',
+        startDate:       p.employee?.startDate ? String(p.employee.startDate) : null,
+        pensionFund:     p.employee?.pensionFund ?? null,
+        taxCredits:      Number(p.employee?.taxCredits ?? 0),
+        grossSalary: 0, taxableIncome: 0, carBenefit: 0,
+        incomeTax: 0, niEmployee: 0, hiEmployee: 0, niEmployer: 0,
+        pensionEmployee: 0, pensionEmployer: 0, severancePay: 0,
+        tfEmployee: 0, tfEmployer: 0, net: 0, months: 0,
+      });
+    }
+
+    const row = byEmployee.get(empId)!;
+    row.grossSalary     += Number(p.grossSalary);
+    row.taxableIncome   += Number(p.taxableIncome);
+    row.carBenefit      += Number(p.carBenefit ?? 0);
+    row.incomeTax       += Number(p.incomeTax);
+    row.niEmployee      += Number(p.nationalInsurance);
+    row.hiEmployee      += Number(p.healthInsurance);
+    row.niEmployer      += Number(p.niEmployer);
+    row.pensionEmployee += Number(p.pensionEmployee);
+    row.pensionEmployer += Number(p.pensionEmployer);
+    row.severancePay    += Number(p.severancePay);
+    row.tfEmployee      += Number(p.trainingFundEmployee ?? bd.trainingFundEmployee ?? 0);
+    row.tfEmployer      += Number(p.trainingFundEmployer ?? bd.trainingFundEmployer ?? 0);
+    row.net             += Number(p.netSalary);
+    row.months++;
+  }
+
+  const employees = [...byEmployee.values()].map(e => ({
+    ...e,
+    grossSalary:     Math.round(e.grossSalary     * 100) / 100,
+    taxableIncome:   Math.round(e.taxableIncome   * 100) / 100,
+    carBenefit:      Math.round(e.carBenefit      * 100) / 100,
+    incomeTax:       Math.round(e.incomeTax       * 100) / 100,
+    niEmployee:      Math.round(e.niEmployee      * 100) / 100,
+    hiEmployee:      Math.round(e.hiEmployee      * 100) / 100,
+    niEmployer:      Math.round(e.niEmployer      * 100) / 100,
+    pensionEmployee: Math.round(e.pensionEmployee * 100) / 100,
+    pensionEmployer: Math.round(e.pensionEmployer * 100) / 100,
+    severancePay:    Math.round(e.severancePay    * 100) / 100,
+    tfEmployee:      Math.round(e.tfEmployee      * 100) / 100,
+    tfEmployer:      Math.round(e.tfEmployer      * 100) / 100,
+    net:             Math.round(e.net             * 100) / 100,
+  }));
+
+  const totals = employees.reduce(
+    (acc, e) => ({
+      grossSalary:     acc.grossSalary     + e.grossSalary,
+      taxableIncome:   acc.taxableIncome   + e.taxableIncome,
+      carBenefit:      acc.carBenefit      + e.carBenefit,
+      incomeTax:       acc.incomeTax       + e.incomeTax,
+      niEmployee:      acc.niEmployee      + e.niEmployee,
+      hiEmployee:      acc.hiEmployee      + e.hiEmployee,
+      niEmployer:      acc.niEmployer      + e.niEmployer,
+      pensionEmployee: acc.pensionEmployee + e.pensionEmployee,
+      pensionEmployer: acc.pensionEmployer + e.pensionEmployer,
+      severancePay:    acc.severancePay    + e.severancePay,
+      tfEmployee:      acc.tfEmployee      + e.tfEmployee,
+      tfEmployer:      acc.tfEmployer      + e.tfEmployer,
+      net:             acc.net             + e.net,
+    }),
+    {
+      grossSalary: 0, taxableIncome: 0, carBenefit: 0,
+      incomeTax: 0, niEmployee: 0, hiEmployee: 0, niEmployer: 0,
+      pensionEmployee: 0, pensionEmployer: 0, severancePay: 0,
+      tfEmployee: 0, tfEmployer: 0, net: 0,
+    }
+  );
+
+  return {
+    year,
+    employeeCount: employees.length,
+    employees,
+    totals: Object.fromEntries(
+      Object.entries(totals).map(([k, v]) => [k, Math.round((v as number) * 100) / 100])
+    ),
+  };
+}
+
 // ─── Edit Payslip (DRAFT only) ────────────────────────────────────
 
 export async function editPayslip(
@@ -465,6 +619,10 @@ export async function editPayslip(
     startDate:           emp.startDate ? new Date(emp.startDate) : undefined,
     period:              payslip.period,
     bonusAmount:         adj.bonusAmount ?? 0,
+    carListPrice:        emp.carListPrice ? Number(emp.carListPrice) : 0,
+    carType:             (emp.carType as 'REGULAR' | 'HYBRID' | 'PLUGIN_HYBRID' | 'ELECTRIC') ?? 'REGULAR',
+    trainingFundEmpRate: Number(emp.trainingFundRate),
+    trainingFundErRate:  Number(emp.trainingFundErRate),
   });
 
   const manualDeduction = adj.manualDeduction ?? 0;
@@ -477,17 +635,20 @@ export async function editPayslip(
   const updated = await prisma.payslip.update({
     where: { id: payslipId },
     data: {
-      grossSalary:       calc.grossSalary,
-      taxableIncome:     calc.taxableIncome,
-      incomeTax:         calc.incomeTax,
-      nationalInsurance: calc.nationalInsuranceEmployee,
-      healthInsurance:   calc.healthInsuranceEmployee,
-      pensionEmployee:   calc.pensionEmployee,
-      netSalary:         calc.netSalary,
-      pensionEmployer:   calc.pensionEmployer,
-      severancePay:      calc.severancePay,
-      niEmployer:        calc.nationalInsuranceEmployer,
-      totalEmployerCost: calc.totalEmployerCost,
+      grossSalary:          calc.grossSalary,
+      taxableIncome:        calc.taxableIncome,
+      incomeTax:            calc.incomeTax,
+      nationalInsurance:    calc.nationalInsuranceEmployee,
+      healthInsurance:      calc.healthInsuranceEmployee,
+      pensionEmployee:      calc.pensionEmployee,
+      netSalary:            calc.netSalary,
+      pensionEmployer:      calc.pensionEmployer,
+      severancePay:         calc.severancePay,
+      niEmployer:           calc.nationalInsuranceEmployer,
+      totalEmployerCost:    calc.totalEmployerCost,
+      carBenefit:           calc.carBenefit,
+      trainingFundEmployee: calc.trainingFundEmployee,
+      trainingFundEmployer: calc.trainingFundEmployer,
       breakdown: {
         ...calc,
         manualDeduction,

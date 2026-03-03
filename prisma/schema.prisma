@@ -305,10 +305,22 @@ model Employee {
   pensionEmployee Decimal       @default(6.00)  @db.Decimal(5, 2) // % עובד
   pensionEmployer Decimal       @default(6.50)  @db.Decimal(5, 2) // % מעסיק
   severancePay    Decimal       @default(8.33)  @db.Decimal(5, 2) // % פיצויים
+  section14       Boolean       @default(true)                     // סעיף 14 — פיצויים בתוך פנסיה
+
+  // Training Fund — קרן השתלמות (צו הרחבה)
+  // 0 = no training fund; standard: employee 2.5%, employer 7.5%
+  trainingFundRate    Decimal   @default(0)     @db.Decimal(5, 2) // % עובד (0 = ללא קרן)
+  trainingFundErRate  Decimal   @default(0)     @db.Decimal(5, 2) // % מעסיק
+
+  // Company Car — שווי רכב צמוד (2.48% ממחירון, תקנות 2006)
+  carListPrice    Decimal?                      @db.Decimal(12, 2) // מחירון הרכב בשקלים (null = אין רכב)
+  carType         String?                                          // REGULAR|HYBRID|PLUGIN_HYBRID|ELECTRIC
 
   // Tax (מס)
-  taxCredits      Decimal       @default(2.25)  @db.Decimal(5, 2) // נקודות זיכוי
+  taxCredits      Decimal       @default(2.25)  @db.Decimal(5, 2) // נקודות זיכוי כולל
   taxExemptions   Json          @default("[]")                     // פטורים נוספים
+  // פירוט נקודות זיכוי: {resident, gender, children:[{age,points}], veteran, disability, newImmigrant}
+  creditPointsDetails Json      @default("{}")
 
   isActive       Boolean        @default(true)
   metadata       Json           @default("{}")   // שדות גמישים
@@ -455,11 +467,15 @@ model Payslip {
   grossSalary    Decimal    @db.Decimal(12, 2)
   taxableIncome  Decimal    @db.Decimal(12, 2)
 
+  // הכנסות נוספות
+  carBenefit        Decimal @default(0) @db.Decimal(12, 2)  // שווי רכב צמוד
+
   // ניכויים עובד
   incomeTax        Decimal  @db.Decimal(12, 2)  // מס הכנסה
   nationalInsurance Decimal @db.Decimal(12, 2)  // ביטוח לאומי עובד
   healthInsurance   Decimal @db.Decimal(12, 2)  // ביטוח בריאות
   pensionEmployee   Decimal @db.Decimal(12, 2)  // פנסיה עובד
+  trainingFundEmployee Decimal @default(0) @db.Decimal(12, 2) // קרן השתלמות עובד
 
   netSalary        Decimal  @db.Decimal(12, 2)
 
@@ -467,6 +483,7 @@ model Payslip {
   pensionEmployer  Decimal  @db.Decimal(12, 2)  // פנסיה מעסיק
   severancePay     Decimal  @db.Decimal(12, 2)  // פיצויים
   niEmployer       Decimal  @db.Decimal(12, 2)  // ביטוח לאומי מעסיק
+  trainingFundEmployer Decimal @default(0) @db.Decimal(12, 2) // קרן השתלמות מעסיק
 
   totalEmployerCost Decimal @db.Decimal(12, 2)
 

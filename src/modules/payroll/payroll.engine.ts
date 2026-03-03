@@ -65,6 +65,21 @@ const NI_ER_ABOVE     = 0.076;  // 7.60% מעל תקרה נמוכה
 const MINIMUM_WAGE_MONTHLY = 6_300;  // שכר מינימום חודשי 2026 (קירוב)
 const MINIMUM_WAGE_HOURLY  = 33.62;  // שכר מינימום שעתי 2026
 
+// ─── Company Car — שווי רכב צמוד ──────────────────────────────────
+// תקנות מס הכנסה (שווי שימוש ברכב), תשמ"ז-1987 + תיקון 2022
+// שיעור: 2.48% ממחירון הרכב / 12 לחישוב חודשי
+// רכב חשמלי/היברידי: ניכויים לפי תיקון 2022
+const CAR_BENEFIT_RATE         = 0.0248; // 2.48% ממחירון
+const CAR_HYBRID_DEDUCTION     = 540;    // ₪ ניכוי חודשי — היברידי (HEV)
+const CAR_PLUGIN_DEDUCTION     = 1_090;  // ₪ ניכוי חודשי — פלאג-אין היברידי (PHEV)
+const CAR_ELECTRIC_DEDUCTION   = 1_310;  // ₪ ניכוי חודשי — חשמלי מלא (EV)
+
+// ─── Training Fund — קרן השתלמות ───────────────────────────────────
+// צו הרחבה לקרן השתלמות; שיעור מינימלי: עובד 2.5%, מעסיק 7.5%
+// תקרת שכר פטורה ממס (2026): 18,854 ₪/חודש
+// הפקדה מעל התקרה: חייבת במס הכנסה לעובד
+const TRAINING_FUND_SALARY_CEILING = 18_854; // ₪ תקרת שכר פטור
+
 // ─── Travel Allowance ──────────────────────────────────────────────
 // דמי נסיעה — צו הרחבה
 // פטור ממס הכנסה עד עלות בפועל (תקרה = מחיר כרטיסייה)
@@ -236,6 +251,60 @@ function calcVacationAccrual(startDate: Date, periodDate: Date): number {
   return round2(row.daysPerYear / 12);
 }
 
+// ─── Company Car Benefit — שווי רכב צמוד ──────────────────────────
+/**
+ * תקנות מס הכנסה (שווי שימוש ברכב), תשמ"ז-1987
+ * שווי חודשי = מחירון × 2.48% / 12
+ * ניכויים לפי תיקון 2022: היברידי -540, פלאג-אין -1,090, חשמלי -1,310
+ *
+ * שווי הרכב מתווסף לברוטו החייב במס ובביטוח לאומי.
+ * יש לכלול בתלוש כרכיב הכנסה נפרד.
+ */
+export function calcCarBenefit(
+  listPrice: number,
+  carType: 'REGULAR' | 'HYBRID' | 'PLUGIN_HYBRID' | 'ELECTRIC' = 'REGULAR'
+): number {
+  if (!listPrice || listPrice <= 0) return 0;
+  const raw = round2(listPrice * CAR_BENEFIT_RATE / 12);
+  const deduction =
+    carType === 'ELECTRIC'      ? CAR_ELECTRIC_DEDUCTION :
+    carType === 'PLUGIN_HYBRID' ? CAR_PLUGIN_DEDUCTION   :
+    carType === 'HYBRID'        ? CAR_HYBRID_DEDUCTION   : 0;
+  return Math.max(0, round2(raw - deduction));
+}
+
+// ─── Training Fund — קרן השתלמות ───────────────────────────────────
+/**
+ * צו הרחבה — קרן השתלמות לשכירים
+ * עובד: 2.5% מהשכר הקובע (נוכה מהנטו — לא מוכר לניכוי ממס)
+ * מעסיק: 7.5% מהשכר הקובע (עלות מעסיק; פטור ממס עד תקרה)
+ *
+ * תקרת שכר לפטור ממס 2026: 18,854 ₪/חודש
+ * מעל התקרה: חלק ההפרשה מעל 4.5% (מעסיק) = הכנסה חייבת לעובד
+ */
+export function calcTrainingFund(
+  salaryBase: number,
+  empRate: number,  // % (e.g. 2.5)
+  erRate:  number   // % (e.g. 7.5)
+): {
+  empContrib:       number;  // ₪ ניכוי מעובד
+  erContrib:        number;  // ₪ עלות מעסיק
+  taxableExcess:    number;  // ₪ חייב במס הכנסה (מעל תקרה)
+} {
+  if (empRate <= 0 && erRate <= 0) return { empContrib: 0, erContrib: 0, taxableExcess: 0 };
+
+  const empContrib = round2(salaryBase * empRate / 100);
+  const erContrib  = round2(salaryBase * erRate  / 100);
+
+  // חישוב עודף חייב במס: הפרשת מעסיק מעל 4.5% על שכר מעל תקרה
+  const MAX_EXEMPT_ER_PCT = 4.5;
+  const taxableExcess = salaryBase > TRAINING_FUND_SALARY_CEILING
+    ? round2((salaryBase - TRAINING_FUND_SALARY_CEILING) * Math.min(erRate, MAX_EXEMPT_ER_PCT) / 100)
+    : 0;
+
+  return { empContrib, erContrib, taxableExcess };
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 3 — MAIN calculatePayslip FUNCTION
 // ═══════════════════════════════════════════════════════════════════
@@ -243,7 +312,7 @@ function calcVacationAccrual(startDate: Date, periodDate: Date): number {
 export interface PayslipParams {
   // ── Required base params ───────────────────────────────────────
   grossSalary:         number;   // שכר יסוד חודשי
-  taxCreditPoints:     number;   // נקודות זיכוי
+  taxCreditPoints:     number;   // נקודות זיכוי (כולל כל הזיכויים)
   pensionEmployeeRate: number;   // % פנסיה עובד (e.g. 6.00)
   pensionEmployerRate: number;   // % פנסיה מעסיק (e.g. 6.50)
   severancePayRate:    number;   // % פיצויים (e.g. 8.33)
@@ -263,6 +332,16 @@ export interface PayslipParams {
 
   // ── Bonus / extras ─────────────────────────────────────────────
   bonusAmount?:        number;   // בונוס / תוספת מיוחדת
+
+  // ── Company Car — שווי רכב צמוד ──────────────────────────────
+  // תקנות מס הכנסה (שווי שימוש ברכב) — 2.48% ממחירון
+  carListPrice?:       number;   // מחירון הרכב (₪) — null/0 = אין רכב
+  carType?:            'REGULAR' | 'HYBRID' | 'PLUGIN_HYBRID' | 'ELECTRIC';
+
+  // ── Training Fund — קרן השתלמות ──────────────────────────────
+  // צו הרחבה — עובד 2.5%, מעסיק 7.5% (0 = ללא קרן)
+  trainingFundEmpRate?: number;  // % עובד (e.g. 2.5)
+  trainingFundErRate?:  number;  // % מעסיק (e.g. 7.5)
 }
 
 export function calculatePayslip(params: PayslipParams): PayslipCalculation {
@@ -273,16 +352,20 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     pensionEmployerRate,
     severancePayRate,
     hourlyRate,
-    overtime125Hours  = 0,
-    overtime150Hours  = 0,
-    travelWorkDays    = TRAVEL_DAYS_DEFAULT,
+    overtime125Hours    = 0,
+    overtime150Hours    = 0,
+    travelWorkDays      = TRAVEL_DAYS_DEFAULT,
     includeRecuperation = false,
     startDate,
     period,
-    bonusAmount       = 0,
+    bonusAmount         = 0,
+    carListPrice        = 0,
+    carType             = 'REGULAR',
+    trainingFundEmpRate = 0,
+    trainingFundErRate  = 0,
   } = params;
 
-  if (grossSalary < 0)      throw new Error('Gross salary cannot be negative');
+  if (grossSalary < 0)         throw new Error('Gross salary cannot be negative');
   if (pensionEmployeeRate < 0) throw new Error('Pension employee rate cannot be negative');
 
   // ── Determine period date ────────────────────────────────────────
@@ -307,30 +390,42 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
   }
 
   // ── 3. Travel allowance ──────────────────────────────────────────
+  // פטור ממס הכנסה; חייב בביטוח לאומי
   const travelAllowance = calcTravel(travelWorkDays);
 
-  // ── 4. Gross salary ──────────────────────────────────────────────
-  // Pension base = base salary only (not overtime for basic calculation,
-  // though some CBAs include overtime — this is the minimum legal)
+  // ── 4. Company Car — שווי רכב צמוד ──────────────────────────────
+  // חייב במס הכנסה ובביטוח לאומי (מצטרף לברוטו לכל מטרה)
+  const carBenefit = calcCarBenefit(carListPrice, carType);
+
+  // ── 5. Gross components ──────────────────────────────────────────
+  // Pension base = base salary only (legal minimum; some CBAs differ)
   const pensionBase = grossSalary;
 
-  // Total gross (for taloosh display)
-  const totalGross = round2(grossSalary + totalOT + recuperationPay + bonusAmount);
+  // Total taxable gross = יסוד + שעות נוספות + הבראה + בונוס + שווי רכב
+  // (נסיעות פטורות ממס הכנסה אך חייבות בב.ל.)
+  const totalGross = round2(grossSalary + totalOT + recuperationPay + bonusAmount + carBenefit);
 
-  // NI base = everything including travel (מס בריאות/ב.ל. חל על הכל)
+  // NI base = הכל כולל נסיעות ושווי רכב
   const grossForNI = round2(totalGross + travelAllowance);
 
-  // Taxable income = gross - travel (נסיעות פטורות ממס הכנסה)
-  const taxableIncome = round2(totalGross - 0); // travel exempt from tax but NI applies
-  // NOTE: travel is added to grossForNI but NOT to taxableIncome — correct per Israeli law
+  // Taxable income for income tax = totalGross (נסיעות פטורות ממס הכנסה)
+  const taxableIncome = totalGross; // carBenefit already included above
 
-  // ── 5. Income tax ────────────────────────────────────────────────
-  const { tax: incomeTax, creditsUsed, breakdown } = calcIncomeTax(taxableIncome, taxCreditPoints);
+  // ── 6. Training Fund — קרן השתלמות ───────────────────────────────
+  // הפרשת מעסיק מעל תקרה = הכנסה חייבת נוספת (מוסיפה ל-taxableIncome)
+  const { empContrib: tfEmp, erContrib: tfEr, taxableExcess: tfTaxableExcess }
+    = calcTrainingFund(grossSalary, trainingFundEmpRate, trainingFundErRate);
 
-  // ── 6. National Insurance ────────────────────────────────────────
+  // הכנסה חייבת סופית (כולל עודף קרן השתלמות מעל תקרה)
+  const taxableIncomeTotal = round2(taxableIncome + tfTaxableExcess);
+
+  // ── 7. Income tax ────────────────────────────────────────────────
+  const { tax: incomeTax, creditsUsed, breakdown } = calcIncomeTax(taxableIncomeTotal, taxCreditPoints);
+
+  // ── 8. National Insurance ────────────────────────────────────────
   const { niEmp, hiEmp, niEr } = calcNI(grossForNI);
 
-  // ── 7. Pension ───────────────────────────────────────────────────
+  // ── 9. Pension ───────────────────────────────────────────────────
   const { penEmp, penEr, sev } = calcPension(
     pensionBase,
     pensionEmployeeRate,
@@ -338,17 +433,18 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     severancePayRate
   );
 
-  // ── 8. Net salary ────────────────────────────────────────────────
-  const totalDeductions = round2(incomeTax + niEmp + hiEmp + penEmp);
+  // ── 10. Net salary ───────────────────────────────────────────────
+  // ניכויים מהעובד: מס + ב.ל. + בריאות + פנסיה + קרן השתלמות
+  const totalDeductions = round2(incomeTax + niEmp + hiEmp + penEmp + tfEmp);
   const netSalary       = round2(totalGross + travelAllowance - totalDeductions);
 
-  // ── 9. Total employer cost ───────────────────────────────────────
-  const totalEmployerCost = round2(totalGross + travelAllowance + penEr + sev + niEr);
+  // ── 11. Total employer cost ──────────────────────────────────────
+  const totalEmployerCost = round2(totalGross + travelAllowance + penEr + sev + niEr + tfEr);
 
-  // ── 10. Minimum wage check ───────────────────────────────────────
+  // ── 12. Minimum wage check ───────────────────────────────────────
   const minimumWageOk = grossSalary >= MINIMUM_WAGE_MONTHLY;
 
-  // ── 11. Accruals ─────────────────────────────────────────────────
+  // ── 13. Accruals ─────────────────────────────────────────────────
   const vacationAccruedDays = startDate
     ? calcVacationAccrual(startDate, periodDate)
     : round2(14 / 12); // default: 1.17 days/month (minimum)
@@ -361,9 +457,10 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     travelAllowance,
     recuperationPay,
     bonusAmount,
+    carBenefit,                           // שווי רכב צמוד — חייב במס ובב.ל.
     grossSalary:      totalGross,
     grossForNI,
-    taxableIncome,
+    taxableIncome:    taxableIncomeTotal, // כולל עודף קרן השתלמות מעל תקרה
 
     // Deductions
     incomeTax:                  round2(incomeTax),
@@ -371,6 +468,7 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     nationalInsuranceEmployee:  niEmp,
     healthInsuranceEmployee:    hiEmp,
     pensionEmployee:            penEmp,
+    trainingFundEmployee:       tfEmp,   // קרן השתלמות — ניכוי מעובד
     totalDeductions,
     netSalary,
 
@@ -378,6 +476,7 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     pensionEmployer:            penEr,
     severancePay:               sev,
     nationalInsuranceEmployer:  niEr,
+    trainingFundEmployer:       tfEr,   // קרן השתלמות — הפרשת מעסיק
     totalEmployerCost,
 
     // Legal

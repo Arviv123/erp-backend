@@ -274,6 +274,25 @@ router.get(
   }
 );
 
+// ─── GET /payroll/reports/annual/:year  (Form 126 — annual summary) ─
+router.get(
+  '/reports/annual/:year',
+  requireMinRole('HR_MANAGER') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const year = Number(req.params.year);
+    if (!year || year < 2000 || year > 2100) {
+      sendError(res, 'Year must be a valid 4-digit year (e.g. 2025)');
+      return;
+    }
+    try {
+      const report = await PayrollService.getAnnualReport(req.user.tenantId, year);
+      sendSuccess(res, report);
+    } catch (err: any) {
+      sendError(res, err.message, 404);
+    }
+  }
+);
+
 // ─── GET /payroll/constants  (2026 tax rates reference) ───────────
 router.get('/constants', async (_req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, PAYROLL_CONSTANTS_2026);

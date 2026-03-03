@@ -1,0 +1,18 @@
+{
+  "folders": [
+    { "name": "01 — לוח בקרה",      "path": "01-dashboard" },
+    { "name": "02 — עובדים",         "path": "02-employees" },
+    { "name": "03 — שכר",            "path": "03-payroll" },
+    { "name": "04 — חשבוניות",       "path": "04-invoices" },
+    { "name": "05 — הנהלת חשבונות", "path": "05-accounting" },
+    { "name": "06 — CRM לקוחות",    "path": "06-crm" },
+    { "name": "07 — HR חופשות",      "path": "07-hr" },
+    { "name": "08 — נוכחות",         "path": "08-attendance" },
+    { "name": "09 — מלאי",           "path": "09-inventory" },
+    { "name": "10 — קופה POS",       "path": "10-pos" }
+  ],
+  "settings": {
+    "explorer.openEditors.visible": 0,
+    "workbench.startupEditor": "none"
+  }
+}
