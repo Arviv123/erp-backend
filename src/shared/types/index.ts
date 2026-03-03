@@ -38,20 +38,42 @@ export interface TaxBracket {
 }
 
 export interface PayslipCalculation {
-  grossSalary: number;
-  taxableIncome: number;
-  incomeTax: number;
-  taxCreditsAmount: number;
-  nationalInsuranceEmployee: number;
-  healthInsuranceEmployee: number;
-  pensionEmployee: number;
-  netSalary: number;
-  // Employer costs
-  pensionEmployer: number;
-  severancePay: number;
-  nationalInsuranceEmployer: number;
-  totalEmployerCost: number;
-  // Breakdown
+  // ── Income components ──────────────────────────────────────────
+  baseSalary:        number;   // שכר יסוד
+  overtimePay125:    number;   // שע"נ 125% (2 שעות ראשונות)
+  overtimePay150:    number;   // שע"נ 150% (שבת/חג/מעל 2 שעות)
+  travelAllowance:   number;   // דמי נסיעה — פטור ממס הכנסה
+  recuperationPay:   number;   // דמי הבראה חודשיים (1/12 מהשנתי)
+  bonusAmount:       number;   // בונוס / תשלומים מיוחדים
+
+  grossSalary:       number;   // ברוטו כולל (בסיס + שעות נוספות + בונוס + הבראה)
+  grossForNI:        number;   // בסיס לחישוב ב.ל. (כולל נסיעות)
+  taxableIncome:     number;   // הכנסה חייבת במס (ברוטו - נסיעות)
+
+  // ── Employee deductions ────────────────────────────────────────
+  incomeTax:                  number;  // מס הכנסה
+  taxCreditsAmount:           number;  // זיכוי מס (ערך נקודות זיכוי)
+  nationalInsuranceEmployee:  number;  // ביטוח לאומי עובד
+  healthInsuranceEmployee:    number;  // ביטוח בריאות (מס בריאות)
+  pensionEmployee:            number;  // פנסיה עובד
+  totalDeductions:            number;  // סה"כ ניכויים
+  netSalary:                  number;  // שכר נטו לתשלום
+
+  // ── Employer costs ─────────────────────────────────────────────
+  pensionEmployer:            number;  // פנסיה מעסיק
+  severancePay:               number;  // פיצויים
+  nationalInsuranceEmployer:  number;  // ביטוח לאומי מעסיק
+  totalEmployerCost:          number;  // עלות מעסיק כוללת
+
+  // ── Legal checks ───────────────────────────────────────────────
+  minimumWageOk:   boolean;  // האם שכר מעל מינימום חוקי?
+  minimumWage:     number;   // שכר מינימום 2026
+
+  // ── Accruals (informational) ───────────────────────────────────
+  vacationAccruedDays:  number;  // ימי חופשה שנצברו החודש
+  sickLeaveAccruedDays: number;  // ימי מחלה שנצברו = תמיד 1.5
+
+  // ── Breakdown detail ───────────────────────────────────────────
   taxBracketBreakdown: Array<{
     min: number;
     max: number | null;

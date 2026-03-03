@@ -7,22 +7,38 @@ import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { prisma } from '../../config/database';
 import * as PayrollService from './payroll.service';
+import { PAYROLL_CONSTANTS_2026 } from './payroll.engine';
 
 const router = Router();
 
 router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
 
-// POST /payroll/run
+// ─── Adjustment schema ─────────────────────────────────────────────
+const adjustmentSchema = z.object({
+  overtime125Hours:     z.number().min(0).default(0),
+  overtime150Hours:     z.number().min(0).default(0),
+  travelWorkDays:       z.number().min(0).max(31).default(21),
+  includeRecuperation:  z.boolean().default(false),
+  bonusAmount:          z.number().min(0).default(0),
+  manualDeduction:      z.number().min(0).default(0),
+  partialMonthDays:     z.number().min(0).optional(),
+  totalWorkDaysInMonth: z.number().min(0).optional(),
+}).partial();
+
+// ─── POST /payroll/run ─────────────────────────────────────────────
 router.post(
   '/run',
   requireMinRole('HR_MANAGER') as any,
   async (req: AuthenticatedRequest, res: Response) => {
-    const schema = z.object({ period: z.string().regex(/^\d{4}-\d{2}$/) });
-    const parsed = schema.safeParse(req.body);
+    const schema = z.object({
+      period:      z.string().regex(/^\d{4}-\d{2}$/),
+      adjustments: z.record(z.string(), adjustmentSchema).optional(),
+    });
 
+    const parsed = schema.safeParse(req.body);
     if (!parsed.success) {
-      sendError(res, 'period must be YYYY-MM format');
+      sendError(res, 'period must be YYYY-MM format; adjustments must be a map of employeeId → adjustment');
       return;
     }
 
@@ -30,7 +46,8 @@ router.post(
       const run = await PayrollService.runPayroll(
         req.user.tenantId,
         parsed.data.period,
-        req.user.userId
+        req.user.userId,
+        (parsed.data.adjustments ?? {}) as any
       );
       sendSuccess(res, run, 201);
     } catch (err: any) {
@@ -39,7 +56,7 @@ router.post(
   }
 );
 
-// GET /payroll/runs
+// ─── GET /payroll/runs ─────────────────────────────────────────────
 router.get('/runs', async (req: AuthenticatedRequest, res: Response) => {
   const runs = await prisma.payrollRun.findMany({
     where:   { tenantId: req.user.tenantId },
@@ -49,14 +66,19 @@ router.get('/runs', async (req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, runs);
 });
 
-// GET /payroll/runs/:id/payslips
+// ─── GET /payroll/runs/:id/payslips ───────────────────────────────
 router.get('/runs/:id/payslips', async (req: AuthenticatedRequest, res: Response) => {
   const run = await prisma.payrollRun.findUnique({
     where:   { id: req.params.id },
     include: {
       payslips: {
         include: {
-          employee: { select: { firstName: true, lastName: true, idNumber: true } },
+          employee: {
+            select: {
+              firstName: true, lastName: true, idNumber: true,
+              jobTitle: true, department: true,
+            },
+          },
         },
       },
     },
@@ -70,7 +92,7 @@ router.get('/runs/:id/payslips', async (req: AuthenticatedRequest, res: Response
   sendSuccess(res, run);
 });
 
-// POST /payroll/runs/:id/approve
+// ─── POST /payroll/runs/:id/approve ───────────────────────────────
 router.post(
   '/runs/:id/approve',
   requireMinRole('ADMIN') as any,
@@ -88,7 +110,7 @@ router.post(
   }
 );
 
-// POST /payroll/runs/:id/paid
+// ─── POST /payroll/runs/:id/paid ──────────────────────────────────
 router.post(
   '/runs/:id/paid',
   requireMinRole('ADMIN') as any,
@@ -105,7 +127,7 @@ router.post(
   }
 );
 
-// GET /payroll/payslips/:id
+// ─── GET /payroll/payslips/:id ────────────────────────────────────
 router.get('/payslips/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const payslip = await PayrollService.getPayslip(
@@ -118,15 +140,24 @@ router.get('/payslips/:id', async (req: AuthenticatedRequest, res: Response) => 
   }
 });
 
-// GET /payroll/preview/:employeeId  (calculate without saving)
+// ─── GET /payroll/preview/:employeeId ─────────────────────────────
 router.get(
   '/preview/:employeeId',
   requireMinRole('HR_MANAGER') as any,
   async (req: AuthenticatedRequest, res: Response) => {
     try {
+      // Optional query params for simulation
+      const adj = {
+        overtime125Hours:    req.query.ot125    ? Number(req.query.ot125)    : undefined,
+        overtime150Hours:    req.query.ot150    ? Number(req.query.ot150)    : undefined,
+        travelWorkDays:      req.query.travel   ? Number(req.query.travel)   : undefined,
+        includeRecuperation: req.query.recup === 'true',
+        bonusAmount:         req.query.bonus    ? Number(req.query.bonus)    : undefined,
+      };
       const preview = await PayrollService.previewEmployeePayslip(
         req.params.employeeId,
-        req.user.tenantId
+        req.user.tenantId,
+        adj
       );
       sendSuccess(res, preview);
     } catch (err: any) {
@@ -134,5 +165,31 @@ router.get(
     }
   }
 );
+
+// ─── GET /payroll/reports/monthly/:period  (for 102 form) ─────────
+router.get(
+  '/reports/monthly/:period',
+  requireMinRole('HR_MANAGER') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    if (!/^\d{4}-\d{2}$/.test(req.params.period)) {
+      sendError(res, 'Period must be YYYY-MM');
+      return;
+    }
+    try {
+      const report = await PayrollService.getMonthlyReport(
+        req.user.tenantId,
+        req.params.period
+      );
+      sendSuccess(res, report);
+    } catch (err: any) {
+      sendError(res, err.message, 404);
+    }
+  }
+);
+
+// ─── GET /payroll/constants  (2026 tax rates reference) ───────────
+router.get('/constants', async (_req: AuthenticatedRequest, res: Response) => {
+  sendSuccess(res, PAYROLL_CONSTANTS_2026);
+});
 
 export default router;
