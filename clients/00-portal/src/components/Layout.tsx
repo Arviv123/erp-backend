@@ -59,6 +59,9 @@ const NAV: NavItem[] = [
       { label: 'מע"מ — טופס 83', to: '/accounting/reports/vat' },
       { label: 'תזרים מזומנים', to: '/accounting/reports/cash-flow' },
       { label: 'רכוש קבוע ★', to: '/accounting/fixed-assets' },
+      { label: 'דוחות הוצאות ★', to: '/accounting/expenses' },
+      { label: 'תקציב וביצוע ★', to: '/accounting/budget' },
+      { label: 'התאמת בנק ★', to: '/accounting/bank-recon' },
     ],
   },
   {

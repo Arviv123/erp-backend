@@ -238,6 +238,7 @@ model Tenant {
   passwordResetTokens PasswordResetToken[]
   posTerminals       PosTerminal[]
   posSessions        PosSession[]
+  bankStatements     BankStatement[]
 
   @@map("tenants")
 }
@@ -376,6 +377,7 @@ model Account {
   children    Account[] @relation("AccountHierarchy")
   debitLines  TransactionLine[] @relation("DebitAccount")
   creditLines TransactionLine[] @relation("CreditAccount")
+  bankStatements BankStatement[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -423,10 +425,17 @@ model TransactionLine {
   description     String?
   sortOrder       Int         @default(0)
 
-  transaction     Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  debitAccount    Account     @relation("DebitAccount",  fields: [debitAccountId],  references: [id])
-  creditAccount   Account     @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  // Bank reconciliation
+  cleared         Boolean     @default(false)
+  clearedAt       DateTime?
+  bankStatementId String?
 
+  transaction     Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  debitAccount    Account       @relation("DebitAccount",  fields: [debitAccountId],  references: [id])
+  creditAccount   Account       @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  bankStatement   BankStatement? @relation(fields: [bankStatementId], references: [id])
+
+  @@index([bankStatementId])
   @@map("transaction_lines")
 }
 
@@ -1317,4 +1326,30 @@ model PosTransactionLine {
   transaction PosTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@map("pos_transaction_lines")
+}
+
+// ─────────────────────────────────────────────
+// BANK RECONCILIATION (התאמת בנק)
+// ─────────────────────────────────────────────
+
+model BankStatement {
+  id              String    @id @default(cuid())
+  tenantId        String
+  accountId       String    // GL bank account (e.g. code 1200)
+  period          String    // YYYY-MM
+  openingBalance  Decimal   @default(0) @db.Decimal(15, 2)
+  closingBalance  Decimal   @default(0) @db.Decimal(15, 2) // balance per bank statement
+  status          String    @default("OPEN") // OPEN | RECONCILED
+  notes           String?
+  createdBy       String
+  createdAt       DateTime  @default(now())
+  reconciledAt    DateTime?
+
+  tenant  Tenant            @relation(fields: [tenantId], references: [id])
+  account Account           @relation(fields: [accountId], references: [id])
+  lines   TransactionLine[]
+
+  @@unique([tenantId, accountId, period])
+  @@index([tenantId])
+  @@map("bank_statements")
 }

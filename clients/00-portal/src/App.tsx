@@ -81,6 +81,9 @@ import SalesSummaryPage from './pages/SalesSummaryPage';
 
 // Accounting extras
 import FixedAssetsPage from './pages/FixedAssetsPage';
+import ExpenseReportsPage from './pages/ExpenseReportsPage';
+import BudgetPage from './pages/BudgetPage';
+import BankReconciliationPage from './pages/BankReconciliationPage';
 
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
@@ -168,6 +171,9 @@ export default function App() {
               <Route path="/accounting/reports/vat" element={<ProtectedRoute module="ACCOUNTING"><VATReportPage /></ProtectedRoute>} />
               <Route path="/accounting/reports/cash-flow" element={<ProtectedRoute module="ACCOUNTING"><CashFlowPage /></ProtectedRoute>} />
               <Route path="/accounting/fixed-assets" element={<ProtectedRoute module="ACCOUNTING"><FixedAssetsPage /></ProtectedRoute>} />
+              <Route path="/accounting/expenses" element={<ProtectedRoute module="ACCOUNTING"><ExpenseReportsPage /></ProtectedRoute>} />
+              <Route path="/accounting/budget" element={<ProtectedRoute module="ACCOUNTING"><BudgetPage /></ProtectedRoute>} />
+              <Route path="/accounting/bank-recon" element={<ProtectedRoute module="ACCOUNTING"><BankReconciliationPage /></ProtectedRoute>} />
 
               {/* Purchasing */}
               <Route path="/purchasing/vendors" element={<ProtectedRoute module="ACCOUNTING"><VendorsPage /></ProtectedRoute>} />
