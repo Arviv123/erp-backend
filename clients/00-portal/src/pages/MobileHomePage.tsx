@@ -57,7 +57,7 @@ function HomeTab({ emp }: { emp: any }) {
               {latest.payrollRun?.status === 'PAID' ? 'שולם' : 'בעיבוד'}
             </span>
           </div>
-          <p className="text-xs text-gray-500 mb-1">{latest.payrollRun?.period ? fmtPeriod(latest.run.period) : '—'}</p>
+          <p className="text-xs text-gray-500 mb-1">{latest.payrollRun?.period ? fmtPeriod(latest.payrollRun.period) : '—'}</p>
           <div className="grid grid-cols-2 gap-3 mt-3">
             <div className="bg-gray-50 rounded-xl p-3 text-center">
               <p className="text-xs text-gray-500">ברוטו</p>
@@ -122,10 +122,10 @@ function PayslipsTab({ emp }: { emp: any }) {
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="font-semibold text-gray-900">
-                {ps.payrollRun?.period ? fmtPeriod(ps.run.period) : '—'}
+                {ps.payrollRun?.period ? fmtPeriod(ps.payrollRun.period) : '—'}
               </p>
               <p className="text-xs text-gray-400">
-                {ps.payrollRun?.paidAt ? `שולם: ${new Date(ps.run.paidAt).toLocaleDateString('he-IL')}` :
+                {ps.payrollRun?.paidAt ? `שולם: ${new Date(ps.payrollRun.paidAt).toLocaleDateString('he-IL')}` :
                  ps.payrollRun?.status === 'APPROVED' ? 'מאושר — ממתין לתשלום' : 'טיוטה'}
               </p>
             </div>
