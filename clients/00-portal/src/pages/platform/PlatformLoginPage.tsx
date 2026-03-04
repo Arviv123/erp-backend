@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { usePlatformAuth } from '../../contexts/PlatformAuthContext';
 
 export default function PlatformLoginPage() {
@@ -81,9 +81,12 @@ export default function PlatformLoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-xs text-slate-600 mt-6">
-            גישה מוגבלת לבעל הפלטפורמה בלבד
-          </p>
+          <div className="border-t border-slate-700/40 mt-6 pt-4 flex items-center justify-between">
+            <p className="text-xs text-slate-600">גישה מוגבלת לבעל הפלטפורמה בלבד</p>
+            <Link to="/" className="text-xs text-slate-500 hover:text-slate-300 transition flex items-center gap-1">
+              ← כניסת עסק
+            </Link>
+          </div>
         </div>
       </div>
     </div>
