@@ -115,6 +115,159 @@ router.get('/mobile/me', async (req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, safeEmp);
 });
 
+// ─── Mobile leave / attendance helpers ───────────────────────────
+
+function mobileEmpGuard(req: AuthenticatedRequest, res: Response): string | null {
+  const empId = req.user.employeeId;
+  if (!empId) { sendError(res, 'לא סשן מובייל', 403); return null; }
+  return empId;
+}
+
+function calcChildPoints(birthDate: string, taxYear = new Date().getFullYear()): number {
+  const age = taxYear - new Date(birthDate).getFullYear();
+  if (age < 0 || age > 18) return 0;
+  if (age <= 5)  return 2.5;
+  if (age <= 12) return 2.0;
+  if (age <= 17) return 1.0;
+  return 0.5; // turns 18 in tax year
+}
+
+// GET /employees/mobile/leave-types
+router.get('/mobile/leave-types', async (req: AuthenticatedRequest, res: Response) => {
+  if (!req.user.employeeId) { sendError(res, 'לא סשן מובייל', 403); return; }
+  const types = await prisma.leaveType.findMany({
+    where: { tenantId: req.user.tenantId },
+    orderBy: { name: 'asc' },
+  });
+  sendSuccess(res, types);
+});
+
+// GET /employees/mobile/leave-balance
+router.get('/mobile/leave-balance', async (req: AuthenticatedRequest, res: Response) => {
+  const empId = mobileEmpGuard(req, res); if (!empId) return;
+  const year      = new Date().getFullYear();
+  const startYear = new Date(year, 0, 1);
+  const endYear   = new Date(year, 11, 31);
+  const leaveTypes = await prisma.leaveType.findMany({ where: { tenantId: req.user.tenantId } });
+  const balances = await Promise.all(leaveTypes.map(async (lt) => {
+    const used = await prisma.leaveRequest.aggregate({
+      where: { employeeId: empId, leaveTypeId: lt.id, status: 'APPROVED', startDate: { gte: startYear, lte: endYear } },
+      _sum: { totalDays: true },
+    });
+    return {
+      id: lt.id, leaveType: lt.name, colorHex: lt.colorHex, isPaid: lt.isPaid,
+      maxDays: lt.maxDaysPerYear, usedDays: used._sum.totalDays ?? 0,
+      remainingDays: lt.maxDaysPerYear ? lt.maxDaysPerYear - (used._sum.totalDays ?? 0) : null,
+    };
+  }));
+  sendSuccess(res, { year, balances });
+});
+
+// GET /employees/mobile/leave-requests
+router.get('/mobile/leave-requests', async (req: AuthenticatedRequest, res: Response) => {
+  const empId = mobileEmpGuard(req, res); if (!empId) return;
+  const requests = await prisma.leaveRequest.findMany({
+    where: { tenantId: req.user.tenantId, employeeId: empId },
+    include: { leaveType: { select: { name: true, colorHex: true, isPaid: true } } },
+    orderBy: { startDate: 'desc' },
+    take: 30,
+  });
+  sendSuccess(res, requests);
+});
+
+// POST /employees/mobile/leave-requests
+router.post('/mobile/leave-requests', async (req: AuthenticatedRequest, res: Response) => {
+  const empId = mobileEmpGuard(req, res); if (!empId) return;
+  const schema = z.object({
+    leaveTypeId: z.string().cuid(),
+    startDate:   z.string().datetime(),
+    endDate:     z.string().datetime(),
+    notes:       z.string().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message, 400); return; }
+
+  const leaveType = await prisma.leaveType.findUnique({ where: { id: parsed.data.leaveTypeId } });
+  if (!leaveType || leaveType.tenantId !== req.user.tenantId) { sendError(res, 'סוג חופשה לא נמצא', 404); return; }
+
+  const start = new Date(parsed.data.startDate);
+  const end   = new Date(parsed.data.endDate);
+  if (start > end) { sendError(res, 'תאריך סיום לפני תאריך התחלה', 400); return; }
+
+  let totalDays = 0;
+  const cur = new Date(start);
+  while (cur <= end) { const d = cur.getDay(); if (d !== 5 && d !== 6) totalDays++; cur.setDate(cur.getDate()+1); }
+
+  const request = await prisma.leaveRequest.create({
+    data: {
+      tenantId: req.user.tenantId, employeeId: empId,
+      leaveTypeId: parsed.data.leaveTypeId, startDate: start, endDate: end,
+      totalDays, notes: parsed.data.notes,
+      status: leaveType.requiresApproval ? 'PENDING' : 'APPROVED',
+    },
+    include: { leaveType: { select: { name: true, isPaid: true } } },
+  });
+  sendSuccess(res, request, 201);
+});
+
+// POST /employees/mobile/clock-in
+router.post('/mobile/clock-in', async (req: AuthenticatedRequest, res: Response) => {
+  const empId = mobileEmpGuard(req, res); if (!empId) return;
+  const schema = z.object({ gpsLocation: z.object({ lat: z.number(), lng: z.number() }).optional(), notes: z.string().optional() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const existing = await prisma.attendanceLog.findFirst({
+    where: { tenantId: req.user.tenantId, employeeId: empId, date: today, clockOut: null },
+  });
+  if (existing) { sendError(res, 'כבר נרשמת כניסה היום', 400); return; }
+
+  const log = await prisma.attendanceLog.create({
+    data: {
+      tenantId: req.user.tenantId, employeeId: empId, date: today,
+      clockIn: new Date(), gpsLocation: parsed.data.gpsLocation as any,
+      ipAddress: req.ip, notes: parsed.data.notes,
+    },
+  });
+  sendSuccess(res, log, 201);
+});
+
+// POST /employees/mobile/clock-out
+router.post('/mobile/clock-out', async (req: AuthenticatedRequest, res: Response) => {
+  const empId = mobileEmpGuard(req, res); if (!empId) return;
+  const schema = z.object({ breakMinutes: z.number().min(0).default(0), notes: z.string().optional() });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+  const today = new Date(); today.setHours(0,0,0,0);
+  const log = await prisma.attendanceLog.findFirst({
+    where: { tenantId: req.user.tenantId, employeeId: empId, date: today, clockOut: null },
+  });
+  if (!log) { sendError(res, 'לא נמצאה כניסה פתוחה להיום', 400); return; }
+
+  const now = new Date();
+  const worked = Math.round((now.getTime() - log.clockIn.getTime()) / 60000) - (parsed.data.breakMinutes ?? 0);
+  const updated = await prisma.attendanceLog.update({
+    where: { id: log.id },
+    data: { clockOut: now, breakMinutes: parsed.data.breakMinutes, notes: parsed.data.notes ?? log.notes },
+  });
+  sendSuccess(res, { ...updated, workedMinutes: worked });
+});
+
+// GET /employees/mobile/attendance?month=YYYY-MM
+router.get('/mobile/attendance', async (req: AuthenticatedRequest, res: Response) => {
+  const empId = mobileEmpGuard(req, res); if (!empId) return;
+  const monthStr = (req.query.month as string) ?? new Date().toISOString().slice(0,7);
+  const [y,m] = monthStr.split('-').map(Number);
+  const from = new Date(y, m-1, 1); const to = new Date(y, m, 0, 23, 59, 59);
+  const logs = await prisma.attendanceLog.findMany({
+    where: { tenantId: req.user.tenantId, employeeId: empId, date: { gte: from, lte: to } },
+    orderBy: { date: 'desc' },
+  });
+  sendSuccess(res, logs);
+});
+
 // POST /employees/:id/set-pin — HR sets PIN for employee
 router.post('/:id/set-pin', requireMinRole('HR_MANAGER') as any, async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({ pin: z.string().length(6).regex(/^\d{6}$/) });
@@ -144,7 +297,15 @@ router.patch('/:id/form101', async (req: AuthenticatedRequest, res: Response) =>
     disabilityPct:    z.number().min(0).max(100).optional(),
     academicDegree:   z.boolean().optional(),
     singleParent:     z.boolean().optional(),
-    children:         z.array(z.object({ birthYear: z.number(), points: z.number() })).optional(),
+    children: z.array(z.object({
+      name: z.string().optional(), idNumber: z.string().optional(),
+      birthDate: z.string().optional(), birthYear: z.number().optional(), points: z.number().optional(),
+    })).optional(),
+    disabledChild:          z.boolean().optional(),
+    caregiver:              z.boolean().optional(),
+    caregiverRelation:      z.string().optional(),
+    additionalEmployer:     z.boolean().optional(),
+    additionalEmployerName: z.string().optional(),
     // Other income
     otherIncomeSources: z.boolean().optional(),
     otherIncomeDetails: z.string().optional(),
@@ -157,11 +318,12 @@ router.patch('/:id/form101', async (req: AuthenticatedRequest, res: Response) =>
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { sendError(res, parsed.error.message); return; }
 
-  // Allow: self (EMPLOYEE role with matching employeeId) OR HR_MANAGER+
-  const user = await prisma.user.findUnique({ where: { id: req.user.userId } });
+  // Allow: mobile self-session OR linked user-self OR HR_MANAGER+
+  const isMobileSelf = !!req.user.employeeId && req.user.employeeId === req.params.id;
+  const user   = req.user.userId ? await prisma.user.findUnique({ where: { id: req.user.userId } }) : null;
   const isSelf = user && (user as any).employeeId === req.params.id;
-  const isHR   = ['HR_MANAGER','ACCOUNTANT','PAYROLL_ADMIN','ADMIN','MANAGER'].includes(req.user.role);
-  if (!isSelf && !isHR) { sendError(res, 'Forbidden', 403); return; }
+  const isHR   = ['HR_MANAGER','ACCOUNTANT','ADMIN','SUPER_ADMIN'].includes(req.user.role);
+  if (!isMobileSelf && !isSelf && !isHR) { sendError(res, 'Forbidden', 403); return; }
 
   const emp = await prisma.employee.findUnique({ where: { id: req.params.id } });
   if (!emp || emp.tenantId !== req.user.tenantId) { sendError(res, 'Employee not found', 404); return; }
@@ -185,7 +347,10 @@ router.patch('/:id/form101', async (req: AuthenticatedRequest, res: Response) =>
   if (merged.disability && merged.disabilityPct >= 90) points += 1.0;
   else if (merged.disability && merged.disabilityPct >= 50) points += 0.5;
   if (merged.academicDegree)         points += 0.25;
-  for (const c of (merged.children ?? [])) points += c.points;
+  for (const c of (merged.children ?? [])) {
+    const p = c.points ?? (c.birthDate ? calcChildPoints(c.birthDate) : 0);
+    points += p;
+  }
 
   const updated = await prisma.employee.update({
     where: { id: req.params.id },
