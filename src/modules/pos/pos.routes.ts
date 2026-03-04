@@ -274,6 +274,62 @@ router.get('/transactions/:id', asyncHandler(async (req: AuthenticatedRequest, r
   sendSuccess(res, tx);
 }));
 
+// ─── Monthly Summary ──────────────────────────────────────────────
+
+router.get('/reports/monthly', requireMinRole('ACCOUNTANT') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const now   = new Date();
+  const year  = parseInt((req.query.year  as string) ?? String(now.getFullYear()));
+  const month = parseInt((req.query.month as string) ?? String(now.getMonth() + 1));
+
+  const from = new Date(year, month - 1, 1, 0, 0, 0);
+  const to   = new Date(year, month,     0, 23, 59, 59); // last day of month
+
+  const transactions = await prisma.posTransaction.findMany({
+    where: { tenantId: req.user.tenantId, createdAt: { gte: from, lte: to } },
+    include: { lines: { include: { product: { select: { name: true } } } } },
+  });
+
+  const sales   = transactions.filter(t => t.type === 'SALE');
+  const returns = transactions.filter(t => t.type === 'RETURN');
+
+  const byPaymentMethod = sales.reduce((acc, t) => {
+    acc[t.paymentMethod] = (acc[t.paymentMethod] ?? 0) + Number(t.total);
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Daily breakdown
+  const byDay: Record<string, number> = {};
+  for (const t of sales) {
+    const day = t.createdAt.toISOString().split('T')[0];
+    byDay[day] = (byDay[day] ?? 0) + Number(t.total);
+  }
+
+  // Top items
+  const itemMap: Record<string, { name: string; quantity: number; revenue: number }> = {};
+  for (const t of sales) {
+    for (const line of t.lines) {
+      const key = (line as any).productId ?? 'unknown';
+      if (!itemMap[key]) itemMap[key] = { name: (line as any).product?.name ?? key, quantity: 0, revenue: 0 };
+      itemMap[key].quantity += Number(line.quantity);
+      itemMap[key].revenue  += Number(line.lineTotal);
+    }
+  }
+  const topItems = Object.values(itemMap).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
+
+  sendSuccess(res, {
+    year, month,
+    totalSales:   sales.reduce((s, t) => s + Number(t.total), 0),
+    salesCount:   sales.length,
+    totalReturns: returns.reduce((s, t) => s + Number(t.total), 0),
+    returnsCount: returns.length,
+    vatCollected: sales.reduce((s, t) => s + Number(t.vatAmount), 0),
+    byPaymentMethod,
+    byDay,
+    topItems,
+    averageSale:  sales.length ? sales.reduce((s, t) => s + Number(t.total), 0) / sales.length : 0,
+  });
+}));
+
 // ─── Daily Summary ────────────────────────────────────────────────
 
 router.get('/reports/daily', requireMinRole('ACCOUNTANT') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
