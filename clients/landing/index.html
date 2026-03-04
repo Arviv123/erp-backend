@@ -103,6 +103,591 @@
   </div>
 </section>
 
+<!-- ─── Product Screenshots ────────────────────────────── -->
+<section id="screenshots" class="py-20 px-4 bg-white overflow-hidden">
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl md:text-4xl font-black text-gray-900 mb-4">המערכת בפעולה</h2>
+      <p class="text-gray-500 text-lg">ממשק נקי, בעברית, מותאם לדסקטופ ולמובייל</p>
+    </div>
+
+    <!-- Tab nav -->
+    <div class="flex gap-2 justify-center flex-wrap mb-8">
+      <button onclick="showScreen('dash')" id="tab-dash" class="screen-tab active-tab px-5 py-2 rounded-full text-sm font-medium transition-colors">📊 דשבורד</button>
+      <button onclick="showScreen('payroll')" id="tab-payroll" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">👥 שכר</button>
+      <button onclick="showScreen('invoice')" id="tab-invoice" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">🧾 חשבוניות</button>
+      <button onclick="showScreen('accounting')" id="tab-accounting" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">📈 חשבונאות</button>
+    </div>
+
+    <!-- Screen frames -->
+    <div class="relative rounded-2xl shadow-2xl border border-gray-200 overflow-hidden bg-gray-50" style="max-width:900px;margin:0 auto;">
+      <!-- Browser chrome -->
+      <div class="bg-gray-200 px-4 py-2.5 flex items-center gap-2 border-b border-gray-300">
+        <div class="flex gap-1.5"><div class="w-3 h-3 rounded-full bg-red-400"></div><div class="w-3 h-3 rounded-full bg-yellow-400"></div><div class="w-3 h-3 rounded-full bg-green-400"></div></div>
+        <div class="flex-1 bg-white rounded-md px-3 py-1 text-xs text-gray-400 mx-4 text-left">https://app.hashavshevet.co.il</div>
+      </div>
+
+      <!-- Dashboard screen -->
+      <div id="screen-dash" class="screen-content">
+        <svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block;background:#f8fafc" font-family="Arial,sans-serif" direction="rtl">
+          <!-- Sidebar -->
+          <rect width="200" height="540" fill="#1e3a8a"/>
+          <text x="100" y="36" text-anchor="middle" fill="white" font-size="16" font-weight="bold">חשבשבת</text>
+          <rect x="8" y="52" width="184" height="1" fill="#3b5998"/>
+          <!-- Nav items -->
+          <rect x="12" y="62" width="176" height="34" rx="8" fill="#2563eb"/>
+          <text x="100" y="84" text-anchor="middle" fill="white" font-size="12">📊 דשבורד</text>
+          <text x="100" y="118" text-anchor="middle" fill="#93c5fd" font-size="12">👥 עובדים</text>
+          <text x="100" y="148" text-anchor="middle" fill="#93c5fd" font-size="12">💰 שכר</text>
+          <text x="100" y="178" text-anchor="middle" fill="#93c5fd" font-size="12">🧾 חשבוניות</text>
+          <text x="100" y="208" text-anchor="middle" fill="#93c5fd" font-size="12">📈 חשבונאות</text>
+          <text x="100" y="238" text-anchor="middle" fill="#93c5fd" font-size="12">🏢 לקוחות</text>
+          <text x="100" y="268" text-anchor="middle" fill="#93c5fd" font-size="12">⏰ נוכחות</text>
+          <text x="100" y="298" text-anchor="middle" fill="#93c5fd" font-size="12">📋 HR</text>
+          <!-- User at bottom -->
+          <circle cx="40" cy="510" r="16" fill="#3b82f6"/>
+          <text x="40" y="515" text-anchor="middle" fill="white" font-size="11">ישי</text>
+          <text x="120" y="507" fill="#93c5fd" font-size="11">ישי כהן</text>
+          <text x="120" y="520" fill="#64748b" font-size="10">מנהל מערכת</text>
+
+          <!-- Main content -->
+          <rect x="200" width="700" height="540" fill="#f8fafc"/>
+          <!-- Top bar -->
+          <rect x="200" width="700" height="52" fill="white"/>
+          <rect x="200" y="51" width="700" height="1" fill="#e2e8f0"/>
+          <text x="880" y="31" text-anchor="end" fill="#1e293b" font-size="16" font-weight="bold">דשבורד — מרץ 2026</text>
+          <rect x="750" y="14" width="120" height="26" rx="6" fill="#eff6ff"/>
+          <text x="810" y="31" text-anchor="middle" fill="#2563eb" font-size="11">+ פעולה חדשה</text>
+
+          <!-- KPI cards -->
+          <!-- Card 1 -->
+          <rect x="216" y="68" width="154" height="80" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="370" y="90" text-anchor="end" fill="#64748b" font-size="11">הכנסות החודש</text>
+          <text x="370" y="118" text-anchor="end" fill="#1e293b" font-size="22" font-weight="bold">₪84,200</text>
+          <text x="370" y="136" text-anchor="end" fill="#22c55e" font-size="10">▲ 12% מחודש קודם</text>
+          <!-- Card 2 -->
+          <rect x="382" y="68" width="154" height="80" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="536" y="90" text-anchor="end" fill="#64748b" font-size="11">הוצאות שכר</text>
+          <text x="536" y="118" text-anchor="end" fill="#1e293b" font-size="22" font-weight="bold">₪42,100</text>
+          <text x="536" y="136" text-anchor="end" fill="#94a3b8" font-size="10">● 8 עובדים פעילים</text>
+          <!-- Card 3 -->
+          <rect x="548" y="68" width="154" height="80" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="702" y="90" text-anchor="end" fill="#64748b" font-size="11">חשבוניות פתוחות</text>
+          <text x="702" y="118" text-anchor="end" fill="#1e293b" font-size="22" font-weight="bold">₪18,500</text>
+          <text x="702" y="136" text-anchor="end" fill="#f59e0b" font-size="10">⚠ 4 חשבוניות</text>
+          <!-- Card 4 -->
+          <rect x="714" y="68" width="170" height="80" rx="10" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+          <text x="880" y="90" text-anchor="end" fill="#3b82f6" font-size="11">מע"מ לתשלום</text>
+          <text x="880" y="118" text-anchor="end" fill="#1d4ed8" font-size="22" font-weight="bold">₪8,340</text>
+          <text x="880" y="136" text-anchor="end" fill="#3b82f6" font-size="10">➤ דוח Q1 2026</text>
+
+          <!-- Revenue chart -->
+          <rect x="216" y="162" width="432" height="200" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="640" y="184" text-anchor="end" fill="#1e293b" font-size="13" font-weight="bold">הכנסות לעומת הוצאות</text>
+          <text x="224" y="184" fill="#94a3b8" font-size="10">6 חודשים אחרונים</text>
+          <!-- Y axis -->
+          <line x1="240" y1="195" x2="240" y2="345" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="237" y="200" text-anchor="end" fill="#94a3b8" font-size="9">100K</text>
+          <text x="237" y="235" text-anchor="end" fill="#94a3b8" font-size="9">80K</text>
+          <text x="237" y="270" text-anchor="end" fill="#94a3b8" font-size="9">60K</text>
+          <text x="237" y="305" text-anchor="end" fill="#94a3b8" font-size="9">40K</text>
+          <text x="237" y="340" text-anchor="end" fill="#94a3b8" font-size="9">20K</text>
+          <!-- Grid lines -->
+          <line x1="240" y1="200" x2="635" y2="200" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="240" y1="235" x2="635" y2="235" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="240" y1="270" x2="635" y2="270" stroke="#f1f5f9" stroke-width="1"/>
+          <line x1="240" y1="305" x2="635" y2="305" stroke="#f1f5f9" stroke-width="1"/>
+          <!-- Revenue bars (blue) -->
+          <rect x="255" y="238" width="22" height="107" rx="3" fill="#3b82f6" opacity="0.85"/>
+          <rect x="320" y="222" width="22" height="123" rx="3" fill="#3b82f6" opacity="0.85"/>
+          <rect x="385" y="210" width="22" height="135" rx="3" fill="#3b82f6" opacity="0.85"/>
+          <rect x="450" y="225" width="22" height="120" rx="3" fill="#3b82f6" opacity="0.85"/>
+          <rect x="515" y="215" width="22" height="130" rx="3" fill="#3b82f6" opacity="0.85"/>
+          <rect x="580" y="199" width="22" height="146" rx="3" fill="#3b82f6" opacity="0.85"/>
+          <!-- Expense bars (gray) -->
+          <rect x="279" y="268" width="22" height="77" rx="3" fill="#94a3b8" opacity="0.7"/>
+          <rect x="344" y="262" width="22" height="83" rx="3" fill="#94a3b8" opacity="0.7"/>
+          <rect x="409" y="255" width="22" height="90" rx="3" fill="#94a3b8" opacity="0.7"/>
+          <rect x="474" y="260" width="22" height="85" rx="3" fill="#94a3b8" opacity="0.7"/>
+          <rect x="539" y="252" width="22" height="93" rx="3" fill="#94a3b8" opacity="0.7"/>
+          <rect x="604" y="245" width="22" height="100" rx="3" fill="#94a3b8" opacity="0.7"/>
+          <!-- X labels -->
+          <text x="266" y="358" text-anchor="middle" fill="#94a3b8" font-size="9">אוק׳</text>
+          <text x="331" y="358" text-anchor="middle" fill="#94a3b8" font-size="9">נוב׳</text>
+          <text x="396" y="358" text-anchor="middle" fill="#94a3b8" font-size="9">דצמ׳</text>
+          <text x="461" y="358" text-anchor="middle" fill="#94a3b8" font-size="9">ינו׳</text>
+          <text x="526" y="358" text-anchor="middle" fill="#94a3b8" font-size="9">פבר׳</text>
+          <text x="591" y="358" text-anchor="middle" fill="#94a3b8" font-size="9">מרץ</text>
+          <!-- Legend -->
+          <rect x="420" y="366" width="10" height="10" rx="2" fill="#3b82f6"/>
+          <text x="433" y="376" fill="#64748b" font-size="10">הכנסות</text>
+          <rect x="480" y="366" width="10" height="10" rx="2" fill="#94a3b8"/>
+          <text x="493" y="376" fill="#64748b" font-size="10">הוצאות</text>
+
+          <!-- Recent activity -->
+          <rect x="660" y="162" width="224" height="200" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="876" y="184" text-anchor="end" fill="#1e293b" font-size="13" font-weight="bold">פעילות אחרונה</text>
+          <!-- Items -->
+          <circle cx="672" cy="208" r="6" fill="#dbeafe"/>
+          <text x="672" y="212" text-anchor="middle" fill="#2563eb" font-size="8">₪</text>
+          <text x="876" y="205" text-anchor="end" fill="#1e293b" font-size="11">חשבונית #1042 — ABC בע"מ</text>
+          <text x="876" y="217" text-anchor="end" fill="#94a3b8" font-size="9">₪4,200 · לפני שעה</text>
+          <line x1="664" y1="228" x2="876" y2="228" stroke="#f1f5f9" stroke-width="1"/>
+          <circle cx="672" cy="244" r="6" fill="#dcfce7"/>
+          <text x="672" y="248" text-anchor="middle" fill="#22c55e" font-size="8">✓</text>
+          <text x="876" y="241" text-anchor="end" fill="#1e293b" font-size="11">שכר פברואר — אושר</text>
+          <text x="876" y="253" text-anchor="end" fill="#94a3b8" font-size="9">₪42,100 · לפני 3 שעות</text>
+          <line x1="664" y1="264" x2="876" y2="264" stroke="#f1f5f9" stroke-width="1"/>
+          <circle cx="672" cy="280" r="6" fill="#fef9c3"/>
+          <text x="672" y="284" text-anchor="middle" fill="#eab308" font-size="8">!</text>
+          <text x="876" y="277" text-anchor="end" fill="#1e293b" font-size="11">מע"מ — תזכורת תשלום</text>
+          <text x="876" y="289" text-anchor="end" fill="#94a3b8" font-size="9">₪8,340 · מחר 31/3</text>
+          <line x1="664" y1="300" x2="876" y2="300" stroke="#f1f5f9" stroke-width="1"/>
+          <circle cx="672" cy="316" r="6" fill="#dbeafe"/>
+          <text x="672" y="320" text-anchor="middle" fill="#2563eb" font-size="8">👤</text>
+          <text x="876" y="313" text-anchor="end" fill="#1e293b" font-size="11">עובד חדש — רנה מזרחי</text>
+          <text x="876" y="325" text-anchor="end" fill="#94a3b8" font-size="9">הצטרפה · אתמול</text>
+          <line x1="664" y1="336" x2="876" y2="336" stroke="#f1f5f9" stroke-width="1"/>
+          <circle cx="672" cy="352" r="6" fill="#dcfce7"/>
+          <text x="672" y="356" text-anchor="middle" fill="#22c55e" font-size="8">₪</text>
+          <text x="876" y="349" text-anchor="end" fill="#1e293b" font-size="11">קבלה #389 — שולמה</text>
+          <text x="876" y="361" text-anchor="end" fill="#94a3b8" font-size="9">₪1,800 · אתמול</text>
+
+          <!-- Bottom row -->
+          <rect x="216" y="376" width="432" height="148" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="640" y="398" text-anchor="end" fill="#1e293b" font-size="13" font-weight="bold">מאזן מסכם</text>
+          <!-- Balance table -->
+          <rect x="224" y="408" width="416" height="24" rx="4" fill="#f8fafc"/>
+          <text x="632" y="424" text-anchor="end" fill="#64748b" font-size="11" font-weight="bold">סכום</text>
+          <text x="400" y="424" text-anchor="middle" fill="#64748b" font-size="11" font-weight="bold">סוג</text>
+          <text x="232" y="424" fill="#64748b" font-size="11" font-weight="bold">חשבון</text>
+          <line x1="224" y1="434" x2="640" y2="434" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="232" y="450" fill="#1e293b" font-size="11">קופה ומזומן</text>
+          <text x="400" y="450" text-anchor="middle" fill="#64748b" font-size="10">ASSET</text>
+          <text x="632" y="450" text-anchor="end" fill="#1e293b" font-size="11">₪24,300</text>
+          <line x1="224" y1="458" x2="640" y2="458" stroke="#f1f5f9" stroke-width="1"/>
+          <text x="232" y="474" fill="#1e293b" font-size="11">לקוחות (חובות)</text>
+          <text x="400" y="474" text-anchor="middle" fill="#64748b" font-size="10">ASSET</text>
+          <text x="632" y="474" text-anchor="end" fill="#1e293b" font-size="11">₪18,500</text>
+          <line x1="224" y1="482" x2="640" y2="482" stroke="#f1f5f9" stroke-width="1"/>
+          <text x="232" y="498" fill="#1e293b" font-size="11">ספקים (זכאים)</text>
+          <text x="400" y="498" text-anchor="middle" fill="#e11d48" font-size="10">LIABILITY</text>
+          <text x="632" y="498" text-anchor="end" fill="#e11d48" font-size="11">₪9,200</text>
+          <line x1="224" y1="506" x2="640" y2="506" stroke="#f1f5f9" stroke-width="1"/>
+          <text x="232" y="516" fill="#1e293b" font-size="11" font-weight="bold">רווח נקי</text>
+          <text x="632" y="516" text-anchor="end" fill="#22c55e" font-size="11" font-weight="bold">₪33,600</text>
+        </svg>
+      </div>
+
+      <!-- Payroll screen -->
+      <div id="screen-payroll" class="screen-content hidden">
+        <svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block;background:#f8fafc" font-family="Arial,sans-serif" direction="rtl">
+          <!-- Sidebar (same) -->
+          <rect width="200" height="540" fill="#1e3a8a"/>
+          <text x="100" y="36" text-anchor="middle" fill="white" font-size="16" font-weight="bold">חשבשבת</text>
+          <rect x="8" y="52" width="184" height="1" fill="#3b5998"/>
+          <text x="100" y="84" text-anchor="middle" fill="#93c5fd" font-size="12">📊 דשבורד</text>
+          <rect x="12" y="98" width="176" height="34" rx="8" fill="#2563eb"/>
+          <text x="100" y="120" text-anchor="middle" fill="white" font-size="12">💰 שכר</text>
+          <text x="100" y="150" text-anchor="middle" fill="#93c5fd" font-size="12">👥 עובדים</text>
+          <text x="100" y="180" text-anchor="middle" fill="#93c5fd" font-size="12">🧾 חשבוניות</text>
+          <text x="100" y="210" text-anchor="middle" fill="#93c5fd" font-size="12">📈 חשבונאות</text>
+          <circle cx="40" cy="510" r="16" fill="#3b82f6"/>
+          <text x="40" y="515" text-anchor="middle" fill="white" font-size="11">ישי</text>
+          <text x="120" y="507" fill="#93c5fd" font-size="11">ישי כהן</text>
+          <text x="120" y="520" fill="#64748b" font-size="10">מנהל מערכת</text>
+
+          <!-- Main -->
+          <rect x="200" width="700" height="540" fill="#f8fafc"/>
+          <rect x="200" width="700" height="52" fill="white"/>
+          <rect x="200" y="51" width="700" height="1" fill="#e2e8f0"/>
+          <text x="880" y="31" text-anchor="end" fill="#1e293b" font-size="16" font-weight="bold">ריצת שכר — פברואר 2026</text>
+
+          <!-- Status badge -->
+          <rect x="740" y="14" width="80" height="26" rx="13" fill="#dcfce7"/>
+          <text x="780" y="31" text-anchor="middle" fill="#16a34a" font-size="11" font-weight="bold">✓ APPROVED</text>
+
+          <!-- Progress bar -->
+          <rect x="216" y="62" width="668" height="48" rx="8" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <circle cx="310" cy="86" r="12" fill="#22c55e"/>
+          <text x="310" y="90" text-anchor="middle" fill="white" font-size="10" font-weight="bold">✓</text>
+          <text x="310" y="102" text-anchor="middle" fill="#22c55e" font-size="9">DRAFT</text>
+          <line x1="322" y1="86" x2="490" y2="86" stroke="#22c55e" stroke-width="2"/>
+          <circle cx="502" cy="86" r="12" fill="#22c55e"/>
+          <text x="502" y="90" text-anchor="middle" fill="white" font-size="10" font-weight="bold">✓</text>
+          <text x="502" y="102" text-anchor="middle" fill="#22c55e" font-size="9">APPROVED</text>
+          <line x1="514" y1="86" x2="682" y2="86" stroke="#e2e8f0" stroke-width="2"/>
+          <circle cx="694" cy="86" r="12" fill="#e2e8f0"/>
+          <text x="694" y="90" text-anchor="middle" fill="#94a3b8" font-size="10">3</text>
+          <text x="694" y="102" text-anchor="middle" fill="#94a3b8" font-size="9">PAID</text>
+
+          <!-- Action buttons -->
+          <rect x="216" y="122" width="140" height="32" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="1"/>
+          <text x="286" y="142" text-anchor="middle" fill="#2563eb" font-size="11">📥 ייצוא לבנק</text>
+          <rect x="366" y="122" width="140" height="32" rx="8" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+          <text x="436" y="142" text-anchor="middle" fill="#16a34a" font-size="11">💳 סמן כשולם</text>
+          <rect x="516" y="122" width="140" height="32" rx="8" fill="#fef9c3" stroke="#fde68a" stroke-width="1"/>
+          <text x="586" y="142" text-anchor="middle" fill="#92400e" font-size="11">📄 דוח 102</text>
+
+          <!-- Summary row -->
+          <rect x="216" y="164" width="668" height="44" rx="8" fill="#1e3a8a"/>
+          <text x="880" y="181" text-anchor="end" fill="white" font-size="11" font-weight="bold">סה"כ 8 עובדים</text>
+          <text x="880" y="197" text-anchor="end" fill="#93c5fd" font-size="10">ברוטו: ₪68,400 | נטו לתשלום: ₪51,200 | מסים: ₪17,200</text>
+
+          <!-- Table header -->
+          <rect x="216" y="218" width="668" height="28" rx="4" fill="#f1f5f9"/>
+          <text x="880" y="235" text-anchor="end" fill="#64748b" font-size="10" font-weight="bold">נטו</text>
+          <text x="790" y="235" text-anchor="end" fill="#64748b" font-size="10" font-weight="bold">פנסיה</text>
+          <text x="700" y="235" text-anchor="end" fill="#64748b" font-size="10" font-weight="bold">ב.ל.</text>
+          <text x="610" y="235" text-anchor="end" fill="#64748b" font-size="10" font-weight="bold">מ.ה.</text>
+          <text x="510" y="235" text-anchor="end" fill="#64748b" font-size="10" font-weight="bold">ברוטו</text>
+          <text x="224" y="235" fill="#64748b" font-size="10" font-weight="bold">עובד</text>
+
+          <!-- Table rows -->
+          <!-- Row 1 -->
+          <rect x="216" y="246" width="668" height="36" fill="white"/>
+          <circle cx="234" cy="264" r="12" fill="#dbeafe"/>
+          <text x="234" y="268" text-anchor="middle" fill="#2563eb" font-size="10">ישי</text>
+          <text x="254" y="261" fill="#1e293b" font-size="11" font-weight="bold">ישי כהן</text>
+          <text x="254" y="274" fill="#94a3b8" font-size="10">מנהל → בנק לאומי 123/456789</text>
+          <text x="510" y="267" text-anchor="end" fill="#1e293b" font-size="11">₪12,000</text>
+          <text x="610" y="267" text-anchor="end" fill="#e11d48" font-size="11">₪2,400</text>
+          <text x="700" y="267" text-anchor="end" fill="#e11d48" font-size="11">₪840</text>
+          <text x="790" y="267" text-anchor="end" fill="#64748b" font-size="11">₪960</text>
+          <text x="880" y="267" text-anchor="end" fill="#16a34a" font-size="12" font-weight="bold">₪8,760</text>
+          <line x1="216" y1="282" x2="884" y2="282" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Row 2 -->
+          <rect x="216" y="282" width="668" height="36" fill="#fafafa"/>
+          <circle cx="234" cy="300" r="12" fill="#dcfce7"/>
+          <text x="234" y="304" text-anchor="middle" fill="#16a34a" font-size="10">רנה</text>
+          <text x="254" y="297" fill="#1e293b" font-size="11" font-weight="bold">רנה מזרחי</text>
+          <text x="254" y="310" fill="#94a3b8" font-size="10">חשבת → בנק הפועלים 44/223344</text>
+          <text x="510" y="303" text-anchor="end" fill="#1e293b" font-size="11">₪9,500</text>
+          <text x="610" y="303" text-anchor="end" fill="#e11d48" font-size="11">₪1,710</text>
+          <text x="700" y="303" text-anchor="end" fill="#e11d48" font-size="11">₪665</text>
+          <text x="790" y="303" text-anchor="end" fill="#64748b" font-size="11">₪760</text>
+          <text x="880" y="303" text-anchor="end" fill="#16a34a" font-size="12" font-weight="bold">₪7,125</text>
+          <line x1="216" y1="318" x2="884" y2="318" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Row 3 -->
+          <rect x="216" y="318" width="668" height="36" fill="white"/>
+          <circle cx="234" cy="336" r="12" fill="#fef9c3"/>
+          <text x="234" y="340" text-anchor="middle" fill="#b45309" font-size="10">אבי</text>
+          <text x="254" y="333" fill="#1e293b" font-size="11" font-weight="bold">אבי לוי</text>
+          <text x="254" y="346" fill="#94a3b8" font-size="10">מהנדס → בנק מזרחי 20/112233</text>
+          <text x="510" y="339" text-anchor="end" fill="#1e293b" font-size="11">₪11,000</text>
+          <text x="610" y="339" text-anchor="end" fill="#e11d48" font-size="11">₪2,090</text>
+          <text x="700" y="339" text-anchor="end" fill="#e11d48" font-size="11">₪770</text>
+          <text x="790" y="339" text-anchor="end" fill="#64748b" font-size="11">₪880</text>
+          <text x="880" y="339" text-anchor="end" fill="#16a34a" font-size="12" font-weight="bold">₪8,140</text>
+          <line x1="216" y1="354" x2="884" y2="354" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Row 4 -->
+          <rect x="216" y="354" width="668" height="36" fill="#fafafa"/>
+          <circle cx="234" cy="372" r="12" fill="#ede9fe"/>
+          <text x="234" y="376" text-anchor="middle" fill="#7c3aed" font-size="10">תמר</text>
+          <text x="254" y="369" fill="#1e293b" font-size="11" font-weight="bold">תמר גולן</text>
+          <text x="254" y="382" fill="#f59e0b" font-size="10">⚠ חסרים פרטי בנק</text>
+          <text x="510" y="375" text-anchor="end" fill="#1e293b" font-size="11">₪8,500</text>
+          <text x="610" y="375" text-anchor="end" fill="#e11d48" font-size="11">₪1,530</text>
+          <text x="700" y="375" text-anchor="end" fill="#e11d48" font-size="11">₪595</text>
+          <text x="790" y="375" text-anchor="end" fill="#64748b" font-size="11">₪680</text>
+          <text x="880" y="375" text-anchor="end" fill="#16a34a" font-size="12" font-weight="bold">₪6,375</text>
+          <line x1="216" y1="390" x2="884" y2="390" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- More rows indicator -->
+          <text x="548" y="416" text-anchor="middle" fill="#94a3b8" font-size="11">... 4 עובדים נוספים ...</text>
+
+          <!-- Total -->
+          <rect x="216" y="428" width="668" height="36" rx="0" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="224" y="451" fill="#1e293b" font-size="12" font-weight="bold">סה"כ</text>
+          <text x="510" y="451" text-anchor="end" fill="#1e293b" font-size="12" font-weight="bold">₪68,400</text>
+          <text x="880" y="451" text-anchor="end" fill="#16a34a" font-size="13" font-weight="bold">₪51,200</text>
+
+          <!-- Bank export modal hint -->
+          <rect x="540" y="468" width="340" height="56" rx="10" fill="#1e3a8a" opacity="0.95"/>
+          <text x="876" y="488" text-anchor="end" fill="white" font-size="12" font-weight="bold">📥 CSV לייצוא בנק מוכן</text>
+          <text x="876" y="504" text-anchor="end" fill="#93c5fd" font-size="10">8 עובדים · UTF-8 · תואם כל בנק ישראלי</text>
+          <rect x="550" y="512" width="90" height="22" rx="6" fill="#2563eb"/>
+          <text x="595" y="527" text-anchor="middle" fill="white" font-size="10">הורד CSV</text>
+        </svg>
+      </div>
+
+      <!-- Invoice screen -->
+      <div id="screen-invoice" class="screen-content hidden">
+        <svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block;background:#f8fafc" font-family="Arial,sans-serif" direction="rtl">
+          <!-- Sidebar -->
+          <rect width="200" height="540" fill="#1e3a8a"/>
+          <text x="100" y="36" text-anchor="middle" fill="white" font-size="16" font-weight="bold">חשבשבת</text>
+          <rect x="8" y="52" width="184" height="1" fill="#3b5998"/>
+          <text x="100" y="84" text-anchor="middle" fill="#93c5fd" font-size="12">📊 דשבורד</text>
+          <text x="100" y="114" text-anchor="middle" fill="#93c5fd" font-size="12">👥 עובדים</text>
+          <text x="100" y="144" text-anchor="middle" fill="#93c5fd" font-size="12">💰 שכר</text>
+          <rect x="12" y="154" width="176" height="34" rx="8" fill="#2563eb"/>
+          <text x="100" y="176" text-anchor="middle" fill="white" font-size="12">🧾 חשבוניות</text>
+          <text x="100" y="210" text-anchor="middle" fill="#93c5fd" font-size="12">📈 חשבונאות</text>
+          <circle cx="40" cy="510" r="16" fill="#3b82f6"/>
+          <text x="40" y="515" text-anchor="middle" fill="white" font-size="11">ישי</text>
+
+          <!-- Main -->
+          <rect x="200" width="700" height="540" fill="#f8fafc"/>
+          <rect x="200" width="700" height="52" fill="white"/>
+          <rect x="200" y="51" width="700" height="1" fill="#e2e8f0"/>
+          <text x="880" y="31" text-anchor="end" fill="#1e293b" font-size="16" font-weight="bold">חשבוניות</text>
+          <rect x="736" y="14" width="136" height="26" rx="6" fill="#2563eb"/>
+          <text x="804" y="31" text-anchor="middle" fill="white" font-size="11" font-weight="bold">+ חשבונית חדשה</text>
+
+          <!-- Filters -->
+          <rect x="216" y="62" width="668" height="36" rx="8" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <rect x="224" y="70" width="80" height="20" rx="4" fill="#eff6ff"/>
+          <text x="264" y="83" text-anchor="middle" fill="#2563eb" font-size="10" font-weight="bold">הכל (24)</text>
+          <rect x="312" y="70" width="80" height="20" rx="4" fill="#fef9c3"/>
+          <text x="352" y="83" text-anchor="middle" fill="#b45309" font-size="10">ממתין (4)</text>
+          <rect x="400" y="70" width="80" height="20" rx="4" fill="#f1f5f9"/>
+          <text x="440" y="83" text-anchor="middle" fill="#64748b" font-size="10">שולמה (18)</text>
+          <rect x="488" y="70" width="80" height="20" rx="4" fill="#fef2f2"/>
+          <text x="528" y="83" text-anchor="middle" fill="#dc2626" font-size="10">פגה (2)</text>
+
+          <!-- Invoice preview panel + list -->
+          <!-- List -->
+          <rect x="216" y="108" width="360" height="416" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <rect x="216" y="108" width="360" height="36" rx="10" fill="#f8fafc"/>
+          <text x="568" y="130" text-anchor="end" fill="#64748b" font-size="10" font-weight="bold">סכום</text>
+          <text x="224" y="130" fill="#64748b" font-size="10" font-weight="bold">לקוח / מספר</text>
+
+          <!-- Invoice rows -->
+          <rect x="216" y="144" width="360" height="44" fill="#eff6ff"/>
+          <text x="224" y="161" fill="#1e293b" font-size="11" font-weight="bold">#1042 — ABC שיווק בע"מ</text>
+          <text x="224" y="176" fill="#94a3b8" font-size="10">12/03/2026 · 30 יום</text>
+          <rect x="498" y="153" width="64" height="18" rx="9" fill="#fef9c3"/>
+          <text x="530" y="165" text-anchor="middle" fill="#b45309" font-size="9">ממתין</text>
+          <text x="568" y="161" text-anchor="end" fill="#1e293b" font-size="12" font-weight="bold">₪4,200</text>
+
+          <line x1="216" y1="188" x2="576" y2="188" stroke="#f1f5f9" stroke-width="1"/>
+          <rect x="216" y="188" width="360" height="44" fill="white"/>
+          <text x="224" y="205" fill="#1e293b" font-size="11" font-weight="bold">#1041 — XYZ טכנולוגיות</text>
+          <text x="224" y="220" fill="#94a3b8" font-size="10">05/03/2026 · שולמה</text>
+          <rect x="498" y="197" width="64" height="18" rx="9" fill="#dcfce7"/>
+          <text x="530" y="209" text-anchor="middle" fill="#16a34a" font-size="9">שולמה</text>
+          <text x="568" y="205" text-anchor="end" fill="#1e293b" font-size="12">₪12,800</text>
+
+          <line x1="216" y1="232" x2="576" y2="232" stroke="#f1f5f9" stroke-width="1"/>
+          <rect x="216" y="232" width="360" height="44" fill="white"/>
+          <text x="224" y="249" fill="#1e293b" font-size="11" font-weight="bold">#1040 — דיגיטל פרו בע"מ</text>
+          <text x="224" y="264" fill="#94a3b8" font-size="10">28/02/2026 · שולמה</text>
+          <rect x="498" y="241" width="64" height="18" rx="9" fill="#dcfce7"/>
+          <text x="530" y="253" text-anchor="middle" fill="#16a34a" font-size="9">שולמה</text>
+          <text x="568" y="249" text-anchor="end" fill="#1e293b" font-size="12">₪7,500</text>
+
+          <line x1="216" y1="276" x2="576" y2="276" stroke="#f1f5f9" stroke-width="1"/>
+          <rect x="216" y="276" width="360" height="44" fill="white"/>
+          <text x="224" y="293" fill="#1e293b" font-size="11" font-weight="bold">#1039 — סטארטאפ ישראלי</text>
+          <text x="224" y="308" fill="#dc2626" font-size="10">פגה — 15/02/2026</text>
+          <rect x="498" y="285" width="64" height="18" rx="9" fill="#fef2f2"/>
+          <text x="530" y="297" text-anchor="middle" fill="#dc2626" font-size="9">פגה</text>
+          <text x="568" y="293" text-anchor="end" fill="#dc2626" font-size="12">₪3,300</text>
+
+          <!-- Preview panel -->
+          <rect x="588" y="108" width="296" height="416" rx="10" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <!-- Invoice header -->
+          <rect x="588" y="108" width="296" height="56" rx="10" fill="#1e3a8a"/>
+          <text x="876" y="130" text-anchor="end" fill="white" font-size="14" font-weight="bold">חשבונית מס #1042</text>
+          <text x="876" y="148" text-anchor="end" fill="#93c5fd" font-size="10">12 מרץ 2026 · תנאי: 30 יום</text>
+
+          <!-- From/To -->
+          <text x="876" y="180" text-anchor="end" fill="#64748b" font-size="10">מאת:</text>
+          <text x="876" y="194" text-anchor="end" fill="#1e293b" font-size="11" font-weight="bold">חברת ישראל בע"מ</text>
+          <text x="876" y="206" text-anchor="end" fill="#94a3b8" font-size="10">ח.פ. 515123456 | מע"מ: 515123456</text>
+
+          <line x1="596" y1="214" x2="876" y2="214" stroke="#f1f5f9" stroke-width="1"/>
+
+          <text x="876" y="228" text-anchor="end" fill="#64748b" font-size="10">לכבוד:</text>
+          <text x="876" y="242" text-anchor="end" fill="#1e293b" font-size="11" font-weight="bold">ABC שיווק בע"מ</text>
+          <text x="876" y="254" text-anchor="end" fill="#94a3b8" font-size="10">תל אביב | contact@abc.co.il</text>
+
+          <!-- Line items -->
+          <rect x="596" y="264" width="272" height="20" rx="2" fill="#f8fafc"/>
+          <text x="864" y="277" text-anchor="end" fill="#64748b" font-size="9" font-weight="bold">סה"כ</text>
+          <text x="750" y="277" text-anchor="end" fill="#64748b" font-size="9" font-weight="bold">יח׳</text>
+          <text x="604" y="277" fill="#64748b" font-size="9" font-weight="bold">תיאור</text>
+
+          <text x="604" y="297" fill="#1e293b" font-size="10">שירותי פיתוח תוכנה</text>
+          <text x="750" y="297" text-anchor="end" fill="#1e293b" font-size="10">2</text>
+          <text x="864" y="297" text-anchor="end" fill="#1e293b" font-size="10">₪2,000</text>
+          <line x1="596" y1="304" x2="876" y2="304" stroke="#f1f5f9" stroke-width="1"/>
+
+          <text x="604" y="321" fill="#1e293b" font-size="10">ייעוץ אסטרטגי</text>
+          <text x="750" y="321" text-anchor="end" fill="#1e293b" font-size="10">3</text>
+          <text x="864" y="321" text-anchor="end" fill="#1e293b" font-size="10">₪1,500</text>
+          <line x1="596" y1="328" x2="876" y2="328" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Totals -->
+          <text x="864" y="348" text-anchor="end" fill="#64748b" font-size="10">לפני מע"מ:</text>
+          <text x="864" y="362" text-anchor="end" fill="#64748b" font-size="10">מע"מ 18%:</text>
+          <text x="596" y="348" fill="#94a3b8" font-size="10">₪3,530</text>
+          <text x="596" y="362" fill="#94a3b8" font-size="10">₪635</text>
+          <line x1="596" y1="370" x2="876" y2="370" stroke="#e2e8f0" stroke-width="1"/>
+          <rect x="596" y="376" width="272" height="28" rx="4" fill="#eff6ff"/>
+          <text x="864" y="394" text-anchor="end" fill="#1d4ed8" font-size="13" font-weight="bold">₪4,200</text>
+          <text x="604" y="394" fill="#1d4ed8" font-size="11" font-weight="bold">סה"כ לתשלום</text>
+
+          <!-- Action buttons -->
+          <rect x="596" y="414" width="128" height="28" rx="6" fill="#2563eb"/>
+          <text x="660" y="432" text-anchor="middle" fill="white" font-size="10">📤 שלח ללקוח</text>
+          <rect x="732" y="414" width="136" height="28" rx="6" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1"/>
+          <text x="800" y="432" text-anchor="middle" fill="#16a34a" font-size="10">✓ סמן כשולמה</text>
+
+          <!-- GL note -->
+          <rect x="596" y="450" width="272" height="28" rx="6" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="864" y="468" text-anchor="end" fill="#94a3b8" font-size="9">✦ פקודת יומן נוצרה אוטומטית</text>
+        </svg>
+      </div>
+
+      <!-- Accounting screen -->
+      <div id="screen-accounting" class="screen-content hidden">
+        <svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block;background:#f8fafc" font-family="Arial,sans-serif" direction="rtl">
+          <!-- Sidebar -->
+          <rect width="200" height="540" fill="#1e3a8a"/>
+          <text x="100" y="36" text-anchor="middle" fill="white" font-size="16" font-weight="bold">חשבשבת</text>
+          <rect x="8" y="52" width="184" height="1" fill="#3b5998"/>
+          <text x="100" y="84" text-anchor="middle" fill="#93c5fd" font-size="12">📊 דשבורד</text>
+          <text x="100" y="114" text-anchor="middle" fill="#93c5fd" font-size="12">👥 עובדים</text>
+          <text x="100" y="144" text-anchor="middle" fill="#93c5fd" font-size="12">💰 שכר</text>
+          <text x="100" y="174" text-anchor="middle" fill="#93c5fd" font-size="12">🧾 חשבוניות</text>
+          <rect x="12" y="184" width="176" height="34" rx="8" fill="#2563eb"/>
+          <text x="100" y="206" text-anchor="middle" fill="white" font-size="12">📈 חשבונאות</text>
+          <circle cx="40" cy="510" r="16" fill="#3b82f6"/>
+          <text x="40" y="515" text-anchor="middle" fill="white" font-size="11">ישי</text>
+
+          <!-- Main -->
+          <rect x="200" width="700" height="540" fill="#f8fafc"/>
+          <rect x="200" width="700" height="52" fill="white"/>
+          <rect x="200" y="51" width="700" height="1" fill="#e2e8f0"/>
+          <text x="880" y="31" text-anchor="end" fill="#1e293b" font-size="16" font-weight="bold">חשבונאות — דוחות כספיים</text>
+
+          <!-- Sub tabs -->
+          <rect x="216" y="62" width="668" height="36" rx="8" fill="white" stroke="#e2e8f0" stroke-width="1"/>
+          <rect x="224" y="68" width="120" height="24" rx="6" fill="#1e3a8a"/>
+          <text x="284" y="84" text-anchor="middle" fill="white" font-size="11" font-weight="bold">מאזן בוחן</text>
+          <text x="404" y="84" text-anchor="middle" fill="#64748b" font-size="11">רווח והפסד</text>
+          <text x="524" y="84" text-anchor="middle" fill="#64748b" font-size="11">מאזן</text>
+          <text x="644" y="84" text-anchor="middle" fill="#64748b" font-size="11">דוח מע"מ</text>
+          <text x="764" y="84" text-anchor="middle" fill="#64748b" font-size="11">פנקס יומן</text>
+          <text x="860" y="84" text-anchor="end" fill="#2563eb" font-size="10">⬇ ייצוא Excel</text>
+
+          <!-- Trial balance table -->
+          <rect x="216" y="108" width="668" height="32" rx="4" fill="#1e3a8a"/>
+          <text x="224" y="128" fill="white" font-size="11" font-weight="bold">מאזן בוחן — מרץ 2026</text>
+          <text x="650" y="128" text-anchor="end" fill="#93c5fd" font-size="10" font-weight="bold">זכות</text>
+          <text x="755" y="128" text-anchor="end" fill="#93c5fd" font-size="10" font-weight="bold">חובה</text>
+          <text x="880" y="128" text-anchor="end" fill="#93c5fd" font-size="10" font-weight="bold">יתרה</text>
+
+          <!-- Account rows -->
+          <!-- Assets header -->
+          <rect x="216" y="140" width="668" height="24" fill="#eff6ff"/>
+          <text x="224" y="156" fill="#1d4ed8" font-size="11" font-weight="bold">■ נכסים שוטפים</text>
+
+          <rect x="216" y="164" width="668" height="30" fill="white"/>
+          <text x="236" y="182" fill="#1e293b" font-size="11">1100 — קופה ומזומן</text>
+          <text x="650" y="182" text-anchor="end" fill="#94a3b8" font-size="11">—</text>
+          <text x="755" y="182" text-anchor="end" fill="#1e293b" font-size="11">₪24,300</text>
+          <text x="880" y="182" text-anchor="end" fill="#16a34a" font-size="11" font-weight="bold">₪24,300</text>
+          <line x1="216" y1="194" x2="884" y2="194" stroke="#f1f5f9" stroke-width="1"/>
+
+          <rect x="216" y="194" width="668" height="30" fill="#fafafa"/>
+          <text x="236" y="212" fill="#1e293b" font-size="11">1200 — חשבון בנק</text>
+          <text x="650" y="212" text-anchor="end" fill="#94a3b8" font-size="11">—</text>
+          <text x="755" y="212" text-anchor="end" fill="#1e293b" font-size="11">₪156,800</text>
+          <text x="880" y="212" text-anchor="end" fill="#16a34a" font-size="11" font-weight="bold">₪156,800</text>
+          <line x1="216" y1="224" x2="884" y2="224" stroke="#f1f5f9" stroke-width="1"/>
+
+          <rect x="216" y="224" width="668" height="30" fill="white"/>
+          <text x="236" y="242" fill="#1e293b" font-size="11">1300 — לקוחות (חובות)</text>
+          <text x="650" y="242" text-anchor="end" fill="#94a3b8" font-size="11">₪12,800</text>
+          <text x="755" y="242" text-anchor="end" fill="#1e293b" font-size="11">₪31,300</text>
+          <text x="880" y="242" text-anchor="end" fill="#16a34a" font-size="11" font-weight="bold">₪18,500</text>
+          <line x1="216" y1="254" x2="884" y2="254" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Liabilities header -->
+          <rect x="216" y="254" width="668" height="24" fill="#fef2f2"/>
+          <text x="224" y="270" fill="#dc2626" font-size="11" font-weight="bold">■ התחייבויות שוטפות</text>
+
+          <rect x="216" y="278" width="668" height="30" fill="white"/>
+          <text x="236" y="296" fill="#1e293b" font-size="11">3100 — ספקים (זכאים)</text>
+          <text x="650" y="296" text-anchor="end" fill="#e11d48" font-size="11">₪9,200</text>
+          <text x="755" y="296" text-anchor="end" fill="#94a3b8" font-size="11">—</text>
+          <text x="880" y="296" text-anchor="end" fill="#e11d48" font-size="11" font-weight="bold">₪9,200</text>
+          <line x1="216" y1="308" x2="884" y2="308" stroke="#f1f5f9" stroke-width="1"/>
+
+          <rect x="216" y="308" width="668" height="30" fill="#fafafa"/>
+          <text x="236" y="326" fill="#1e293b" font-size="11">3200 — מע"מ לתשלום</text>
+          <text x="650" y="326" text-anchor="end" fill="#e11d48" font-size="11">₪8,340</text>
+          <text x="755" y="326" text-anchor="end" fill="#94a3b8" font-size="11">—</text>
+          <text x="880" y="326" text-anchor="end" fill="#e11d48" font-size="11" font-weight="bold">₪8,340</text>
+          <line x1="216" y1="338" x2="884" y2="338" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Revenue/Expense header -->
+          <rect x="216" y="338" width="668" height="24" fill="#f0fdf4"/>
+          <text x="224" y="354" fill="#16a34a" font-size="11" font-weight="bold">■ הכנסות</text>
+
+          <rect x="216" y="362" width="668" height="30" fill="white"/>
+          <text x="236" y="380" fill="#1e293b" font-size="11">6100 — הכנסות ממכירות</text>
+          <text x="650" y="380" text-anchor="end" fill="#16a34a" font-size="11">₪84,200</text>
+          <text x="755" y="380" text-anchor="end" fill="#94a3b8" font-size="11">—</text>
+          <text x="880" y="380" text-anchor="end" fill="#16a34a" font-size="11" font-weight="bold">₪84,200</text>
+          <line x1="216" y1="392" x2="884" y2="392" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Expenses -->
+          <rect x="216" y="392" width="668" height="24" fill="#fff7ed"/>
+          <text x="224" y="408" fill="#ea580c" font-size="11" font-weight="bold">■ הוצאות</text>
+
+          <rect x="216" y="416" width="668" height="30" fill="white"/>
+          <text x="236" y="434" fill="#1e293b" font-size="11">7100 — הוצאות שכר</text>
+          <text x="650" y="434" text-anchor="end" fill="#94a3b8" font-size="11">—</text>
+          <text x="755" y="434" text-anchor="end" fill="#ea580c" font-size="11">₪42,100</text>
+          <text x="880" y="434" text-anchor="end" fill="#ea580c" font-size="11" font-weight="bold">₪42,100</text>
+          <line x1="216" y1="446" x2="884" y2="446" stroke="#f1f5f9" stroke-width="1"/>
+
+          <!-- Total row -->
+          <rect x="216" y="458" width="668" height="36" rx="4" fill="#1e3a8a"/>
+          <text x="224" y="480" fill="white" font-size="12" font-weight="bold">סה"כ (מאוזן ✓)</text>
+          <text x="650" y="480" text-anchor="end" fill="#93c5fd" font-size="12" font-weight="bold">₪114,540</text>
+          <text x="755" y="480" text-anchor="end" fill="#93c5fd" font-size="12" font-weight="bold">₪114,540</text>
+          <text x="880" y="480" text-anchor="end" fill="#22c55e" font-size="12" font-weight="bold">✓ מאוזן</text>
+
+          <!-- Info footer -->
+          <rect x="216" y="500" width="668" height="30" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+          <text x="880" y="519" text-anchor="end" fill="#94a3b8" font-size="10">✦ מבוסס חשבונאות כפולה · ACID transactions · Neon PostgreSQL</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .active-tab { background: #1e3a8a !important; color: white !important; }
+</style>
+<script>
+  function showScreen(name) {
+    document.querySelectorAll('.screen-content').forEach(el => el.classList.add('hidden'));
+    document.getElementById('screen-' + name).classList.remove('hidden');
+    document.querySelectorAll('.screen-tab').forEach(el => {
+      el.classList.remove('active-tab');
+      el.className = el.className.replace('bg-brand-600 text-white', '');
+      if (!el.className.includes('active-tab')) {
+        el.style.background = '#f1f5f9';
+        el.style.color = '#64748b';
+      }
+    });
+    const tab = document.getElementById('tab-' + name);
+    tab.style.background = '#1e3a8a';
+    tab.style.color = 'white';
+  }
+  // init
+  document.addEventListener('DOMContentLoaded', () => showScreen('dash'));
+</script>
+
 <!-- ─── Stats bar ──────────────────────────────────────── -->
 <section class="bg-gray-50 border-b py-8 px-4">
   <div class="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
