@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Plus, Trash2, Save, Send, Loader2, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Plus, Trash2, Save, Send, Loader2, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(n);
@@ -40,11 +40,135 @@ const emptyLine = (): Line => ({
 const inputCls = 'w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none';
 const headerInputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none';
 
+// ─── New Item Quick-Create Modal ──────────────────────────────────────────────
+function NewItemModal({
+  initialName,
+  onCreated,
+  onClose,
+}: {
+  initialName: string;
+  onCreated: (product: Product) => void;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name,     setName]     = useState(initialName);
+  const [sku,      setSku]      = useState('');
+  const [barcode,  setBarcode]  = useState('');
+  const [unit,     setUnit]     = useState('יח');
+  const [price,    setPrice]    = useState('');
+  const [vatRate,  setVatRate]  = useState(0.18);
+  const [category, setCategory] = useState('');
+  const [err,      setErr]      = useState('');
+
+  const { isPending, mutate } = useMutation({
+    mutationFn: () => api.post('/inventory/items', {
+      name: name.trim(),
+      sku:          sku.trim()      || undefined,
+      barcode:      barcode.trim()  || undefined,
+      unit:         unit.trim()     || 'יח',
+      sellingPrice: parseFloat(price) || 0,
+      vatRate,
+      category:     category.trim() || undefined,
+      trackInventory: false,
+    }),
+    onSuccess: res => {
+      const item: Product = res.data?.data ?? res.data;
+      qc.invalidateQueries({ queryKey: ['inventory-items-search'] });
+      onCreated(item);
+    },
+    onError: (e: any) => setErr(e.response?.data?.error ?? 'שגיאה ביצירת הפריט'),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-900">➕ הקמת פריט חדש בקטלוג</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+        </div>
+
+        <div className="px-5 py-4 space-y-3">
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">שם הפריט / שירות *</label>
+            <input value={name} onChange={e => setName(e.target.value)} autoFocus
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">מחיר מכירה ₪ *</label>
+              <input type="number" min={0} step={0.01} value={price} onChange={e => setPrice(e.target.value)}
+                placeholder="0.00"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">יחידת מידה</label>
+              <select value={unit} onChange={e => setUnit(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                {['יח','שעה','חודש','ק"ג','מ"ר','ל','ס"מ','ערכה','מנה'].map(u => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">מקט (אופציונלי)</label>
+              <input value={sku} onChange={e => setSku(e.target.value)} placeholder="SKU-001"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">ברקוד (אופציונלי)</label>
+              <input value={barcode} onChange={e => setBarcode(e.target.value)} placeholder="1234567890"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">קטגוריה</label>
+              <input value={category} onChange={e => setCategory(e.target.value)} placeholder="שירותים, מוצרים..."
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">מעמ</label>
+              <select value={vatRate} onChange={e => setVatRate(+e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+                <option value={0.18}>18%</option>
+                <option value={0}>0% (פטור)</option>
+                <option value={0.17}>17%</option>
+              </select>
+            </div>
+          </div>
+
+          {err && <p className="text-red-600 text-xs">{err}</p>}
+        </div>
+
+        <div className="px-5 py-4 border-t border-gray-100 flex gap-2 justify-end">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg">
+            ביטול
+          </button>
+          <button
+            onClick={() => mutate()}
+            disabled={isPending || !name.trim() || !price}
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 text-white text-sm font-bold px-5 py-2 rounded-lg transition-all">
+            {isPending ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            הוסף לקטלוג ולחשבונית
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Inline Search Autocomplete ────────────────────────────────────────────────
 function DescriptionAutocomplete({
   value,
   onChange,
   onSelectProduct,
+  onCreateNew,
   items,
   placeholder = 'תיאור פריט / שירות...',
   onBlur,
@@ -52,6 +176,7 @@ function DescriptionAutocomplete({
   value: string;
   onChange: (v: string) => void;
   onSelectProduct: (p: Product) => void;
+  onCreateNew: (name: string) => void;
   items: Product[];
   placeholder?: string;
   onBlur?: () => void;
@@ -71,6 +196,10 @@ function DescriptionAutocomplete({
       }).slice(0, 10)
     : [];
 
+  // Total items in dropdown = suggestions + optional "create new" row
+  const showCreate = value.trim().length >= 2;
+  const totalItems = suggestions.length + (showCreate ? 1 : 0);
+
   // Close on outside click
   useEffect(() => {
     const h = (e: MouseEvent) => {
@@ -83,12 +212,18 @@ function DescriptionAutocomplete({
   const select = (p: Product) => { onSelectProduct(p); setOpen(false); };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!open || suggestions.length === 0) return;
-    if (e.key === 'ArrowDown')  { e.preventDefault(); setHi(h => Math.min(h + 1, suggestions.length - 1)); }
+    if (!open || totalItems === 0) return;
+    if (e.key === 'ArrowDown')  { e.preventDefault(); setHi(h => Math.min(h + 1, totalItems - 1)); }
     if (e.key === 'ArrowUp')    { e.preventDefault(); setHi(h => Math.max(h - 1, 0)); }
-    if (e.key === 'Enter')      { e.preventDefault(); select(suggestions[hi]); }
-    if (e.key === 'Escape')     { setOpen(false); }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (hi < suggestions.length) select(suggestions[hi]);
+      else { onCreateNew(value.trim()); setOpen(false); }
+    }
+    if (e.key === 'Escape') { setOpen(false); }
   };
+
+  const dropdownOpen = open && value.trim().length >= 1 && (suggestions.length > 0 || showCreate);
 
   return (
     <div ref={wrapRef} className="relative w-full">
@@ -107,15 +242,16 @@ function DescriptionAutocomplete({
         )}
       </div>
 
-      {open && suggestions.length > 0 && (
-        <div className="absolute top-full right-0 z-50 w-full min-w-[280px] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden mt-0.5">
+      {dropdownOpen && (
+        <div className="absolute top-full right-0 z-50 w-full min-w-[300px] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden mt-0.5">
+          {/* Matching items */}
           {suggestions.map((p, i) => (
             <div
               key={p.id}
               onMouseDown={e => { e.preventDefault(); select(p); }}
-              className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none ${
+              className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none border-b border-gray-50 ${
                 i === hi ? 'bg-blue-50' : 'hover:bg-gray-50'
-              } ${i < suggestions.length - 1 ? 'border-b border-gray-50' : ''}`}
+              }`}
             >
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-gray-800 text-sm truncate">{p.name}</div>
@@ -138,9 +274,30 @@ function DescriptionAutocomplete({
               </div>
             </div>
           ))}
-          <div className="px-3 py-1.5 bg-gray-50 text-[11px] text-gray-400 text-center border-t border-gray-100">
-            ↑↓ לניווט · Enter לבחירה · Esc לסגירה
-          </div>
+
+          {/* "Create new item" row */}
+          {showCreate && (
+            <div
+              onMouseDown={e => { e.preventDefault(); onCreateNew(value.trim()); setOpen(false); }}
+              className={`flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none ${
+                hi === suggestions.length ? 'bg-emerald-50' : 'hover:bg-emerald-50'
+              }`}
+            >
+              <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                <Plus size={12} className="text-emerald-600" />
+              </div>
+              <div>
+                <span className="text-sm font-semibold text-emerald-700">הוסף לקטלוג: </span>
+                <span className="text-sm text-emerald-800">"{value.trim()}"</span>
+              </div>
+            </div>
+          )}
+
+          {suggestions.length > 0 && (
+            <div className="px-3 py-1 bg-gray-50 text-[10px] text-gray-400 text-center border-t border-gray-100">
+              ↑↓ לניווט · Enter לבחירה · Esc לסגירה
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -160,6 +317,9 @@ export default function NewInvoicePage() {
   const [lines,         setLines]         = useState<Line[]>([emptyLine()]);
   const [showAdvanced,  setShowAdvanced]  = useState(false);
   const [error,         setError]         = useState('');
+  const [newItemModal,  setNewItemModal]  = useState<{ name: string; lineIdx: number } | null>(null);
+
+  const qc = useQueryClient();
 
   // Fetch customers
   const { data: custData } = useQuery({
@@ -390,12 +550,13 @@ export default function NewInvoicePage() {
                       </td>
                     )}
 
-                    {/* Description — inline autocomplete */}
+                    {/* Description — inline autocomplete with create-new */}
                     <td className="px-3 py-2">
                       <DescriptionAutocomplete
                         value={line.description}
                         onChange={v => updateLine(idx, 'description', v)}
                         onSelectProduct={p => applyProduct(idx, p)}
+                        onCreateNew={name => setNewItemModal({ name, lineIdx: idx })}
                         items={allItems}
                       />
                     </td>
@@ -510,6 +671,18 @@ export default function NewInvoicePage() {
       </div>
 
       {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg border border-red-100">{error}</div>}
+
+      {/* New item quick-create modal */}
+      {newItemModal && (
+        <NewItemModal
+          initialName={newItemModal.name}
+          onCreated={product => {
+            applyProduct(newItemModal.lineIdx, product);
+            setNewItemModal(null);
+          }}
+          onClose={() => setNewItemModal(null)}
+        />
+      )}
 
       <div className="flex gap-3">
         <button onClick={() => saveMutation.mutate(false)} disabled={!valid || saveMutation.isPending}
