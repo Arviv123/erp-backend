@@ -25,6 +25,7 @@ import Form106Page from './pages/Form106Page';
 import Form126Page from './pages/Form126Page';
 import MonthlyReport102Page from './pages/MonthlyReport102Page';
 import PayrollWorksheetPage from './pages/PayrollWorksheetPage';
+import ReportGeneratorPage from './pages/ReportGeneratorPage';
 
 // Invoices
 import InvoicesListPage from './pages/InvoicesListPage';
@@ -146,6 +147,7 @@ export default function App() {
               <Route path="/payroll/form126" element={<ProtectedRoute module="PAYROLL"><Form126Page /></ProtectedRoute>} />
               <Route path="/payroll/report102" element={<ProtectedRoute module="PAYROLL"><MonthlyReport102Page /></ProtectedRoute>} />
               <Route path="/payroll/worksheet" element={<ProtectedRoute module="PAYROLL"><PayrollWorksheetPage /></ProtectedRoute>} />
+              <Route path="/payroll/reports" element={<ProtectedRoute module="PAYROLL"><ReportGeneratorPage /></ProtectedRoute>} />
 
               {/* Invoices */}
               <Route path="/invoices" element={<ProtectedRoute module="INVOICES"><InvoicesListPage /></ProtectedRoute>} />

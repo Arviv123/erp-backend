@@ -36,6 +36,7 @@ const NAV: NavItem[] = [
       { label: 'דוח 102', to: '/payroll/report102' },
       { label: 'טופס 106', to: '/payroll/form106' },
       { label: 'טופס 126 — שנתי', to: '/payroll/form126' },
+      { label: 'מחולל דוחות ★', to: '/payroll/reports' },
     ],
   },
   {
