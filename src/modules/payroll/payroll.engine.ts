@@ -308,6 +308,38 @@ export function calcTrainingFund(
   return { empContrib, erContrib, taxableExcess };
 }
 
+// ─── Sick Leave Deduction ──────────────────────────────────────────
+/**
+ * חוק דמי מחלה, תשל"ו-1976
+ * יום 1:    0% תשלום → ניכוי מלא (שכר יומי אחד)
+ * ימים 2-3: 50% תשלום → ניכוי חצי יום לכל יום
+ * יום 4+:   100% תשלום → ללא ניכוי
+ *
+ * שיעור יומי = שכר חודשי ÷ 30
+ */
+function calcSickLeaveDeduction(grossSalary: number, sickDaysUsed: number): number {
+  if (sickDaysUsed <= 0) return 0;
+  const dailyRate = round2(grossSalary / 30);
+  // יום 1 — ניכוי מלא
+  let deduction = dailyRate;
+  // ימים 2–3 — ניכוי 50%
+  if (sickDaysUsed >= 2) {
+    const halfDays = Math.min(sickDaysUsed - 1, 2);
+    deduction = round2(deduction + halfDays * dailyRate * 0.5);
+  }
+  return deduction;
+}
+
+// ─── Pro-rata (Partial Month) — חודש חלקי ────────────────────────
+/**
+ * עובד שהתחיל/סיים באמצע חודש
+ * שכר יחסי = שכר מלא × (ימי עבודה בפועל ÷ ימי עבודה בחודש)
+ */
+function applyProRata(grossSalary: number, partialDays: number, workDaysInMonth: number): number {
+  if (partialDays <= 0 || workDaysInMonth <= 0 || partialDays >= workDaysInMonth) return grossSalary;
+  return round2(grossSalary * (partialDays / workDaysInMonth));
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // SECTION 3 — MAIN calculatePayslip FUNCTION
 // ═══════════════════════════════════════════════════════════════════
@@ -346,6 +378,19 @@ export interface PayslipParams {
   trainingFundEmpRate?: number;  // % עובד (e.g. 2.5)
   trainingFundErRate?:  number;  // % מעסיק (e.g. 7.5)
 
+  // ── Partial month — חודש חלקי ─────────────────────────────
+  // עובד שהתחיל/סיים באמצע החודש
+  // שכר = שכר חודשי × (partialMonthDays / workDaysInMonth)
+  partialMonthDays?:   number;   // ימי עבודה בפועל בחודש זה
+  workDaysInMonth?:    number;   // ימי עבודה כוללים בחודש (ברירת מחדל: 22)
+
+  // ── Sick leave — ימי מחלה ─────────────────────────────────
+  // חוק דמי מחלה, תשל"ו-1976:
+  // יום 1: 0% תשלום (ניכוי מלא יום אחד)
+  // ימים 2-3: 50% תשלום (ניכוי 50% לכל יום)
+  // יום 4+: 100% תשלום (אין ניכוי)
+  sickDaysUsed?:       number;   // ימי מחלה שהשתמש בהם העובד החודש
+
   // ── Reporting fields (do not affect calculation) ───────────
   miluimDays?:         number;   // ימי מילואים — לדיווח טופס 126
   sickDays?:           number;   // ימי מחלה — לדיווח
@@ -374,10 +419,20 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     miluimDays          = 0,
     sickDays            = 0,
     unpaidLeaveDays     = 0,
+    partialMonthDays    = 0,
+    workDaysInMonth     = 22,
+    sickDaysUsed        = 0,
   } = params;
 
   if (grossSalary < 0)         throw new Error('Gross salary cannot be negative');
   if (pensionEmployeeRate < 0) throw new Error('Pension employee rate cannot be negative');
+
+  // ── 0. Pro-rata — חודש חלקי ──────────────────────────────────────
+  // עובד שהתחיל/סיים באמצע חודש: שכר × (ימים / ימי עבודה בחודש)
+  const effectiveGross = partialMonthDays > 0
+    ? applyProRata(grossSalary, partialMonthDays, workDaysInMonth)
+    : grossSalary;
+  const isPartialMonth = effectiveGross !== grossSalary;
 
   // ── Determine period date ────────────────────────────────────────
   let periodDate: Date;
@@ -390,44 +445,47 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
 
   // ── 1. Overtime ──────────────────────────────────────────────────
   const { pay125, pay150, totalOT } = calcOvertime(
-    grossSalary, hourlyRate, overtime125Hours, overtime150Hours
+    effectiveGross, hourlyRate, overtime125Hours, overtime150Hours
   );
 
   // ── 2. Recuperation ──────────────────────────────────────────────
   let recuperationPay = 0;
   if (includeRecuperation && startDate) {
     const rec = calcRecuperation(startDate, periodDate);
-    recuperationPay = rec.monthlyAmount;
+    // Pro-rata recuperation for partial month
+    recuperationPay = isPartialMonth
+      ? round2(rec.monthlyAmount * (partialMonthDays / workDaysInMonth))
+      : rec.monthlyAmount;
   }
 
   // ── 3. Travel allowance ──────────────────────────────────────────
   // פטור ממס הכנסה; חייב בביטוח לאומי
-  const travelAllowance = calcTravel(travelWorkDays);
+  // Pro-rata travel for partial month
+  const effectiveTravelDays = isPartialMonth
+    ? Math.round(travelWorkDays * (partialMonthDays / workDaysInMonth))
+    : travelWorkDays;
+  const travelAllowance = calcTravel(effectiveTravelDays);
 
   // ── 4. Company Car — שווי רכב צמוד ──────────────────────────────
-  // חייב במס הכנסה ובביטוח לאומי (מצטרף לברוטו לכל מטרה)
   const carBenefit = calcCarBenefit(carListPrice, carType);
 
   // ── 5. Gross components ──────────────────────────────────────────
-  // Pension base = base salary only (legal minimum; some CBAs differ)
-  const pensionBase = grossSalary;
+  // Pension base = effective (pro-rata'd) base salary
+  const pensionBase = effectiveGross;
 
   // Total taxable gross = יסוד + שעות נוספות + הבראה + בונוס + שווי רכב
-  // (נסיעות פטורות ממס הכנסה אך חייבות בב.ל.)
-  const totalGross = round2(grossSalary + totalOT + recuperationPay + bonusAmount + carBenefit);
+  const totalGross = round2(effectiveGross + totalOT + recuperationPay + bonusAmount + carBenefit);
 
   // NI base = הכל כולל נסיעות ושווי רכב
   const grossForNI = round2(totalGross + travelAllowance);
 
   // Taxable income for income tax = totalGross (נסיעות פטורות ממס הכנסה)
-  const taxableIncome = totalGross; // carBenefit already included above
+  const taxableIncome = totalGross;
 
   // ── 6. Training Fund — קרן השתלמות ───────────────────────────────
-  // הפרשת מעסיק מעל תקרה = הכנסה חייבת נוספת (מוסיפה ל-taxableIncome)
   const { empContrib: tfEmp, erContrib: tfEr, taxableExcess: tfTaxableExcess }
-    = calcTrainingFund(grossSalary, trainingFundEmpRate, trainingFundErRate);
+    = calcTrainingFund(effectiveGross, trainingFundEmpRate, trainingFundErRate);
 
-  // הכנסה חייבת סופית (כולל עודף קרן השתלמות מעל תקרה)
   const taxableIncomeTotal = round2(taxableIncome + tfTaxableExcess);
 
   // ── 7. Income tax ────────────────────────────────────────────────
@@ -438,22 +496,22 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
 
   // ── 9. Pension ───────────────────────────────────────────────────
   const { penEmp, penEr, sev } = calcPension(
-    pensionBase,
-    pensionEmployeeRate,
-    pensionEmployerRate,
-    severancePayRate
+    pensionBase, pensionEmployeeRate, pensionEmployerRate, severancePayRate
   );
 
-  // ── 10. Net salary ───────────────────────────────────────────────
-  // ניכויים מהעובד: מס + ב.ל. + בריאות + פנסיה + קרן השתלמות
-  const totalDeductions = round2(incomeTax + niEmp + hiEmp + penEmp + tfEmp);
+  // ── 10. Sick leave deduction ─────────────────────────────────────
+  // חוק דמי מחלה תשל"ו-1976: יום 1=0%, ימים 2-3=50%, 4+=100%
+  const sickLeaveDeduction = calcSickLeaveDeduction(effectiveGross, sickDaysUsed);
+
+  // ── 11. Net salary ───────────────────────────────────────────────
+  const totalDeductions = round2(incomeTax + niEmp + hiEmp + penEmp + tfEmp + sickLeaveDeduction);
   const netSalary       = round2(totalGross + travelAllowance - totalDeductions);
 
-  // ── 11. Total employer cost ──────────────────────────────────────
+  // ── 12. Total employer cost ──────────────────────────────────────
   const totalEmployerCost = round2(totalGross + travelAllowance + penEr + sev + niEr + tfEr);
 
-  // ── 12. Minimum wage check ───────────────────────────────────────
-  const minimumWageOk = grossSalary >= MINIMUM_WAGE_MONTHLY;
+  // ── 13. Minimum wage check ───────────────────────────────────────
+  const minimumWageOk = effectiveGross >= MINIMUM_WAGE_MONTHLY;
 
   // ── 13. Accruals ─────────────────────────────────────────────────
   const vacationAccruedDays = startDate
@@ -473,13 +531,21 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     grossForNI,
     taxableIncome:    taxableIncomeTotal, // כולל עודף קרן השתלמות מעל תקרה
 
+    // Pro-rata
+    isPartialMonth,
+    partialMonthDays: partialMonthDays > 0 ? partialMonthDays : undefined,
+    workDaysInMonth:  partialMonthDays > 0 ? workDaysInMonth  : undefined,
+    effectiveBaseSalary: effectiveGross,  // שכר יסוד אחרי יחסי
+
     // Deductions
     incomeTax:                  round2(incomeTax),
     taxCreditsAmount:           round2(creditsUsed),
     nationalInsuranceEmployee:  niEmp,
     healthInsuranceEmployee:    hiEmp,
     pensionEmployee:            penEmp,
-    trainingFundEmployee:       tfEmp,   // קרן השתלמות — ניכוי מעובד
+    trainingFundEmployee:       tfEmp,
+    sickLeaveDeduction,                   // ניכוי ימי מחלה (0%/50%/100%)
+    sickDaysUsed,                         // ימי מחלה בפועל
     totalDeductions,
     netSalary,
 

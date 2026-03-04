@@ -77,9 +77,19 @@ export interface PayslipCalculation {
   vacationAccruedDays:  number;  // ימי חופשה שנצברו החודש
   sickLeaveAccruedDays: number;  // ימי מחלה שנצברו = תמיד 1.5
 
+  // ── Pro-rata (partial month) ───────────────────────────────────
+  isPartialMonth:      boolean;   // האם חודש חלקי?
+  effectiveBaseSalary: number;    // שכר יסוד אחרי יחסי
+  partialMonthDays?:   number;
+  workDaysInMonth?:    number;
+
+  // ── Sick leave deduction ───────────────────────────────────────
+  sickLeaveDeduction:  number;    // ניכוי ימי מחלה (₪) — 0/50/100%
+  sickDaysUsed:        number;    // ימי מחלה בפועל
+
   // ── Reporting fields (for Form 126 / payroll reports) ─────────
   miluimDays:      number;  // ימי מילואים
-  sickDays:        number;  // ימי מחלה בפועל
+  sickDays:        number;  // ימי מחלה לדיווח
   unpaidLeaveDays: number;  // ימי חופשה ללא תשלום
 
   // ── Breakdown detail ───────────────────────────────────────────

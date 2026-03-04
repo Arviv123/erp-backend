@@ -101,9 +101,9 @@ function TH({ children, className = '' }: { children: React.ReactNode; className
   );
 }
 
-function TD({ children, className = '', money }: { children: React.ReactNode; className?: string; money?: boolean }) {
+function TD({ children, className = '', money, colSpan }: { children: React.ReactNode; className?: string; money?: boolean; colSpan?: number }) {
   return (
-    <td className={`px-2 py-1.5 text-xs border border-gray-100 ${money ? 'text-left font-mono' : 'text-right'} ${className}`}>
+    <td colSpan={colSpan} className={`px-2 py-1.5 text-xs border border-gray-100 ${money ? 'text-left font-mono' : 'text-right'} ${className}`}>
       {children}
     </td>
   );

@@ -15,11 +15,11 @@ export interface EmployeeAdjustment {
   includeRecuperation?:  boolean;  // האם לכלול הבראה חודשית (1/12)
   bonusAmount?:          number;   // בונוס / תשלומים מיוחדים
   miluimDays?:           number;   // ימי מילואים — לדיווח טופס 126
-  sickDays?:             number;   // ימי מחלה — לדיווח
+  sickDays?:             number;   // ימי מחלה בפועל — לחישוב ניכוי + דיווח
   unpaidLeaveDays?:      number;   // ימי חופשה ללא תשלום
   manualDeduction?:      number;   // ניכוי ידני (הלוואה, מס לנוסף וכד')
   partialMonthDays?:     number;   // ימים בפועל (עובד שנכנס/יצא באמצע)
-  totalWorkDaysInMonth?: number;   // סה"כ ימי עבודה בחודש
+  totalWorkDaysInMonth?: number;   // סה"כ ימי עבודה בחודש (ברירת מחדל: 22)
 }
 
 // ─── Run Payroll for a Period ─────────────────────────────────────
@@ -59,14 +59,8 @@ export async function runPayroll(
   const payslipData = employees.map((emp) => {
     const adj = adjustments[emp.id] ?? {};
 
-    // Handle partial month
-    let base = Number(emp.grossSalary);
-    if (adj.partialMonthDays && adj.totalWorkDaysInMonth && adj.totalWorkDaysInMonth > 0) {
-      base = Math.round(base * (adj.partialMonthDays / adj.totalWorkDaysInMonth) * 100) / 100;
-    }
-
     const engineParams: PayslipParams = {
-      grossSalary:         base,
+      grossSalary:         Number(emp.grossSalary),
       taxCreditPoints:     Number(emp.taxCredits),
       pensionEmployeeRate: Number(emp.pensionEmployee),
       pensionEmployerRate: Number(emp.pensionEmployer),
@@ -89,6 +83,11 @@ export async function runPayroll(
       // Training fund — קרן השתלמות
       trainingFundEmpRate: Number(emp.trainingFundRate),
       trainingFundErRate:  Number(emp.trainingFundErRate),
+      // Pro-rata — חודש חלקי (engine applies the proration)
+      partialMonthDays:    adj.partialMonthDays     ?? 0,
+      workDaysInMonth:     adj.totalWorkDaysInMonth ?? 22,
+      // Sick leave — חוק דמי מחלה תשל"ו-1976 (same field as sickDays)
+      sickDaysUsed:        adj.sickDays             ?? 0,
       // Reporting fields (Form 126)
       miluimDays:          adj.miluimDays      ?? 0,
       sickDays:            adj.sickDays        ?? 0,
@@ -104,7 +103,7 @@ export async function runPayroll(
       calc.totalDeductions = Math.round((calc.totalDeductions + manualDeduction) * 100) / 100;
     }
 
-    return { emp, calc, adj, base, manualDeduction };
+    return { emp, calc, adj, manualDeduction };
   });
 
   // ── Totals ────────────────────────────────────────────────────

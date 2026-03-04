@@ -57,23 +57,25 @@ function getRecuperationDays(startDate?: string): number {
 }
 
 interface CalcResult {
-  baseSalary:   number;
-  ot125Pay:     number;
-  ot150Pay:     number;
-  recuperation: number;
-  bonus:        number;
-  travel:       number;
-  gross:        number;
-  grossForNI:   number;
-  taxableIncome: number;
-  incomeTax:    number;
-  taxCredits:   number;
-  niEmployee:   number;
-  hiEmployee:   number;
-  pensionEmp:   number;
-  manualDed:    number;
-  totalDed:     number;
-  net:          number;
+  baseSalary:        number;
+  effectiveBase:     number;  // שכר יסוד אחרי יחסי (pro-rata)
+  ot125Pay:          number;
+  ot150Pay:          number;
+  recuperation:      number;
+  bonus:             number;
+  travel:            number;
+  gross:             number;
+  grossForNI:        number;
+  taxableIncome:     number;
+  incomeTax:         number;
+  taxCredits:        number;
+  niEmployee:        number;
+  hiEmployee:        number;
+  pensionEmp:        number;
+  sickLeaveDeduction: number;
+  manualDed:         number;
+  totalDed:          number;
+  net:               number;
   // Employer
   pensionEr:    number;
   severance:    number;
@@ -90,12 +92,15 @@ interface AdjRow {
   bonus: number;
   manualDeduction: number;
   miluimDays: number;
-  sickDays: number;
+  sickDays: number;     // ימי מחלה בפועל — לניכוי + דיווח
+  partialDays: number;  // ימי עבודה בפועל (0=חודש מלא, >0=חלקי)
 }
 
 function defaultAdj(): AdjRow {
-  return { ot125: 0, ot150: 0, travelDays: 21, recuperation: false, bonus: 0, manualDeduction: 0, miluimDays: 0, sickDays: 0 };
+  return { ot125: 0, ot150: 0, travelDays: 21, recuperation: false, bonus: 0, manualDeduction: 0, miluimDays: 0, sickDays: 0, partialDays: 0 };
 }
+
+const WORK_DAYS_DEFAULT = 22; // ימי עבודה ממוצעים בחודש
 
 function calcPayroll(emp: any, adj: AdjRow): CalcResult {
   const base      = Number(emp.grossSalary) || 0;
@@ -103,17 +108,30 @@ function calcPayroll(emp: any, adj: AdjRow): CalcResult {
   const penEeRate = Number(emp.pensionEmployee) || 6;
   const penErRate = Number(emp.pensionEmployer) || 6.5;
   const sevRate   = Number(emp.severancePay)    || 8.33;
-  const hourly    = emp.hourlyRate ? Number(emp.hourlyRate) : base / MONTHLY_HOURS;
 
-  // Income components
+  // Pro-rata — חודש חלקי
+  const effectiveBase = (adj.partialDays > 0 && adj.partialDays < WORK_DAYS_DEFAULT)
+    ? Math.round(base * (adj.partialDays / WORK_DAYS_DEFAULT) * 100) / 100
+    : base;
+  const isPartial = effectiveBase !== base;
+
+  const hourly    = emp.hourlyRate ? Number(emp.hourlyRate) : effectiveBase / MONTHLY_HOURS;
+
+  // Income components (use effectiveBase for overtime hourly rate calculation)
   const ot125Pay     = Math.round(adj.ot125 * hourly * 1.25 * 100) / 100;
   const ot150Pay     = Math.round(adj.ot150 * hourly * 1.50 * 100) / 100;
   const recupDays    = getRecuperationDays(emp.startDate);
-  const recuperation = adj.recuperation ? Math.round(recupDays * RECUPERATION_DAILY / 12) : 0;
+  const recupMonthly = Math.round(recupDays * RECUPERATION_DAILY / 12);
+  const recuperation = adj.recuperation
+    ? (isPartial ? Math.round(recupMonthly * (adj.partialDays / WORK_DAYS_DEFAULT)) : recupMonthly)
+    : 0;
   const bonus        = Math.round(adj.bonus);
-  const travel       = Math.round(Math.min(adj.travelDays, 31) * TRAVEL_DAILY_MAX);
+  const effectiveTravelDays = isPartial
+    ? Math.round(adj.travelDays * (adj.partialDays / WORK_DAYS_DEFAULT))
+    : adj.travelDays;
+  const travel       = Math.round(Math.min(effectiveTravelDays, 31) * TRAVEL_DAILY_MAX);
 
-  const gross        = base + ot125Pay + ot150Pay + recuperation + bonus;
+  const gross        = effectiveBase + ot125Pay + ot150Pay + recuperation + bonus;
   const grossForNI   = gross + travel;   // travel included in NI base
   const taxableIncome = gross;            // travel exempt from income tax
 
@@ -137,28 +155,39 @@ function calcPayroll(emp: any, adj: AdjRow): CalcResult {
   const hiEmployee = Math.round(below * 0.031 + above * 0.05);
 
   // Pension employee
-  const pensionEmp = Math.round(gross * (penEeRate / 100));
+  const pensionEmp = Math.round(effectiveBase * (penEeRate / 100));
+
+  // Sick leave deduction — חוק דמי מחלה תשל"ו-1976
+  const dailyRate = Math.round(effectiveBase / 30 * 100) / 100;
+  let sickLeaveDeduction = 0;
+  if (adj.sickDays > 0) {
+    sickLeaveDeduction = dailyRate; // day 1: 0% pay = full deduction
+    if (adj.sickDays >= 2) {
+      const halfDays = Math.min(adj.sickDays - 1, 2);
+      sickLeaveDeduction = Math.round((sickLeaveDeduction + halfDays * dailyRate * 0.5) * 100) / 100;
+    }
+  }
 
   // Manual deduction
   const manualDed    = Math.round(adj.manualDeduction);
-  const totalDed     = incomeTax + niEmployee + hiEmployee + pensionEmp + manualDed;
+  const totalDed     = incomeTax + niEmployee + hiEmployee + pensionEmp + sickLeaveDeduction + manualDed;
   const net          = Math.max(0, gross + travel - totalDed);
 
   // Employer costs
-  const pensionEr    = Math.round(gross * (penErRate / 100));
-  const severance    = Math.round(gross * (sevRate / 100));
+  const pensionEr    = Math.round(effectiveBase * (penErRate / 100));
+  const severance    = Math.round(effectiveBase * (sevRate / 100));
   const niErBelow    = Math.min(grossForNI, NI_THRESHOLD);
   const niErAbove    = Math.max(0, Math.min(grossForNI, NI_CEILING) - NI_THRESHOLD);
   const niEmployer   = Math.round(niErBelow * 0.0355 + niErAbove * 0.076);
   const totalEmployerCost = gross + travel + pensionEr + severance + niEmployer;
 
   return {
-    baseSalary: base, ot125Pay, ot150Pay, recuperation, bonus, travel,
+    baseSalary: base, effectiveBase, ot125Pay, ot150Pay, recuperation, bonus, travel,
     gross, grossForNI, taxableIncome,
     incomeTax, taxCredits, niEmployee, hiEmployee, pensionEmp,
-    manualDed, totalDed, net,
+    sickLeaveDeduction, manualDed, totalDed, net,
     pensionEr, severance, niEmployer, totalEmployerCost,
-    minimumWageOk: base >= MIN_WAGE,
+    minimumWageOk: effectiveBase >= MIN_WAGE,
   };
 }
 
@@ -229,7 +258,7 @@ export default function PayrollWorksheetPage() {
     setAdjs(prev => { const n = { ...prev }; delete n[id]; return n; });
 
   // Calculate all employees
-  const calcs = useMemo(() =>
+  const calcs = useMemo((): Record<string, CalcResult> =>
     Object.fromEntries(employees.map(e => [e.id, calcPayroll(e, getAdj(e.id))])),
     [employees, adjs] // eslint-disable-line
   );
@@ -260,7 +289,7 @@ export default function PayrollWorksheetPage() {
             const a = getAdj(e.id);
             return a.ot125 > 0 || a.ot150 > 0 || a.travelDays !== 21 ||
                    a.recuperation || a.bonus > 0 || a.manualDeduction > 0 ||
-                   a.miluimDays > 0 || a.sickDays > 0;
+                   a.miluimDays > 0 || a.sickDays > 0 || a.partialDays > 0;
           })
           .map(e => {
             const a = getAdj(e.id);
@@ -273,6 +302,8 @@ export default function PayrollWorksheetPage() {
               manualDeduction:     a.manualDeduction,
               miluimDays:          a.miluimDays,
               sickDays:            a.sickDays,
+              partialMonthDays:    a.partialDays > 0 ? a.partialDays : undefined,
+              totalWorkDaysInMonth: a.partialDays > 0 ? 22 : undefined,
             }];
           })
       ),
@@ -443,9 +474,13 @@ export default function PayrollWorksheetPage() {
               {/* Column group labels */}
               <tr className="bg-gray-100 border-b border-gray-300">
                 <th colSpan={2} className="px-3 py-1.5 text-right font-semibold text-gray-600 border-l border-gray-300 bg-gray-100">עובד</th>
-                <th colSpan={6} className="px-3 py-1 text-center font-semibold text-indigo-700 border-l border-gray-300 bg-indigo-50">
+                <th colSpan={7} className="px-3 py-1 text-center font-semibold text-indigo-700 border-l border-gray-300 bg-indigo-50">
                   ← ניתן לעריכה →
                 </th>
+                <th colSpan={2} className="px-3 py-1 text-center font-semibold text-yellow-700 border-l border-yellow-100 bg-yellow-50">
+                  דיווח / מחלה
+                </th>
+                <th className="px-3 py-1 text-center font-semibold text-purple-700 border-l border-purple-100 bg-purple-50">חלקי</th>
                 <th colSpan={5} className="px-3 py-1 text-center font-semibold text-gray-600 bg-gray-100 border-l border-gray-300">
                   ← חישוב אוטומטי →
                 </th>
@@ -466,9 +501,10 @@ export default function PayrollWorksheetPage() {
                 <th className="text-center px-2 py-2 font-semibold text-indigo-700 bg-indigo-50 border-l border-indigo-100 w-14">ימי נסיעה</th>
                 <th className="text-center px-2 py-2 font-semibold text-indigo-700 bg-indigo-50 border-l border-indigo-100 w-12">הבראה</th>
                 <th className="text-center px-2 py-2 font-semibold text-indigo-700 bg-indigo-50 border-l border-indigo-100 w-18">בונוס ₪</th>
+                <th className="text-center px-2 py-2 font-semibold text-indigo-700 bg-indigo-50 border-l border-orange-100 w-18">ניכוי ידני ₪</th>
                 <th className="text-center px-2 py-2 font-semibold text-yellow-700 bg-yellow-50 border-l border-yellow-100 w-14" title="ימי מילואים — לדיווח טופס 126">מילואים</th>
-                <th className="text-center px-2 py-2 font-semibold text-yellow-700 bg-yellow-50 border-l border-yellow-100 w-14" title="ימי מחלה — לדיווח">מחלה</th>
-                <th className="text-center px-2 py-2 font-semibold text-orange-600 bg-orange-50 border-l border-orange-100 w-18">ניכוי ידני ₪</th>
+                <th className="text-center px-2 py-2 font-semibold text-yellow-700 bg-yellow-50 border-l border-yellow-100 w-14" title="ימי מחלה — ניכוי לפי חוק + דיווח">מחלה</th>
+                <th className="text-center px-2 py-2 font-semibold text-purple-700 bg-purple-50 border-l border-purple-100 w-14" title="ימי עבודה בפועל (חודש חלקי) — 0=חודש מלא">חלקי/22</th>
                 {/* Calculated */}
                 <th className="text-center px-3 py-2 font-semibold text-gray-700 border-l border-gray-200 w-20 bg-gray-50">ברוטו</th>
                 <th className="text-center px-2 py-2 font-semibold text-red-600 border-l border-gray-200 w-18 bg-red-50">מס הכנסה</th>
@@ -486,7 +522,8 @@ export default function PayrollWorksheetPage() {
                 const calc = calcs[emp.id];
                 const isViolation = !calc.minimumWageOk;
                 const hasAdj = adj.ot125 > 0 || adj.ot150 > 0 || adj.travelDays !== 21 ||
-                               adj.recuperation || adj.bonus > 0 || adj.manualDeduction > 0;
+                               adj.recuperation || adj.bonus > 0 || adj.manualDeduction > 0 ||
+                               adj.miluimDays > 0 || adj.sickDays > 0 || adj.partialDays > 0;
 
                 return (
                   <tr
@@ -564,11 +601,20 @@ export default function PayrollWorksheetPage() {
                         highlight={adj.bonus > 0}
                       />
                     </td>
+                    <td className="px-1.5 py-1.5 bg-indigo-50 border-l border-orange-100">
+                      <NumCell
+                        value={adj.manualDeduction}
+                        onChange={v => setAdj(emp.id, 'manualDeduction', v)}
+                        step={50}
+                        highlight={adj.manualDeduction > 0}
+                      />
+                    </td>
                     <td className="px-1.5 py-1.5 bg-yellow-50 border-l border-yellow-100">
                       <NumCell
                         value={adj.miluimDays}
                         onChange={v => setAdj(emp.id, 'miluimDays', v)}
                         max={31}
+                        step={1}
                         highlight={adj.miluimDays > 0}
                       />
                     </td>
@@ -577,16 +623,25 @@ export default function PayrollWorksheetPage() {
                         value={adj.sickDays}
                         onChange={v => setAdj(emp.id, 'sickDays', v)}
                         max={31}
+                        step={1}
                         highlight={adj.sickDays > 0}
                       />
+                      {adj.sickDays > 0 && calc.sickLeaveDeduction > 0 && (
+                        <p className="text-red-500 text-xs text-center mt-0.5">({fmtC(calc.sickLeaveDeduction)})</p>
+                      )}
                     </td>
-                    <td className="px-1.5 py-1.5 bg-orange-50 border-l border-orange-100">
+                    <td className="px-1.5 py-1.5 bg-purple-50 border-l border-purple-100">
                       <NumCell
-                        value={adj.manualDeduction}
-                        onChange={v => setAdj(emp.id, 'manualDeduction', v)}
-                        step={50}
-                        highlight={adj.manualDeduction > 0}
+                        value={adj.partialDays}
+                        onChange={v => setAdj(emp.id, 'partialDays', Math.min(22, v || 0))}
+                        max={22}
+                        step={1}
+                        placeholder="0=מלא"
+                        highlight={adj.partialDays > 0}
                       />
+                      {adj.partialDays > 0 && (
+                        <p className="text-purple-600 text-xs text-center mt-0.5">{fmtC(calc.effectiveBase)}</p>
+                      )}
                     </td>
 
                     {/* ── CALCULATED cells ──────────────────────── */}
@@ -642,7 +697,7 @@ export default function PayrollWorksheetPage() {
                   {fmtC(employees.reduce((s: number, e: any) => s + Number(e.grossSalary), 0))}
                 </td>
                 {/* Editable cols (empty in totals) */}
-                <td colSpan={6} className="px-3 py-3 border-l border-gray-700 text-center text-gray-600 text-xs">
+                <td colSpan={9} className="px-3 py-3 border-l border-gray-700 text-center text-gray-600 text-xs">
                   עלות מעסיק כוללת: <span className="text-indigo-300 font-semibold">{fmtC(totals.empCost)}</span>
                 </td>
                 {/* Calculated totals */}
