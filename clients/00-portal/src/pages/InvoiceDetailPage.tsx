@@ -1,319 +1,448 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ArrowRight, Printer, Send, CreditCard, XCircle, Plus } from 'lucide-react';
 import api from '../lib/api';
-import { ArrowRight, Send, Ban, CreditCard, Plus, Loader2, X } from 'lucide-react';
 
-const fmtCurrency = (n: number) =>
-  new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n);
-const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString('he-IL') : '—';
-
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: 'טיוטה', SENT: 'נשלח', PAID: 'שולם', OVERDUE: 'פג תוקף', CANCELLED: 'בוטל',
+const fmt = (n: number | string | null | undefined) => {
+  const num = Number(n ?? 0);
+  return new Intl.NumberFormat('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
 };
-const STATUS_CLS: Record<string, string> = {
-  DRAFT: 'bg-gray-100 text-gray-600', SENT: 'bg-blue-100 text-blue-700',
-  PAID: 'bg-green-100 text-green-700', OVERDUE: 'bg-red-100 text-red-700', CANCELLED: 'bg-gray-100 text-gray-400',
+const fmtCur = (n: number | string | null | undefined) => {
+  const num = Number(n ?? 0);
+  return new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(num);
+};
+const fmtDate = (d: string | Date | null | undefined) =>
+  d ? new Date(d).toLocaleDateString('he-IL') : '—';
+
+const STATUS_META: Record<string, { label: string; cls: string }> = {
+  DRAFT:     { label: 'טיוטה',   cls: 'bg-gray-100 text-gray-600' },
+  SENT:      { label: 'נשלחה',   cls: 'bg-blue-100 text-blue-700' },
+  PAID:      { label: 'שולם',    cls: 'bg-green-100 text-green-700' },
+  OVERDUE:   { label: 'באיחור',  cls: 'bg-red-100 text-red-700' },
+  CANCELLED: { label: 'מבוטלת', cls: 'bg-gray-100 text-gray-500' },
 };
 
 const METHOD_LABELS: Record<string, string> = {
-  BANK_TRANSFER: 'העברה בנקאית', CREDIT_CARD: 'כרטיס אשראי',
-  CASH: 'מזומן', CHECK: "צ'ק", OTHER: 'אחר',
+  CASH: 'מזומן', BANK_TRANSFER: 'העברה בנקאית',
+  CREDIT_CARD: 'כרטיס אשראי', CHECK: "צ'ק", OTHER: 'אחר',
 };
 
-const PAYMENT_METHODS = [
-  { value: 'BANK_TRANSFER', label: 'העברה בנקאית' },
-  { value: 'CREDIT_CARD', label: 'כרטיס אשראי' },
-  { value: 'CASH', label: 'מזומן' },
-  { value: 'CHECK', label: "צ'ק" },
-  { value: 'OTHER', label: 'אחר' },
-];
+async function getInvoice(id: string) {
+  const r = await api.get(`/invoices/${id}`);
+  return r.data?.data ?? r.data;
+}
+async function getCompany() {
+  const r = await api.get('/settings/company');
+  return r.data?.data ?? r.data;
+}
 
-function PaymentModal({ invoiceId, balance, onClose }: { invoiceId: string; balance: number; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const [amount, setAmount] = useState(balance);
-  const [method, setMethod] = useState('BANK_TRANSFER');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [reference, setReference] = useState('');
-  const [notes, setNotes] = useState('');
-  const [error, setError] = useState('');
+// ─── Professional Print View ─────────────────────────────────────────────────
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      api.post(`/invoices/${invoiceId}/payments`, {
-        amount, method, date: new Date(date).toISOString(),
-        reference: reference || undefined, notes: notes || undefined,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoice', invoiceId] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-      onClose();
-    },
-    onError: (err: any) => setError(err.response?.data?.message || 'שגיאה ברישום תשלום'),
-  });
+function PrintView({ invoice, company }: { invoice: any; company: any }) {
+  const addr = (company?.address ?? {}) as Record<string, string>;
+  const invSettings = (company?.settings as any)?.invoiceSettings ?? {};
+  const lines = (invoice.lines ?? []) as any[];
+  const payments = (invoice.payments ?? []) as any[];
+  const paidAmount = payments.reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const balance = Number(invoice.total) - paidAmount;
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" dir="rtl">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-bold text-gray-800">רישום תשלום</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+    <div style={{ fontFamily: 'Arial, sans-serif', direction: 'rtl', color: '#1a1a1a' }}>
+      {/* ── Header row: company left, invoice box right ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, paddingBottom: 16, borderBottom: '2px solid #e5e7eb' }}>
+        <div>
+          {company?.logoUrl
+            ? <img src={company.logoUrl} alt="" style={{ maxHeight: 68, maxWidth: 180, objectFit: 'contain', marginBottom: 6 }} />
+            : <div style={{ width: 60, height: 60, background: '#e5e7eb', borderRadius: 8, marginBottom: 6 }} />
+          }
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{company?.name ?? ''}</div>
+          {addr.street && <div style={{ fontSize: 11, color: '#555' }}>{addr.street}{addr.city ? `, ${addr.city}` : ''}{addr.zip ? ` ${addr.zip}` : ''}</div>}
+          {company?.phone && <div style={{ fontSize: 11, color: '#555' }}>טל: {company.phone}</div>}
+          {company?.email && <div style={{ fontSize: 11, color: '#555' }}>דוא"ל: {company.email}</div>}
+          {company?.businessNumber && <div style={{ fontSize: 11, color: '#555' }}>ח.פ./ע.מ.: {company.businessNumber}</div>}
+          {company?.vatNumber && <div style={{ fontSize: 11, color: '#555' }}>מע"מ: {company.vatNumber}</div>}
         </div>
-        <div className="space-y-4">
+
+        <div style={{ minWidth: 210, textAlign: 'left' }}>
+          <div style={{ background: '#1d4ed8', color: 'white', padding: '10px 18px', borderRadius: 8, textAlign: 'center', marginBottom: 8 }}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>חשבונית מס</div>
+            <div style={{ fontSize: 12 }}>TAX INVOICE</div>
+          </div>
+          <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+            <tbody>
+              {[
+                ['מספר:', invoice.number],
+                ['תאריך:', fmtDate(invoice.date)],
+                ['לתשלום עד:', fmtDate(invoice.dueDate)],
+                invoice.reference ? ['אסמכתא:', invoice.reference] : null,
+                invoice.paymentTerms ? ['תנאי תשלום:', invoice.paymentTerms] : null,
+              ].filter(Boolean).map((row, i) => (
+                <tr key={i} style={{ background: i % 2 === 1 ? '#f9fafb' : 'white' }}>
+                  <td style={{ color: '#666', padding: '3px 6px' }}>{(row as string[])[0]}</td>
+                  <td style={{ padding: '3px 6px', textAlign: 'left', fontWeight: i === 0 ? 700 : 400 }}>{(row as string[])[1]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ── Bill To ── */}
+      <div style={{ marginBottom: 22 }}>
+        <div style={{ fontSize: 10, color: '#888', marginBottom: 3, textTransform: 'uppercase', letterSpacing: 1 }}>לכבוד</div>
+        <div style={{ background: '#f0f7ff', borderRight: '3px solid #1d4ed8', padding: '10px 14px', borderRadius: 4 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{invoice.customer?.name}</div>
+          {invoice.customer?.email && <div style={{ fontSize: 11, color: '#555' }}>{invoice.customer.email}</div>}
+          {invoice.customer?.phone && <div style={{ fontSize: 11, color: '#555' }}>טל: {invoice.customer.phone}</div>}
+          {invoice.customer?.businessNumber && <div style={{ fontSize: 11, color: '#555' }}>ח.פ.: {invoice.customer.businessNumber}</div>}
+        </div>
+      </div>
+
+      {/* ── Line items ── */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 18, fontSize: 11 }}>
+        <thead>
+          <tr style={{ background: '#1d4ed8', color: 'white' }}>
+            <th style={{ padding: '7px 8px', textAlign: 'right', width: 28 }}>#</th>
+            {invSettings.showItemCodes && <th style={{ padding: '7px 8px', textAlign: 'right', width: 70 }}>מק"ט</th>}
+            <th style={{ padding: '7px 8px', textAlign: 'right' }}>תיאור</th>
+            <th style={{ padding: '7px 8px', textAlign: 'center', width: 50 }}>יחידה</th>
+            <th style={{ padding: '7px 8px', textAlign: 'center', width: 55 }}>כמות</th>
+            <th style={{ padding: '7px 8px', textAlign: 'left', width: 90 }}>מחיר יחידה</th>
+            <th style={{ padding: '7px 8px', textAlign: 'center', width: 55 }}>הנחה</th>
+            <th style={{ padding: '7px 8px', textAlign: 'center', width: 50 }}>מע"מ</th>
+            <th style={{ padding: '7px 8px', textAlign: 'left', width: 90 }}>סה"כ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map((line: any, idx: number) => (
+            <tr key={line.id} style={{ background: idx % 2 === 0 ? 'white' : '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+              <td style={{ padding: '6px 8px', color: '#999', textAlign: 'right' }}>{idx + 1}</td>
+              {invSettings.showItemCodes && <td style={{ padding: '6px 8px', fontFamily: 'monospace', color: '#666' }}>{line.sku ?? ''}</td>}
+              <td style={{ padding: '6px 8px' }}>
+                <div>{line.description}</div>
+                {line.notes && <div style={{ fontSize: 10, color: '#999' }}>{line.notes}</div>}
+              </td>
+              <td style={{ padding: '6px 8px', textAlign: 'center', color: '#666' }}>{line.unit ?? ''}</td>
+              <td style={{ padding: '6px 8px', textAlign: 'center' }}>{Number(line.quantity)}</td>
+              <td style={{ padding: '6px 8px', textAlign: 'left' }}>{fmt(line.unitPrice)}</td>
+              <td style={{ padding: '6px 8px', textAlign: 'center' }}>{Number(line.discountPercent) > 0 ? `${Number(line.discountPercent)}%` : '—'}</td>
+              <td style={{ padding: '6px 8px', textAlign: 'center' }}>{Math.round(Number(line.vatRate) * 100)}%</td>
+              <td style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 600 }}>{fmt(line.lineTotal)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {/* ── Totals + notes ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 20, alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
+          {invoice.notes && (
+            <div>
+              <div style={{ fontSize: 10, color: '#888', marginBottom: 3 }}>הערות:</div>
+              <div style={{ fontSize: 11, background: '#f9fafb', padding: '8px 10px', borderRadius: 4 }}>{invoice.notes}</div>
+            </div>
+          )}
+        </div>
+        <div style={{ minWidth: 230 }}>
+          <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+            <tbody>
+              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={{ padding: '4px 8px', color: '#555' }}>סכום לפני מע"מ:</td>
+                <td style={{ padding: '4px 8px', textAlign: 'left' }}>{fmt(invoice.subtotal)} ₪</td>
+              </tr>
+              {Number(invoice.discountAmount) > 0 && (
+                <tr style={{ borderBottom: '1px solid #e5e7eb', color: '#dc2626' }}>
+                  <td style={{ padding: '4px 8px' }}>הנחה ({Number(invoice.discountPercent)}%):</td>
+                  <td style={{ padding: '4px 8px', textAlign: 'left' }}>-{fmt(invoice.discountAmount)} ₪</td>
+                </tr>
+              )}
+              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                <td style={{ padding: '4px 8px', color: '#555' }}>מע"מ:</td>
+                <td style={{ padding: '4px 8px', textAlign: 'left' }}>{fmt(invoice.vatAmount)} ₪</td>
+              </tr>
+              <tr style={{ background: '#1d4ed8', color: 'white' }}>
+                <td style={{ padding: '8px', fontWeight: 700, fontSize: 13 }}>סה"כ לתשלום:</td>
+                <td style={{ padding: '8px', textAlign: 'left', fontWeight: 700, fontSize: 13 }}>{fmt(invoice.total)} ₪</td>
+              </tr>
+              {paidAmount > 0 && (
+                <>
+                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '4px 8px', color: '#16a34a' }}>שולם:</td>
+                    <td style={{ padding: '4px 8px', textAlign: 'left', color: '#16a34a' }}>{fmt(paidAmount)} ₪</td>
+                  </tr>
+                  <tr style={{ background: balance > 0 ? '#fef2f2' : '#f0fdf4' }}>
+                    <td style={{ padding: '6px 8px', fontWeight: 700 }}>יתרה לתשלום:</td>
+                    <td style={{ padding: '6px 8px', textAlign: 'left', fontWeight: 700, color: balance > 0 ? '#dc2626' : '#16a34a' }}>
+                      {fmt(balance)} ₪
+                    </td>
+                  </tr>
+                </>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {invSettings.bankDetails && (
+        <div style={{ marginTop: 20, paddingTop: 14, borderTop: '1px solid #e5e7eb', fontSize: 10, color: '#555' }}>
+          <div style={{ fontWeight: 700, marginBottom: 2 }}>פרטי תשלום:</div>
+          <div style={{ whiteSpace: 'pre-line' }}>{invSettings.bankDetails}</div>
+        </div>
+      )}
+      {invSettings.invoiceFooter && (
+        <div style={{ marginTop: 16, paddingTop: 10, borderTop: '1px dashed #d1d5db', fontSize: 9, color: '#aaa', textAlign: 'center' }}>
+          {invSettings.invoiceFooter}
+        </div>
+      )}
+      <div style={{ marginTop: 12, textAlign: 'center', fontSize: 9, color: '#ccc' }}>
+        הופק ממערכת ERP — {new Date().toLocaleDateString('he-IL')}
+      </div>
+    </div>
+  );
+}
+
+// ─── Payment Modal ────────────────────────────────────────────────────────────
+
+function PaymentModal({ invoice, onClose, onSuccess }: { invoice: any; onClose: () => void; onSuccess: () => void }) {
+  const paidSoFar = (invoice.payments ?? []).reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const balance   = Number(invoice.total) - paidSoFar;
+  const [amount, setAmount] = useState(balance.toFixed(2));
+  const [method, setMethod] = useState('BANK_TRANSFER');
+  const [date,   setDate]   = useState(new Date().toISOString().slice(0, 10));
+  const [ref,    setRef]    = useState('');
+  const [error,  setError]  = useState('');
+  const [loading, setLoad]  = useState(false);
+
+  const save = async () => {
+    if (!amount || Number(amount) <= 0) { setError('סכום לא תקין'); return; }
+    setLoad(true);
+    try {
+      await api.post(`/invoices/${invoice.id}/pay`, { amount: Number(amount), method, date, reference: ref || undefined });
+      onSuccess();
+      onClose();
+    } catch (e: any) { setError(e.response?.data?.error || 'שגיאה'); }
+    finally { setLoad(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" dir="rtl">
+      <div className="bg-white rounded-2xl shadow-xl p-6 w-96">
+        <h3 className="font-bold text-gray-900 text-lg mb-1">רישום תשלום</h3>
+        <p className="text-sm text-gray-500 mb-4">יתרה: <span className="font-bold text-blue-700">{fmtCur(balance)}</span></p>
+        <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              סכום לתשלום <span className="text-gray-400">(יתרה: {fmtCurrency(balance)})</span>
-            </label>
-            <input type="number" value={amount} onChange={(e) => setAmount(+e.target.value)}
-              min={0} max={balance}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-xs font-medium text-gray-600 mb-1">סכום</label>
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-green-400" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">אמצעי תשלום</label>
-            <select value={method} onChange={(e) => setMethod(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-              {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            <label className="block text-xs font-medium text-gray-600 mb-1">אמצעי תשלום</label>
+            <select value={method} onChange={e => setMethod(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white outline-none">
+              <option value="BANK_TRANSFER">העברה בנקאית</option>
+              <option value="CASH">מזומן</option>
+              <option value="CREDIT_CARD">כרטיס אשראי</option>
+              <option value="CHECK">צ'ק</option>
+              <option value="OTHER">אחר</option>
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">תאריך</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-xs font-medium text-gray-600 mb-1">תאריך</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none" />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">אסמכתא</label>
-            <input type="text" value={reference} onChange={(e) => setReference(e.target.value)}
-              placeholder="מספר העברה / צ'ק"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+            <label className="block text-xs font-medium text-gray-600 mb-1">אסמכתא</label>
+            <input type="text" value={ref} onChange={e => setRef(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none" />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">הערות</label>
-            <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+          {error && <p className="text-xs text-red-600">{error}</p>}
+          <div className="flex gap-2 pt-1">
+            <button onClick={save} disabled={loading}
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white py-2 rounded-lg text-sm font-medium">
+              {loading ? 'שומר...' : 'רשום תשלום'}
+            </button>
+            <button onClick={onClose} className="px-4 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm">ביטול</button>
           </div>
-          {error && <div className="bg-red-50 text-red-600 text-sm p-3 rounded-lg">{error}</div>}
-        </div>
-        <div className="flex gap-3 mt-6">
-          <button onClick={onClose}
-            className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-medium hover:bg-gray-50 transition">
-            ביטול
-          </button>
-          <button onClick={() => mutation.mutate()} disabled={amount <= 0 || mutation.isPending}
-            className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-medium hover:bg-green-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
-            {mutation.isPending && <Loader2 size={16} className="animate-spin" />}
-            רשום תשלום
-          </button>
         </div>
       </div>
     </div>
   );
 }
 
+// ─── Main ────────────────────────────────────────────────────────────────────
+
 export default function InvoiceDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [showPay, setShowPay] = useState(false);
+  const { id }     = useParams<{ id: string }>();
+  const navigate   = useNavigate();
+  const qc         = useQueryClient();
+  const printRef   = useRef<HTMLDivElement>(null);
+  const [showPay,  setShowPay]  = useState(false);
+  const [view,     setView]     = useState<'print' | 'payments'>('print');
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['invoice', id],
-    queryFn: () => api.get(`/invoices/${id}`),
-    enabled: !!id,
+  const { data: invoice, isLoading } = useQuery({
+    queryKey: ['invoice', id], queryFn: () => getInvoice(id!), enabled: !!id,
   });
+  const { data: company } = useQuery({ queryKey: ['company-settings'], queryFn: getCompany });
 
-  const inv = data?.data ?? data;
-
-  const sendMutation = useMutation({
+  const sendMut = useMutation({
     mutationFn: () => api.post(`/invoices/${id}/send`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoice', id] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    },
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['invoice', id] }),
   });
-
-  const cancelMutation = useMutation({
+  const cancelMut = useMutation({
     mutationFn: () => api.post(`/invoices/${id}/cancel`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['invoice', id] });
-      queryClient.invalidateQueries({ queryKey: ['invoices'] });
-    },
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['invoice', id] }),
   });
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20 text-gray-400">
-        <Loader2 className="animate-spin ml-2" size={20} /> טוען...
-      </div>
+  const handlePrint = () => {
+    const html = printRef.current?.innerHTML;
+    if (!html) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(
+      `<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8">` +
+      `<title>חשבונית ${invoice?.number ?? ''}</title>` +
+      `<style>*{box-sizing:border-box;margin:0;padding:0;}body{font-family:Arial,sans-serif;` +
+      `direction:rtl;color:#1a1a1a;padding:24px;max-width:900px;margin:auto;}` +
+      `@media print{button{display:none!important;}}</style></head><body>${html}</body></html>`
     );
-  }
+    win.document.close();
+    setTimeout(() => win.print(), 400);
+  };
 
-  if (!inv) {
-    return <div className="text-center py-20 text-gray-400">חשבונית לא נמצאה</div>;
-  }
+  if (isLoading) return <div className="flex items-center justify-center h-40 text-gray-400">טוען...</div>;
+  if (!invoice)  return <div className="text-red-600 p-6">חשבונית לא נמצאה</div>;
 
-  const statusCls = STATUS_CLS[inv.status] ?? 'bg-gray-100 text-gray-600';
-  const statusLabel = STATUS_LABELS[inv.status] ?? inv.status;
-  const lines: any[] = inv.lines || inv.invoiceLines || [];
-  const payments: any[] = inv.payments || [];
-  const vatAmount = inv.vatAmount ?? 0;
-  const subtotal = inv.subtotalAmount ?? (inv.totalAmount - vatAmount);
-  const paidAmount = payments.reduce((s: number, p: any) => s + p.amount, 0);
-  const balance = inv.totalAmount - paidAmount;
+  const status  = STATUS_META[invoice.status] ?? STATUS_META.DRAFT;
+  const paidAmt = (invoice.payments ?? []).reduce((s: number, p: any) => s + Number(p.amount), 0);
+  const balance = Number(invoice.total) - paidAmt;
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-4" dir="rtl">
+      {/* Top bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate('/invoices')} className="text-gray-400 hover:text-gray-600">
-            <ArrowRight size={20} />
+            <ArrowRight className="w-5 h-5" />
           </button>
-          <h2 className="text-xl font-bold text-gray-800">חשבונית {inv.invoiceNumber}</h2>
-          <span className={`inline-flex px-3 py-1 rounded-full text-sm font-medium ${statusCls}`}>
-            {statusLabel}
-          </span>
+          <h1 className="text-xl font-bold text-gray-800">חשבונית {invoice.number}</h1>
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${status.cls}`}>{status.label}</span>
         </div>
-        <div className="flex gap-2">
-          {inv.status === 'DRAFT' && (
-            <>
-              <button onClick={() => sendMutation.mutate()} disabled={sendMutation.isPending}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 flex items-center gap-1.5">
-                <Send size={15} /> שלח
-              </button>
-              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}
-                className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-100 transition disabled:opacity-50 flex items-center gap-1.5">
-                <Ban size={15} /> בטל
-              </button>
-            </>
-          )}
-          {(inv.status === 'SENT' || inv.status === 'OVERDUE') && (
-            <>
-              <button onClick={() => setShowPay(true)}
-                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition flex items-center gap-1.5">
-                <CreditCard size={15} /> רשום תשלום
-              </button>
-              <button onClick={() => cancelMutation.mutate()} disabled={cancelMutation.isPending}
-                className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-100 transition disabled:opacity-50 flex items-center gap-1.5">
-                <Ban size={15} /> בטל
-              </button>
-            </>
-          )}
-          {inv.status === 'PAID' && (
-            <button onClick={() => navigate('/invoices/new')}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition flex items-center gap-1.5">
-              <Plus size={15} /> חשבונית חדשה ללקוח
+        <div className="flex items-center gap-2">
+          {invoice.status === 'DRAFT' && (
+            <button onClick={() => sendMut.mutate()} disabled={sendMut.isPending}
+              className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm px-3 py-2 rounded-lg">
+              <Send className="w-4 h-4" /> שלח ללקוח
             </button>
           )}
+          {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && balance > 0 && (
+            <button onClick={() => setShowPay(true)}
+              className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white text-sm px-3 py-2 rounded-lg">
+              <CreditCard className="w-4 h-4" /> רשום תשלום
+            </button>
+          )}
+          {(invoice.status === 'DRAFT' || invoice.status === 'SENT') && (
+            <button onClick={() => { if (window.confirm('לבטל חשבונית?')) cancelMut.mutate(); }}
+              className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm px-3 py-2 rounded-lg border border-red-200">
+              <XCircle className="w-4 h-4" /> בטל
+            </button>
+          )}
+          <button onClick={handlePrint}
+            className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-lg">
+            <Printer className="w-4 h-4" /> הדפס / PDF
+          </button>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-        <div className="bg-blue-600 text-white p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <h3 className="text-lg font-bold">חשבונית מס {inv.invoiceNumber}</h3>
-              <p className="text-blue-100 text-sm mt-1">תאריך: {fmtDate(inv.date)}</p>
-              <p className="text-blue-100 text-sm">לתשלום עד: {fmtDate(inv.dueDate)}</p>
-            </div>
-            <span className="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-white/20 text-white">
-              {statusLabel}
-            </span>
+      {/* KPI row */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: 'לפני מע"מ',     value: fmtCur(invoice.subtotal), cls: 'bg-gray-50 border-gray-200' },
+          { label: 'מע"מ',          value: fmtCur(invoice.vatAmount), cls: 'bg-blue-50 border-blue-100' },
+          { label: 'סה"כ חשבונית',  value: fmtCur(invoice.total),    cls: 'bg-white   border-gray-200' },
+          { label: 'יתרה לתשלום',   value: fmtCur(balance),
+            cls: balance > 0 ? 'bg-red-50 border-red-100' : 'bg-green-50 border-green-100' },
+        ].map((c, i) => (
+          <div key={i} className={`rounded-xl p-3 border ${c.cls}`}>
+            <p className="text-xs text-gray-500 mb-1">{c.label}</p>
+            <p className={`text-base font-bold ${i === 3 && balance > 0 ? 'text-red-700' : i === 3 ? 'text-green-700' : 'text-gray-800'}`}>
+              {c.value}
+            </p>
           </div>
-        </div>
-
-        <div className="border-b border-gray-200 p-4 bg-gray-50">
-          <p className="text-xs text-gray-500 mb-1">לכבוד</p>
-          <p className="font-bold text-gray-800">{inv.customer?.name || '—'}</p>
-          {inv.customer?.email && <p className="text-sm text-gray-500">{inv.customer.email}</p>}
-        </div>
-
-        <table className="w-full text-sm">
-          <thead className="bg-gray-50 text-gray-500 text-xs">
-            <tr>
-              <th className="px-4 py-3 text-right font-medium">תיאור</th>
-              <th className="px-4 py-3 text-right font-medium w-20">כמות</th>
-              <th className="px-4 py-3 text-right font-medium w-28">מחיר יחידה</th>
-              <th className="px-4 py-3 text-right font-medium w-28">סה״כ</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {lines.map((line: any, idx: number) => (
-              <tr key={idx}>
-                <td className="px-4 py-3">{line.description ?? '—'}</td>
-                <td className="px-4 py-3 text-center">{line.quantity}</td>
-                <td className="px-4 py-3">{fmtCurrency(line.unitPrice)}</td>
-                <td className="px-4 py-3 font-medium">{fmtCurrency(line.lineTotal ?? line.quantity * line.unitPrice)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-
-        <div className="border-t border-gray-200 p-5 bg-gray-50">
-          <div className="flex flex-col items-start gap-1.5 max-w-xs mr-auto text-sm">
-            <div className="flex justify-between w-full">
-              <span className="text-gray-500">לפני מע״מ:</span>
-              <span className="font-medium">{fmtCurrency(subtotal)}</span>
-            </div>
-            <div className="flex justify-between w-full">
-              <span className="text-gray-500">מע״מ 18%:</span>
-              <span className="font-medium">{fmtCurrency(vatAmount)}</span>
-            </div>
-            <div className="flex justify-between w-full pt-2 border-t border-gray-300">
-              <span className="font-bold text-gray-800">סה״כ:</span>
-              <span className="font-bold text-lg text-blue-700">{fmtCurrency(inv.totalAmount)}</span>
-            </div>
-            {paidAmount > 0 && (
-              <>
-                <div className="flex justify-between w-full text-green-600">
-                  <span>שולם:</span>
-                  <span className="font-medium">{fmtCurrency(paidAmount)}</span>
-                </div>
-                <div className="flex justify-between w-full font-bold text-red-600">
-                  <span>יתרה:</span>
-                  <span>{fmtCurrency(balance)}</span>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {inv.notes && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <p className="text-xs text-gray-500 mb-1">הערות</p>
-          <p className="text-sm text-gray-700">{inv.notes}</p>
+      {/* Tab switcher */}
+      <div className="flex rounded-lg border border-gray-200 overflow-hidden w-fit text-sm">
+        <button onClick={() => setView('print')}
+          className={`px-4 py-2 ${view === 'print' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+          מסמך לדפוס
+        </button>
+        <button onClick={() => setView('payments')}
+          className={`px-4 py-2 ${view === 'payments' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+          תשלומים ({(invoice.payments ?? []).length})
+        </button>
+      </div>
+
+      {view === 'print' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+          <div ref={printRef}>
+            <PrintView invoice={invoice} company={company} />
+          </div>
         </div>
       )}
 
-      {payments.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <h3 className="font-medium text-gray-700">היסטוריית תשלומים</h3>
-          </div>
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-500 text-xs">
-              <tr>
-                <th className="px-4 py-2 text-right font-medium">תאריך</th>
-                <th className="px-4 py-2 text-right font-medium">סכום</th>
-                <th className="px-4 py-2 text-right font-medium">אמצעי תשלום</th>
-                <th className="px-4 py-2 text-right font-medium">אסמכתא</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {payments.map((p: any, idx: number) => (
-                <tr key={idx}>
-                  <td className="px-4 py-3">{fmtDate(p.date || p.paidAt)}</td>
-                  <td className="px-4 py-3 font-medium text-green-600">{fmtCurrency(p.amount)}</td>
-                  <td className="px-4 py-3">{METHOD_LABELS[p.method] || p.method || '—'}</td>
-                  <td className="px-4 py-3 text-gray-500">{p.reference || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {view === 'payments' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {(invoice.payments ?? []).length === 0
+            ? <div className="p-8 text-center text-gray-400">אין תשלומים רשומים</div>
+            : (
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    {['תאריך', 'סכום', 'אמצעי תשלום', 'אסמכתא'].map(h => (
+                      <th key={h} className="px-4 py-3 text-right font-medium text-gray-600">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {invoice.payments.map((p: any) => (
+                    <tr key={p.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5">{fmtDate(p.date)}</td>
+                      <td className="px-4 py-2.5 font-medium text-green-700">{fmtCur(p.amount)}</td>
+                      <td className="px-4 py-2.5">{METHOD_LABELS[p.method] ?? p.method}</td>
+                      <td className="px-4 py-2.5 font-mono text-gray-500 text-xs">{p.reference ?? '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-gray-50 border-t font-bold">
+                  <tr>
+                    <td className="px-4 py-2.5">סה"כ שולם</td>
+                    <td className="px-4 py-2.5 text-green-700">{fmtCur(paidAmt)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            )
+          }
+          {(invoice.status === 'SENT' || invoice.status === 'OVERDUE') && balance > 0 && (
+            <div className="p-4 border-t">
+              <button onClick={() => setShowPay(true)}
+                className="flex items-center gap-2 text-sm text-green-700 hover:text-green-800 font-medium">
+                <Plus className="w-4 h-4" /> הוסף תשלום
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {showPay && (
-        <PaymentModal invoiceId={id!} balance={balance} onClose={() => setShowPay(false)} />
+        <PaymentModal
+          invoice={invoice}
+          onClose={() => setShowPay(false)}
+          onSuccess={() => qc.invalidateQueries({ queryKey: ['invoice', id] })}
+        />
       )}
     </div>
   );

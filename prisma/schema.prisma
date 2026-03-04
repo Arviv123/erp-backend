@@ -184,6 +184,23 @@ enum PosTransactionType {
   VOID
 }
 
+enum DocumentType {
+  QUOTE          // הצעת מחיר
+  DELIVERY_NOTE  // תעודת משלוח
+  RECEIPT        // קבלה
+  PROFORMA       // חשבון עסקה (פרופורמה)
+  CREDIT_NOTE    // הודעת זיכוי
+}
+
+enum DocumentStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  CONVERTED   // הפך לחשבונית
+  CANCELLED
+}
+
 // ─────────────────────────────────────────────
 // TENANTS (עסקים)
 // ─────────────────────────────────────────────
@@ -239,6 +256,7 @@ model Tenant {
   posTerminals       PosTerminal[]
   posSessions        PosSession[]
   bankStatements     BankStatement[]
+  documents          Document[]
 
   @@map("tenants")
 }
@@ -543,6 +561,7 @@ model Customer {
   invoices     Invoice[]
   activities   Activity[]
   deals        Deal[]
+  documents    Document[]
 
   @@index([tenantId, status])
   @@index([tenantId, type])
@@ -596,8 +615,11 @@ model Invoice {
   vatAmount            Decimal       @db.Decimal(12, 2)
   total                Decimal       @db.Decimal(12, 2)
   currency             String        @default("ILS")
+  discountPercent      Decimal?      @db.Decimal(5, 2)   // % הנחה כללית
+  discountAmount       Decimal?      @db.Decimal(12, 2)  // סכום הנחה כללית
   notes                String?
   paymentTerms         String?       // "30 days", "COD", etc.
+  reference            String?       // מספר הזמנה / אסמכתא
   journalTransactionId String?       // FK → auto-created accounting entry
   createdBy            String
   sentAt               DateTime?
@@ -617,15 +639,21 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id          String  @id @default(cuid())
-  invoiceId   String
-  productId   String?   // optional link to product catalog
-  description String
-  quantity    Decimal @db.Decimal(10, 3)
-  unitPrice   Decimal @db.Decimal(12, 2)
-  vatRate     Decimal @db.Decimal(5, 4) @default(0.18) // 18% מע"מ
-  lineTotal   Decimal @db.Decimal(12, 2)
-  sortOrder   Int     @default(0)
+  id              String  @id @default(cuid())
+  invoiceId       String
+  productId       String?   // optional link to product catalog
+  description     String
+  sku             String?   // מק"ט / קוד פריט
+  barcode         String?   // ברקוד
+  unit            String?   // יחידת מידה (יח', ק"ג, שעה, ...)
+  quantity        Decimal @db.Decimal(10, 3)
+  unitPrice       Decimal @db.Decimal(12, 2)
+  discountPercent Decimal @db.Decimal(5, 2) @default(0)  // % הנחה לשורה
+  discountAmount  Decimal @db.Decimal(12, 2) @default(0) // סכום הנחה לשורה
+  vatRate         Decimal @db.Decimal(5, 4) @default(0.18) // 18% מע"מ
+  lineTotal       Decimal @db.Decimal(12, 2)  // after discount, before VAT
+  sortOrder       Int     @default(0)
+  notes           String?   // הערה לשורה
 
   invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   product     Product? @relation("ProductInvoiceLines", fields: [productId], references: [id])
@@ -650,6 +678,71 @@ model InvoicePayment {
 
   @@index([tenantId, invoiceId])
   @@map("invoice_payments")
+}
+
+// ─────────────────────────────────────────────
+// BUSINESS DOCUMENTS (מסמכים עסקיים)
+// הצעות מחיר, תעודות משלוח, קבלות, פרופורמות
+// ─────────────────────────────────────────────
+
+model Document {
+  id           String         @id @default(cuid())
+  tenantId     String
+  customerId   String?
+  type         DocumentType
+  status       DocumentStatus @default(DRAFT)
+  number       String         // QUO-2026-0001, DN-2026-0001, etc.
+  date         DateTime
+  validUntil   DateTime?      // הצעת מחיר — תוקף
+  reference    String?        // מספר הזמנת לקוח / אסמכתא
+  notes        String?
+  internalNotes String?       // הערות פנימיות
+  subtotal     Decimal        @db.Decimal(12, 2)
+  discountPercent Decimal?    @db.Decimal(5, 2)
+  discountAmount  Decimal?    @db.Decimal(12, 2)
+  vatAmount    Decimal        @db.Decimal(12, 2)
+  total        Decimal        @db.Decimal(12, 2)
+  currency     String         @default("ILS")
+
+  // Conversion tracking
+  convertedToInvoiceId String?  // מסמך שהפך לחשבונית
+  sourceDocumentId     String?  // חשבונית שנוצרה ממסמך זה
+
+  createdBy    String
+  sentAt       DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  lines    DocumentLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, type, status])
+  @@index([tenantId, customerId])
+  @@map("documents")
+}
+
+model DocumentLine {
+  id              String   @id @default(cuid())
+  documentId      String
+  productId       String?
+  description     String
+  sku             String?
+  barcode         String?
+  unit            String?
+  quantity        Decimal  @db.Decimal(10, 3)
+  unitPrice       Decimal  @db.Decimal(12, 2)
+  discountPercent Decimal  @db.Decimal(5, 2) @default(0)
+  discountAmount  Decimal  @db.Decimal(12, 2) @default(0)
+  vatRate         Decimal  @db.Decimal(5, 4) @default(0.18)
+  lineTotal       Decimal  @db.Decimal(12, 2)
+  sortOrder       Int      @default(0)
+  notes           String?
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@map("document_lines")
 }
 
 // ─────────────────────────────────────────────

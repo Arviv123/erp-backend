@@ -44,7 +44,9 @@ const NAV: NavItem[] = [
     children: [
       { label: 'כל החשבוניות', to: '/invoices' },
       { label: 'חשבונית חדשה', to: '/invoices/new' },
+      { label: 'מסמכים עסקיים ★', to: '/documents' },
       { label: 'דוח גיל חוב', to: '/invoices/aging' },
+      { label: 'הגדרות חברה ★', to: '/settings/company' },
     ],
   },
   {

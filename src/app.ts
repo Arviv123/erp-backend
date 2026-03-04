@@ -31,6 +31,8 @@ import bankReconRouter  from './modules/accounting/bank-recon.routes';
 import webhooksRouter   from './modules/webhooks/webhooks.routes';
 import dashboardRouter  from './modules/dashboard/dashboard.routes';
 import posRouter        from './modules/pos/pos.routes';
+import settingsRouter   from './modules/settings/settings.routes';
+import documentsRouter  from './modules/documents/documents.routes';
 
 // Swagger
 import { swaggerSpec } from './config/swagger';
@@ -117,6 +119,8 @@ app.use('/api/bank-recon', bankReconRouter);
 app.use('/api/webhooks',   webhooksRouter);
 app.use('/api/dashboard',  dashboardRouter);
 app.use('/api/pos',        posRouter);
+app.use('/api/settings',   settingsRouter);
+app.use('/api/documents',  documentsRouter);
 
 // ─── Global Error Handler ─────────────────────────────────────────
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {

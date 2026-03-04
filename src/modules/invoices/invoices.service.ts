@@ -16,18 +16,25 @@ async function generateInvoiceNumber(tenantId: string): Promise<string> {
 // ─── Create Invoice ───────────────────────────────────────────────
 
 export interface CreateInvoiceInput {
-  tenantId:    string;
-  customerId:  string;
-  date:        Date;
-  dueDate:     Date;
-  notes?:      string;
-  paymentTerms?: string;
-  createdBy:   string;
+  tenantId:       string;
+  customerId:     string;
+  date:           Date;
+  dueDate:        Date;
+  notes?:         string;
+  paymentTerms?:  string;
+  reference?:     string;
+  discountPercent?: number;  // % הנחה כללית
+  createdBy:      string;
   lines: Array<{
-    description: string;
-    quantity:    number;
-    unitPrice:   number;
-    vatRate?:    number;  // default 0.18
+    description:     string;
+    sku?:            string;
+    barcode?:        string;
+    unit?:           string;
+    quantity:        number;
+    unitPrice:       number;
+    discountPercent?: number;  // % הנחה לשורה
+    vatRate?:        number;   // default 0.18
+    notes?:          string;
   }>;
 }
 
@@ -38,16 +45,22 @@ export async function createInvoice(input: CreateInvoiceInput) {
     throw new Error('Customer not found');
   }
 
-  // Calculate totals
+  // Calculate totals (with per-line and overall discounts)
   const processedLines = input.lines.map((line, idx) => {
-    const vatRate   = line.vatRate ?? 0.18;
-    const lineTotal = Math.round(line.quantity * line.unitPrice * 100) / 100;
-    return { ...line, vatRate, lineTotal, sortOrder: idx };
+    const vatRate       = line.vatRate ?? 0.18;
+    const discountPct   = line.discountPercent ?? 0;
+    const gross         = Math.round(line.quantity * line.unitPrice * 100) / 100;
+    const discountAmt   = Math.round(gross * discountPct / 100 * 100) / 100;
+    const lineTotal     = Math.round((gross - discountAmt) * 100) / 100;
+    return { ...line, vatRate, discountPercent: discountPct, discountAmount: discountAmt, lineTotal, sortOrder: idx };
   });
 
-  const subtotal  = processedLines.reduce((s, l) => s + l.lineTotal, 0);
-  const vatAmount = Math.round(subtotal * (processedLines[0]?.vatRate ?? 0.18) * 100) / 100;
-  const total     = Math.round((subtotal + vatAmount) * 100) / 100;
+  const subtotal = processedLines.reduce((s, l) => s + l.lineTotal, 0);
+  const overallDiscPct = input.discountPercent ?? 0;
+  const overallDiscAmt = Math.round(subtotal * overallDiscPct / 100 * 100) / 100;
+  const subtotalAfterDisc = Math.round((subtotal - overallDiscAmt) * 100) / 100;
+  const vatAmount = Math.round(subtotalAfterDisc * (processedLines[0]?.vatRate ?? 0.18) * 100) / 100;
+  const total     = Math.round((subtotalAfterDisc + vatAmount) * 100) / 100;
 
   const number = await generateInvoiceNumber(input.tenantId);
 
@@ -62,19 +75,28 @@ export async function createInvoice(input: CreateInvoiceInput) {
     // 1. Create the invoice
     const invoice = await tx.invoice.create({
       data: {
-        tenantId:    input.tenantId,
-        customerId:  input.customerId,
+        tenantId:       input.tenantId,
+        customerId:     input.customerId,
         number,
-        date:        input.date,
-        dueDate:     input.dueDate,
-        notes:       input.notes,
-        paymentTerms: input.paymentTerms,
+        date:           input.date,
+        dueDate:        input.dueDate,
+        notes:          input.notes,
+        paymentTerms:   input.paymentTerms,
+        reference:      input.reference,
         subtotal,
+        discountPercent: overallDiscPct,
+        discountAmount:  overallDiscAmt,
         vatAmount,
         total,
-        createdBy:   input.createdBy,
+        createdBy:      input.createdBy,
         lines: {
-          create: processedLines,
+          create: processedLines.map(l => ({
+            description: l.description, sku: l.sku, barcode: l.barcode,
+            unit: l.unit, quantity: l.quantity, unitPrice: l.unitPrice,
+            discountPercent: l.discountPercent, discountAmount: l.discountAmount,
+            vatRate: l.vatRate, lineTotal: l.lineTotal, sortOrder: l.sortOrder,
+            notes: l.notes,
+          })),
         },
       },
       include: { lines: true, customer: { select: { name: true } } },

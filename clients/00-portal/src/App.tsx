@@ -86,6 +86,11 @@ import BudgetPage from './pages/BudgetPage';
 import BankReconciliationPage from './pages/BankReconciliationPage';
 import AccountLedgerPage from './pages/AccountLedgerPage';
 
+// Documents & Settings
+import DocumentsPage from './pages/DocumentsPage';
+import DocumentDetailPage from './pages/DocumentDetailPage';
+import CompanySettingsPage from './pages/CompanySettingsPage';
+
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
@@ -161,6 +166,13 @@ export default function App() {
               <Route path="/invoices/new" element={<ProtectedRoute module="INVOICES"><NewInvoicePage /></ProtectedRoute>} />
               <Route path="/invoices/aging" element={<ProtectedRoute module="INVOICES"><AgingReportPage /></ProtectedRoute>} />
               <Route path="/invoices/:id" element={<ProtectedRoute module="INVOICES"><InvoiceDetailPage /></ProtectedRoute>} />
+
+              {/* Documents (quotes, delivery notes, etc.) */}
+              <Route path="/documents" element={<ProtectedRoute module="INVOICES"><DocumentsPage /></ProtectedRoute>} />
+              <Route path="/documents/:id" element={<ProtectedRoute module="INVOICES"><DocumentDetailPage /></ProtectedRoute>} />
+
+              {/* Company Settings */}
+              <Route path="/settings/company" element={<ProtectedRoute module="INVOICES"><CompanySettingsPage /></ProtectedRoute>} />
 
               {/* Accounting */}
               <Route path="/accounting" element={<ProtectedRoute module="ACCOUNTING"><AccountingDashboardPage /></ProtectedRoute>} />

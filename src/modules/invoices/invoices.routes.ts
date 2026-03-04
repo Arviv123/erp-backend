@@ -14,19 +14,26 @@ router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
 
 const InvoiceLineSchema = z.object({
-  description: z.string().min(1),
-  quantity:    z.number().positive(),
-  unitPrice:   z.number().positive(),
-  vatRate:     z.number().min(0).max(1).default(0.18),
+  description:     z.string().min(1),
+  sku:             z.string().optional(),
+  barcode:         z.string().optional(),
+  unit:            z.string().optional(),
+  quantity:        z.number().positive(),
+  unitPrice:       z.number().min(0),
+  discountPercent: z.number().min(0).max(100).default(0),
+  vatRate:         z.number().min(0).max(1).default(0.18),
+  notes:           z.string().optional(),
 });
 
 const CreateInvoiceSchema = z.object({
-  customerId:   z.string().cuid(),
-  date:         z.string().datetime(),
-  dueDate:      z.string().datetime(),
-  notes:        z.string().optional(),
-  paymentTerms: z.string().optional(),
-  lines:        z.array(InvoiceLineSchema).min(1),
+  customerId:      z.string().cuid(),
+  date:            z.string(),
+  dueDate:         z.string(),
+  notes:           z.string().optional(),
+  paymentTerms:    z.string().optional(),
+  reference:       z.string().optional(),
+  discountPercent: z.number().min(0).max(100).optional(),
+  lines:           z.array(InvoiceLineSchema).min(1),
 });
 
 // POST /invoices
@@ -42,6 +49,7 @@ router.post(
       dueDate:   new Date(parsed.data.dueDate),
       tenantId:  req.user.tenantId,
       createdBy: req.user.userId,
+      discountPercent: parsed.data.discountPercent,
     });
 
     sendSuccess(res, invoice, 201);
