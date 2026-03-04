@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Plus, Trash2, Save, Send, Loader2, ChevronDown, ChevronUp, Search, Package, X } from 'lucide-react';
+import { Plus, Trash2, Save, Send, Loader2, ChevronDown, ChevronUp, Search } from 'lucide-react';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(n);
@@ -40,113 +40,109 @@ const emptyLine = (): Line => ({
 const inputCls = 'w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none';
 const headerInputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none';
 
-// ─── Product Picker Modal ──────────────────────────────────────────────────────
-function ProductPickerModal({
-  onSelect,
-  onClose,
+// ─── Inline Search Autocomplete ────────────────────────────────────────────────
+function DescriptionAutocomplete({
+  value,
+  onChange,
+  onSelectProduct,
+  items,
+  placeholder = 'תיאור פריט / שירות...',
+  onBlur,
 }: {
-  onSelect: (product: Product) => void;
-  onClose: () => void;
+  value: string;
+  onChange: (v: string) => void;
+  onSelectProduct: (p: Product) => void;
+  items: Product[];
+  placeholder?: string;
+  onBlur?: () => void;
 }) {
-  const [search, setSearch] = useState('');
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [hi,   setHi]   = useState(0);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  const suggestions = value.trim().length >= 1
+    ? items.filter(p => {
+        const q = value.toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          (p.sku ?? '').toLowerCase().includes(q) ||
+          (p.barcode ?? '').toLowerCase().includes(q)
+        );
+      }).slice(0, 10)
+    : [];
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['inventory-items'],
-    queryFn: () => api.get('/inventory/items'),
-  });
-  const items: Product[] = Array.isArray(data?.data?.data) ? data.data.data
-    : Array.isArray(data?.data) ? data.data : [];
+  // Close on outside click
+  useEffect(() => {
+    const h = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
 
-  const filtered = items.filter(p => {
-    const q = search.toLowerCase();
-    return !q || p.name.toLowerCase().includes(q)
-      || (p.sku ?? '').toLowerCase().includes(q)
-      || (p.barcode ?? '').toLowerCase().includes(q);
-  });
+  const select = (p: Product) => { onSelectProduct(p); setOpen(false); };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!open || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown')  { e.preventDefault(); setHi(h => Math.min(h + 1, suggestions.length - 1)); }
+    if (e.key === 'ArrowUp')    { e.preventDefault(); setHi(h => Math.max(h - 1, 0)); }
+    if (e.key === 'Enter')      { e.preventDefault(); select(suggestions[hi]); }
+    if (e.key === 'Escape')     { setOpen(false); }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <Package size={18} className="text-blue-600" />
-            בחר פריט / שירות מהקטלוג
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-        </div>
+    <div ref={wrapRef} className="relative w-full">
+      <div className="relative">
+        <input
+          value={value}
+          onChange={e => { onChange(e.target.value); setOpen(true); setHi(0); }}
+          onFocus={() => { if (value.trim()) setOpen(true); }}
+          onKeyDown={handleKeyDown}
+          onBlur={onBlur}
+          placeholder={placeholder}
+          className={inputCls}
+        />
+        {value.trim() && (
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none" />
+        )}
+      </div>
 
-        {/* Search */}
-        <div className="p-4 border-b border-gray-100">
-          <div className="relative">
-            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              ref={inputRef}
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="חיפוש לפי שם, מקט, ברקוד..."
-              className="w-full border border-gray-300 rounded-lg pr-9 pl-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            />
+      {open && suggestions.length > 0 && (
+        <div className="absolute top-full right-0 z-50 w-full min-w-[280px] bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden mt-0.5">
+          {suggestions.map((p, i) => (
+            <div
+              key={p.id}
+              onMouseDown={e => { e.preventDefault(); select(p); }}
+              className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer select-none ${
+                i === hi ? 'bg-blue-50' : 'hover:bg-gray-50'
+              } ${i < suggestions.length - 1 ? 'border-b border-gray-50' : ''}`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-gray-800 text-sm truncate">{p.name}</div>
+                <div className="text-[11px] text-gray-400 flex gap-2 mt-0.5">
+                  {p.sku     && <span>מקט: {p.sku}</span>}
+                  {p.barcode && <span>ברקוד: {p.barcode}</span>}
+                  {p.category && <span className="text-blue-400">{p.category}</span>}
+                </div>
+              </div>
+              <div className="shrink-0 text-left">
+                {p.sellingPrice != null && (
+                  <div className="font-bold text-blue-700 text-xs">{fmt(p.sellingPrice)}</div>
+                )}
+                {p.unit && <div className="text-[11px] text-gray-400">{p.unit}</div>}
+                {p.stockQuantity != null && (
+                  <div className={`text-[11px] ${p.stockQuantity <= 0 ? 'text-red-400' : 'text-emerald-500'}`}>
+                    מלאי: {p.stockQuantity}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+          <div className="px-3 py-1.5 bg-gray-50 text-[11px] text-gray-400 text-center border-t border-gray-100">
+            ↑↓ לניווט · Enter לבחירה · Esc לסגירה
           </div>
         </div>
-
-        {/* List */}
-        <div className="overflow-y-auto flex-1">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-32 text-gray-400">
-              <Loader2 size={20} className="animate-spin mr-2" /> טוען...
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">לא נמצאו פריטים</div>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 sticky top-0 text-xs text-gray-500">
-                <tr>
-                  <th className="px-4 py-2 text-right font-medium">שם פריט</th>
-                  <th className="px-4 py-2 text-right font-medium w-24">מקט</th>
-                  <th className="px-4 py-2 text-right font-medium w-20">יחידה</th>
-                  <th className="px-4 py-2 text-right font-medium w-28">מחיר מכירה</th>
-                  <th className="px-4 py-2 text-right font-medium w-20">מלאי</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map(p => (
-                  <tr
-                    key={p.id}
-                    onClick={() => onSelect(p)}
-                    className="hover:bg-blue-50 cursor-pointer transition"
-                  >
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-gray-800">{p.name}</div>
-                      {p.barcode && <div className="text-xs text-gray-400">{p.barcode}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">{p.sku ?? '—'}</td>
-                    <td className="px-4 py-3 text-gray-500">{p.unit ?? 'יח'}</td>
-                    <td className="px-4 py-3 font-medium text-blue-700">
-                      {p.sellingPrice != null ? fmt(p.sellingPrice) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {p.stockQuantity != null ? (
-                        <span className={p.stockQuantity <= 0 ? 'text-red-500' : ''}>
-                          {p.stockQuantity}
-                        </span>
-                      ) : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-400 text-center rounded-b-2xl">
-          {filtered.length} פריטים — לחץ על שורה לבחירה
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -164,14 +160,23 @@ export default function NewInvoicePage() {
   const [lines,         setLines]         = useState<Line[]>([emptyLine()]);
   const [showAdvanced,  setShowAdvanced]  = useState(false);
   const [error,         setError]         = useState('');
-  const [pickerLineIdx, setPickerLineIdx] = useState<number | null>(null);
 
+  // Fetch customers
   const { data: custData } = useQuery({
     queryKey: ['customers'],
     queryFn: () => api.get('/crm/customers'),
   });
   const customers: any[] = Array.isArray(custData?.data) ? custData.data
     : Array.isArray(custData?.data?.data) ? custData.data.data : [];
+
+  // Fetch inventory items for autocomplete
+  const { data: itemsData } = useQuery({
+    queryKey: ['inventory-items-search'],
+    queryFn: () => api.get('/inventory/items', { params: { pageSize: 1000 } }),
+    staleTime: 5 * 60_000,
+  });
+  const allItems: Product[] = Array.isArray(itemsData?.data?.data) ? itemsData.data.data
+    : Array.isArray(itemsData?.data) ? itemsData.data : [];
 
   const saveMutation = useMutation({
     mutationFn: async (andSend: boolean) => {
@@ -197,26 +202,49 @@ export default function NewInvoicePage() {
     onError:   (err: any) => setError(err.response?.data?.error || err.response?.data?.message || 'שגיאה בשמירה'),
   });
 
-  const updateLine = (idx: number, field: keyof Line, value: string | number) =>
-    setLines(prev => prev.map((l, i) => i === idx ? { ...l, [field]: value } : l));
+  // Update a line field + auto-add empty line when last row gets description
+  const updateLine = useCallback((idx: number, field: keyof Line, value: string | number) => {
+    setLines(prev => {
+      const updated = prev.map((l, i) => i === idx ? { ...l, [field]: value } : l);
+      // Auto-add new row when description is entered on the last row
+      if (idx === prev.length - 1 && field === 'description' && value && !prev[idx].description) {
+        return [...updated, emptyLine()];
+      }
+      return updated;
+    });
+  }, []);
+
+  // Apply a selected product to a line
+  const applyProduct = useCallback((idx: number, product: Product) => {
+    setLines(prev => {
+      const updated = prev.map((l, i) => i === idx ? {
+        ...l,
+        description:  product.name,
+        sku:          product.sku ?? l.sku,
+        barcode:      product.barcode ?? l.barcode,
+        unit:         product.unit ?? 'יח',
+        unitPrice:    product.sellingPrice ?? l.unitPrice,
+        vatRate:      product.vatRate ?? 0.18,
+      } : l);
+      // Auto-add new row if this was the last one
+      if (idx === prev.length - 1) return [...updated, emptyLine()];
+      return updated;
+    });
+  }, []);
+
+  // Barcode lookup: when barcode field is filled, search for exact match
+  const handleBarcodeLookup = useCallback((idx: number, barcode: string) => {
+    updateLine(idx, 'barcode', barcode);
+    if (!barcode.trim()) return;
+    const match = allItems.find(p =>
+      (p.barcode ?? '').toLowerCase() === barcode.trim().toLowerCase()
+    );
+    if (match) applyProduct(idx, match);
+  }, [allItems, updateLine, applyProduct]);
 
   const removeLine = (idx: number) => {
     if (lines.length === 1) return;
     setLines(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const handleProductSelect = (product: Product) => {
-    if (pickerLineIdx === null) return;
-    setLines(prev => prev.map((l, i) => i === pickerLineIdx ? {
-      ...l,
-      description:  product.name,
-      sku:          product.sku ?? '',
-      barcode:      product.barcode ?? '',
-      unit:         product.unit ?? 'יח',
-      unitPrice:    product.sellingPrice ?? l.unitPrice,
-      vatRate:      product.vatRate ?? 0.18,
-    } : l));
-    setPickerLineIdx(null);
   };
 
   // Calculations
@@ -227,6 +255,7 @@ export default function NewInvoicePage() {
     const vatAmt  = net * l.vatRate;
     return { gross, discAmt, net, vatAmt, total: net + vatAmt };
   });
+
   const subtotal       = lineSubtotals.reduce((s, l) => s + l.net, 0);
   const overallDiscAmt = subtotal * (discountPct / 100);
   const afterDisc      = subtotal - overallDiscAmt;
@@ -283,7 +312,14 @@ export default function NewInvoicePage() {
       {/* Lines table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-medium text-gray-700">פריטים</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-medium text-gray-700">פריטים</h3>
+            {allItems.length > 0 && (
+              <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-medium">
+                {allItems.length} פריטים בקטלוג
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowAdvanced(v => !v)}
@@ -301,13 +337,20 @@ export default function NewInvoicePage() {
           </div>
         </div>
 
+        {/* Search hint */}
+        {allItems.length > 0 && (
+          <div className="px-4 py-2 bg-blue-50/60 border-b border-blue-100 text-xs text-blue-600">
+            💡 התחל להקליד בשדה "תיאור פריט" — ייצג רשימת פריטים מהקטלוג בזמן אמת (חיפוש לפי שם, מקט, ברקוד)
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[900px]">
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="px-3 py-2 text-right font-medium w-7">#</th>
-                {showAdvanced && <th className="px-3 py-2 text-right font-medium w-24">מקט</th>}
-                {showAdvanced && <th className="px-3 py-2 text-right font-medium w-28">ברקוד</th>}
+                {showAdvanced && <th className="px-3 py-2 text-right font-medium w-28">מקט</th>}
+                {showAdvanced && <th className="px-3 py-2 text-right font-medium w-32">ברקוד</th>}
                 <th className="px-3 py-2 text-right font-medium">תיאור פריט</th>
                 {showAdvanced && <th className="px-3 py-2 text-right font-medium w-16">יחידה</th>}
                 <th className="px-3 py-2 text-right font-medium w-20">כמות</th>
@@ -321,56 +364,65 @@ export default function NewInvoicePage() {
             <tbody className="divide-y divide-gray-100">
               {lines.map((line, idx) => {
                 const lt = lineSubtotals[idx];
+                const isLast = idx === lines.length - 1;
                 return (
-                  <tr key={idx} className="hover:bg-gray-50/50">
+                  <tr key={idx} className={`hover:bg-gray-50/50 ${isLast ? 'bg-blue-50/20' : ''}`}>
                     <td className="px-3 py-2 text-gray-400 text-center">{idx + 1}</td>
+
+                    {/* SKU */}
                     {showAdvanced && (
                       <td className="px-3 py-2">
                         <input value={line.sku} onChange={e => updateLine(idx, 'sku', e.target.value)}
                           placeholder="12345" className={inputCls} />
                       </td>
                     )}
+
+                    {/* Barcode with lookup */}
                     {showAdvanced && (
                       <td className="px-3 py-2">
-                        <input value={line.barcode} onChange={e => updateLine(idx, 'barcode', e.target.value)}
-                          placeholder="789012345" className={inputCls} />
-                      </td>
-                    )}
-                    <td className="px-3 py-2">
-                      {/* Description with catalog picker button */}
-                      <div className="flex items-center gap-1">
                         <input
-                          value={line.description}
-                          onChange={e => updateLine(idx, 'description', e.target.value)}
-                          placeholder="תיאור פריט / שירות..."
+                          value={line.barcode}
+                          onChange={e => handleBarcodeLookup(idx, e.target.value)}
+                          placeholder="789012345678"
+                          title="הזן ברקוד — פריט יאותר אוטומטית"
                           className={inputCls}
                         />
-                        <button
-                          type="button"
-                          onClick={() => setPickerLineIdx(idx)}
-                          title="בחר מהקטלוג"
-                          className="shrink-0 text-gray-400 hover:text-blue-600 transition"
-                        >
-                          <Package size={16} />
-                        </button>
-                      </div>
+                      </td>
+                    )}
+
+                    {/* Description — inline autocomplete */}
+                    <td className="px-3 py-2">
+                      <DescriptionAutocomplete
+                        value={line.description}
+                        onChange={v => updateLine(idx, 'description', v)}
+                        onSelectProduct={p => applyProduct(idx, p)}
+                        items={allItems}
+                      />
                     </td>
+
+                    {/* Unit */}
                     {showAdvanced && (
                       <td className="px-3 py-2">
                         <input value={line.unit} onChange={e => updateLine(idx, 'unit', e.target.value)}
                           placeholder="יח" className={inputCls} />
                       </td>
                     )}
+
+                    {/* Quantity */}
                     <td className="px-3 py-2">
                       <input type="number" min={0.001} step={1} value={line.quantity}
                         onChange={e => updateLine(idx, 'quantity', +e.target.value)}
                         className={inputCls + ' text-center'} />
                     </td>
+
+                    {/* Unit price */}
                     <td className="px-3 py-2">
                       <input type="number" min={0} step={0.01} value={line.unitPrice}
                         onChange={e => updateLine(idx, 'unitPrice', +e.target.value)}
                         className={inputCls + ' text-center'} />
                     </td>
+
+                    {/* Discount % */}
                     <td className="px-3 py-2">
                       <div className="relative">
                         <input type="number" min={0} max={100} step={1} value={line.discountPercent}
@@ -379,6 +431,8 @@ export default function NewInvoicePage() {
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">%</span>
                       </div>
                     </td>
+
+                    {/* VAT */}
                     <td className="px-3 py-2">
                       <select value={line.vatRate}
                         onChange={e => updateLine(idx, 'vatRate', +e.target.value)}
@@ -388,12 +442,16 @@ export default function NewInvoicePage() {
                         <option value={0.17}>17%</option>
                       </select>
                     </td>
+
+                    {/* Line total */}
                     <td className="px-3 py-2 text-left font-medium text-gray-800">
                       {fmt(lt.net)}
                       {lt.discAmt > 0 && (
                         <div className="text-xs text-red-500">-{fmt(lt.discAmt)}</div>
                       )}
                     </td>
+
+                    {/* Remove */}
                     <td className="px-3 py-2">
                       <button onClick={() => removeLine(idx)} disabled={lines.length === 1}
                         className="text-gray-300 hover:text-red-400 transition disabled:opacity-20">
@@ -465,14 +523,6 @@ export default function NewInvoicePage() {
           שמור ושלח
         </button>
       </div>
-
-      {/* Product picker modal */}
-      {pickerLineIdx !== null && (
-        <ProductPickerModal
-          onSelect={handleProductSelect}
-          onClose={() => setPickerLineIdx(null)}
-        />
-      )}
     </div>
   );
 }

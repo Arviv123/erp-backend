@@ -2,7 +2,7 @@
  * MobileLoginPage — כניסת עובד עם ת.ז. + PIN 6 ספרות
  * Full-screen mobile-first UI, RTL Hebrew
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { mobileApi } from '../lib/mobileApi';
 import { useMobileAuth } from '../contexts/MobileAuthContext';
@@ -11,6 +11,7 @@ export default function MobileLoginPage() {
   const navigate  = useNavigate();
   const { login } = useMobileAuth();
   const [searchParams] = useSearchParams();
+  const pinInputRef = useRef<HTMLInputElement>(null);
 
   const [tenantId,  setTenantId]  = useState(searchParams.get('t') ?? '');
   const [idNumber,  setIdNumber]  = useState('');
@@ -19,29 +20,56 @@ export default function MobileLoginPage() {
   const [error,     setError]     = useState('');
   const [step,      setStep]      = useState<'tenant'|'id'|'pin'>( searchParams.get('t') ? 'id' : 'tenant');
 
-  const handleSubmit = async () => {
+  // Focus hidden PIN input when entering pin step (enables keyboard input)
+  useEffect(() => {
+    if (step === 'pin') setTimeout(() => pinInputRef.current?.focus(), 100);
+  }, [step]);
+
+  // handleSubmit receives the PIN value explicitly to avoid stale closure
+  const handleSubmit = async (pinValue: string) => {
     setError('');
     setLoading(true);
     try {
-      const res = await mobileApi.post('/employees/mobile-login', { idNumber, pin, tenantId });
+      const res = await mobileApi.post('/employees/mobile-login', { idNumber, pin: pinValue, tenantId });
       const { token, employee } = res.data;
       login(token, employee);
       navigate('/m/home', { replace: true });
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'שגיאה בכניסה. בדוק את הפרטים.');
       setPin('');
+      setTimeout(() => pinInputRef.current?.focus(), 100);
     } finally {
       setLoading(false);
     }
   };
 
   const pressPad = (d: string) => {
+    if (loading) return;
     if (d === '⌫') { setPin(p => p.slice(0, -1)); return; }
-    if (pin.length < 6) {
-      const next = pin + d;
-      setPin(next);
-      if (next.length === 6) setTimeout(() => handleSubmit(), 300);
-    }
+    setPin(prev => {
+      if (prev.length >= 6) return prev;
+      const next = prev + d;
+      if (next.length === 6) setTimeout(() => handleSubmit(next), 200);
+      return next;
+    });
+  };
+
+  // Keyboard input for PIN step
+  const handlePinKeyboard = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 6);
+    e.target.value = '';  // keep hidden input empty
+    if (digits.length === 0) return;
+    const lastDigit = digits[digits.length - 1];
+    setPin(prev => {
+      if (prev.length >= 6) return prev;
+      const next = prev + lastDigit;
+      if (next.length === 6) setTimeout(() => handleSubmit(next), 200);
+      return next;
+    });
+  };
+
+  const handlePinKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') setPin(p => p.slice(0, -1));
   };
 
   const padDigits = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
@@ -148,30 +176,42 @@ export default function MobileLoginPage() {
             <h2 className="text-2xl font-extrabold text-gray-900 mb-1">קוד PIN אישי</h2>
             <p className="text-gray-400 text-sm mb-5">6 ספרות — נקבע ע"י מחלקת משאבי אנוש</p>
 
-            {/* PIN dots */}
-            <div className="flex justify-center gap-3 mb-6">
+            {/* Hidden input to capture keyboard input */}
+            <input
+              ref={pinInputRef}
+              type="tel"
+              inputMode="numeric"
+              onChange={handlePinKeyboard}
+              onKeyDown={handlePinKeyDown}
+              className="opacity-0 absolute w-0 h-0 pointer-events-none"
+              aria-hidden="true"
+              tabIndex={-1}
+            />
+
+            {/* PIN dots — tap to focus keyboard */}
+            <div className="flex justify-center gap-2 mb-6" onClick={() => pinInputRef.current?.focus()}>
               {Array.from({length:6},(_,i)=>(
-                <div key={i} className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl transition-all duration-150 ${
+                <div key={i} className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-150 ${
                   i < pin.length
-                    ? 'bg-blue-600 shadow-lg shadow-blue-200 scale-105'
+                    ? 'bg-blue-600 shadow-md shadow-blue-200 scale-105'
                     : 'bg-gray-100 border-2 border-gray-200'
                 }`}>
-                  {i < pin.length && <span className="text-white text-2xl leading-none">●</span>}
+                  {i < pin.length && <span className="text-white text-xl leading-none">●</span>}
                 </div>
               ))}
             </div>
 
             {/* Keypad */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               {padDigits.map((d,i)=>(
                 <button
                   key={i}
                   type="button"
                   onClick={() => d && pressPad(d)}
                   disabled={loading}
-                  className={`h-16 rounded-2xl text-2xl font-semibold transition-all active:scale-90 ${
+                  className={`h-14 rounded-xl text-xl font-semibold transition-all active:scale-90 ${
                     d==='' ? 'opacity-0 cursor-default' :
-                    d==='⌫' ? 'bg-gray-100 text-gray-500 hover:bg-gray-200 text-xl' :
+                    d==='⌫' ? 'bg-gray-100 text-gray-500 hover:bg-gray-200' :
                     'bg-gray-50 text-gray-900 hover:bg-blue-50 hover:text-blue-700 border border-gray-100 shadow-sm'
                   }`}
                 >
