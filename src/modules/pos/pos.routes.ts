@@ -284,7 +284,7 @@ router.get('/reports/monthly', requireMinRole('ACCOUNTANT') as any, asyncHandler
   const from = new Date(year, month - 1, 1, 0, 0, 0);
   const to   = new Date(year, month,     0, 23, 59, 59); // last day of month
 
-  const transactions = await prisma.posTransaction.findMany({
+  const transactions: any[] = await (prisma.posTransaction as any).findMany({
     where: { tenantId: req.user.tenantId, createdAt: { gte: from, lte: to } },
     include: { lines: { include: { product: { select: { name: true } } } } },
   });

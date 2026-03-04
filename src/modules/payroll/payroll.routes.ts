@@ -308,7 +308,7 @@ router.get('/my-payslips', async (req: AuthenticatedRequest, res: Response) => {
 // ─── GET /payroll/attendance-for-payroll/:empId?month=YYYY-MM ──────
 router.get(
   '/attendance-for-payroll/:employeeId',
-  requireMinRole('PAYROLL_ADMIN') as any,
+  requireMinRole('ACCOUNTANT') as any,
   async (req: AuthenticatedRequest, res: Response) => {
     const { month } = req.query;
     if (!month || !/^\d{4}-\d{2}$/.test(month as string)) {
