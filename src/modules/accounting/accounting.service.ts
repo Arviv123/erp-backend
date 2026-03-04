@@ -231,6 +231,89 @@ export async function getTrialBalance(tenantId: string, asOfDate?: Date) {
   return { rows, totalDebits, totalCredits, isBalanced };
 }
 
+// ─── Trial Balance — Period Format (6-column) ─────────────────────
+// Returns opening balance + period movements + closing balance per account
+
+export async function getTrialBalancePeriod(tenantId: string, from: Date, to: Date) {
+  const accounts = await prisma.account.findMany({
+    where:   { tenantId, isActive: true },
+    orderBy: { code: 'asc' },
+  });
+
+  // Opening balance = all posted transactions BEFORE from date
+  const openingDate = new Date(from.getTime() - 1); // 1ms before from
+
+  const rows = await Promise.all(
+    accounts.map(async (acc) => {
+      // Opening balance
+      const opening = await getAccountBalance(acc.id, tenantId, openingDate);
+      const openingDebit  = opening.totalDebits;
+      const openingCredit = opening.totalCredits;
+
+      // Period movements
+      const [periodDebitAgg, periodCreditAgg] = await Promise.all([
+        prisma.transactionLine.aggregate({
+          where: {
+            debitAccountId: acc.id,
+            transaction: { tenantId, status: 'POSTED', date: { gte: from, lte: to } },
+          },
+          _sum: { amount: true },
+        }),
+        prisma.transactionLine.aggregate({
+          where: {
+            creditAccountId: acc.id,
+            transaction: { tenantId, status: 'POSTED', date: { gte: from, lte: to } },
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const periodDebit  = Number(periodDebitAgg._sum.amount  ?? 0);
+      const periodCredit = Number(periodCreditAgg._sum.amount ?? 0);
+
+      // Closing balance
+      const closingDebit  = openingDebit  + periodDebit;
+      const closingCredit = openingCredit + periodCredit;
+
+      return {
+        id:   acc.id,
+        code: acc.code,
+        name: acc.name,
+        type: acc.type,
+        openingDebit:  Math.round(openingDebit  * 100) / 100,
+        openingCredit: Math.round(openingCredit * 100) / 100,
+        periodDebit:   Math.round(periodDebit   * 100) / 100,
+        periodCredit:  Math.round(periodCredit  * 100) / 100,
+        closingDebit:  Math.round(closingDebit  * 100) / 100,
+        closingCredit: Math.round(closingCredit * 100) / 100,
+      };
+    })
+  );
+
+  // Filter out accounts with zero activity
+  const activeRows = rows.filter(r =>
+    r.openingDebit > 0 || r.openingCredit > 0 ||
+    r.periodDebit  > 0 || r.periodCredit  > 0 ||
+    r.closingDebit > 0 || r.closingCredit > 0
+  );
+
+  const totals = activeRows.reduce((s, r) => ({
+    openingDebit:  s.openingDebit  + r.openingDebit,
+    openingCredit: s.openingCredit + r.openingCredit,
+    periodDebit:   s.periodDebit   + r.periodDebit,
+    periodCredit:  s.periodCredit  + r.periodCredit,
+    closingDebit:  s.closingDebit  + r.closingDebit,
+    closingCredit: s.closingCredit + r.closingCredit,
+  }), { openingDebit: 0, openingCredit: 0, periodDebit: 0, periodCredit: 0, closingDebit: 0, closingCredit: 0 });
+
+  return {
+    period: { from, to },
+    rows: activeRows,
+    totals,
+    isBalanced: Math.abs(totals.closingDebit - totals.closingCredit) < 0.01,
+  };
+}
+
 // ─── List Transactions ────────────────────────────────────────────
 
 export async function listTransactions(

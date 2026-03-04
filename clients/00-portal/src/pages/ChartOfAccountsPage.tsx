@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, Plus, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 
 const fmtCurrency = (n: number) =>
@@ -18,6 +19,7 @@ async function getAccounts() { const r = await api.get('/accounting/accounts'); 
 
 export default function ChartOfAccountsPage() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [form, setForm] = useState({ code: '', name: '', type: 'ASSET', parentId: '' });
@@ -74,6 +76,7 @@ export default function ChartOfAccountsPage() {
                       <th className="text-right px-4 py-2 font-medium text-gray-500 text-xs">קוד</th>
                       <th className="text-right px-4 py-2 font-medium text-gray-500 text-xs">שם</th>
                       <th className="text-right px-4 py-2 font-medium text-gray-500 text-xs">יתרה</th>
+                      <th className="px-4 py-2 text-xs text-gray-400 text-center">כרטסת</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
@@ -83,6 +86,14 @@ export default function ChartOfAccountsPage() {
                         <td className="px-4 py-2.5 text-gray-900">{acc.name}</td>
                         <td className="px-4 py-2.5 font-medium text-gray-700">
                           {acc.balance != null ? fmtCurrency(acc.balance) : '—'}
+                        </td>
+                        <td className="px-4 py-2.5 text-center">
+                          <button
+                            onClick={() => navigate(`/accounting/ledger?accountId=${acc.id}`)}
+                            className="text-xs text-blue-600 hover:text-blue-800 hover:underline"
+                          >
+                            כרטסת
+                          </button>
                         </td>
                       </tr>
                     ))}

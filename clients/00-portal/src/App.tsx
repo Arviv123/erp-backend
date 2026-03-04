@@ -84,6 +84,7 @@ import FixedAssetsPage from './pages/FixedAssetsPage';
 import ExpenseReportsPage from './pages/ExpenseReportsPage';
 import BudgetPage from './pages/BudgetPage';
 import BankReconciliationPage from './pages/BankReconciliationPage';
+import AccountLedgerPage from './pages/AccountLedgerPage';
 
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
@@ -174,6 +175,7 @@ export default function App() {
               <Route path="/accounting/expenses" element={<ProtectedRoute module="ACCOUNTING"><ExpenseReportsPage /></ProtectedRoute>} />
               <Route path="/accounting/budget" element={<ProtectedRoute module="ACCOUNTING"><BudgetPage /></ProtectedRoute>} />
               <Route path="/accounting/bank-recon" element={<ProtectedRoute module="ACCOUNTING"><BankReconciliationPage /></ProtectedRoute>} />
+              <Route path="/accounting/ledger" element={<ProtectedRoute module="ACCOUNTING"><AccountLedgerPage /></ProtectedRoute>} />
 
               {/* Purchasing */}
               <Route path="/purchasing/vendors" element={<ProtectedRoute module="ACCOUNTING"><VendorsPage /></ProtectedRoute>} />

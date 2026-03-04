@@ -158,14 +158,26 @@ router.post(
 
 // ─── Reports ──────────────────────────────────────────────────────
 
-// GET /accounting/trial-balance
+// GET /accounting/trial-balance?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Returns 6-column trial balance: opening + period movements + closing
 router.get(
   '/trial-balance',
   requireMinRole('ACCOUNTANT') as any,
   async (req: AuthenticatedRequest, res: Response) => {
-    const asOf = req.query.asOf ? new Date(req.query.asOf as string) : undefined;
-    const result = await AccountingService.getTrialBalance(req.user.tenantId, asOf);
-    sendSuccess(res, result);
+    const { from, to } = req.query;
+    if (from && to) {
+      // 6-column format: opening / period debits+credits / closing
+      const fromDate = new Date(from as string);
+      const toDate   = new Date(to   as string);
+      const result = await AccountingService.getTrialBalancePeriod(
+        req.user.tenantId, fromDate, toDate
+      );
+      sendSuccess(res, result);
+    } else {
+      const asOf = req.query.asOf ? new Date(req.query.asOf as string) : undefined;
+      const result = await AccountingService.getTrialBalance(req.user.tenantId, asOf);
+      sendSuccess(res, result);
+    }
   }
 );
 
@@ -182,6 +194,94 @@ router.get(
     );
     sendSuccess(res, result);
   }
+);
+
+// GET /accounting/accounts/:id/ledger?from=YYYY-MM-DD&to=YYYY-MM-DD
+// Returns כרטסת (account ledger) with running balance per transaction
+router.get(
+  '/accounts/:id/ledger',
+  requireMinRole('ACCOUNTANT') as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const { from, to } = req.query;
+    const account = await prisma.account.findUnique({ where: { id: req.params.id } });
+    if (!account || account.tenantId !== req.user.tenantId) {
+      sendError(res, 'Account not found', 404); return;
+    }
+
+    const fromDate = from ? new Date(from as string) : new Date(new Date().getFullYear(), 0, 1);
+    const toDate   = to   ? new Date(to   as string) : new Date();
+    toDate.setHours(23, 59, 59, 999);
+
+    // Opening balance = net balance before fromDate
+    const openingBal = await AccountingService.getAccountBalance(
+      account.id, req.user.tenantId, new Date(fromDate.getTime() - 1)
+    );
+    // Opening balance from the perspective of normal balance:
+    // ASSET/EXPENSE: debit increases (opening = debits - credits)
+    // LIABILITY/EQUITY/REVENUE: credit increases (opening = credits - debits)
+    const isDebitNormal = ['ASSET', 'EXPENSE'].includes(account.type);
+    const openingBalance = isDebitNormal
+      ? openingBal.totalDebits - openingBal.totalCredits
+      : openingBal.totalCredits - openingBal.totalDebits;
+
+    // Get all transaction lines for this account in the period
+    const lines = await prisma.transactionLine.findMany({
+      where: {
+        OR: [
+          { debitAccountId:  account.id },
+          { creditAccountId: account.id },
+        ],
+        transaction: {
+          tenantId: req.user.tenantId,
+          status:   'POSTED',
+          date:     { gte: fromDate, lte: toDate },
+        },
+      },
+      include: {
+        transaction: {
+          select: { id: true, date: true, reference: true, description: true, sourceType: true },
+        },
+      },
+      orderBy: { transaction: { date: 'asc' } },
+    });
+
+    // Build ledger lines with running balance
+    let runningBalance = openingBalance;
+    const ledgerLines = lines.map(line => {
+      const amount      = Number(line.amount);
+      const isDebitLine = line.debitAccountId === account.id;
+      // For debit-normal accounts: debit = +, credit = -
+      const change = isDebitNormal
+        ? (isDebitLine ? amount : -amount)
+        : (isDebitLine ? -amount : amount);
+      runningBalance = Math.round((runningBalance + change) * 100) / 100;
+      return {
+        id:            line.id,
+        transactionId: line.transactionId,
+        date:          line.transaction.date,
+        reference:     line.transaction.reference,
+        description:   line.description ?? line.transaction.description,
+        sourceType:    line.transaction.sourceType,
+        debit:         isDebitLine ? amount : null,
+        credit:        isDebitLine ? null   : amount,
+        balance:       runningBalance,
+      };
+    });
+
+    const periodDebits  = lines.filter(l => l.debitAccountId  === account.id).reduce((s, l) => s + Number(l.amount), 0);
+    const periodCredits = lines.filter(l => l.creditAccountId === account.id).reduce((s, l) => s + Number(l.amount), 0);
+    const closingBalance = runningBalance;
+
+    sendSuccess(res, {
+      account: { id: account.id, code: account.code, name: account.name, type: account.type },
+      period:  { from: fromDate, to: toDate },
+      openingBalance: Math.round(openingBalance * 100) / 100,
+      lines:  ledgerLines,
+      periodDebits:  Math.round(periodDebits  * 100) / 100,
+      periodCredits: Math.round(periodCredits * 100) / 100,
+      closingBalance: Math.round(closingBalance * 100) / 100,
+    });
+  })
 );
 
 // ─── Financial Reports ────────────────────────────────────────────
