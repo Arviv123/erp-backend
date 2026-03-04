@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, FileText, Truck, Receipt, ClipboardList } from 'lucide-react';
+import { Plus, FileText, Truck, Receipt, ClipboardList, Package, Search, X, Loader2 } from 'lucide-react';
 import api from '../lib/api';
 
 const fmtDate = (d: string) => new Date(d).toLocaleDateString('he-IL');
@@ -34,10 +34,77 @@ async function getCustomers() {
   return (Array.isArray(r.data?.data) ? r.data.data : Array.isArray(r.data) ? r.data : []) as any[];
 }
 
+// ─── Product Picker Modal ─────────────────────────────────────────────────────
+
+interface Product { id: string; name: string; sku?: string; barcode?: string; unit?: string; sellingPrice?: number; vatRate?: number; stockQuantity?: number; }
+
+function ProductPickerModal({ onSelect, onClose }: { onSelect: (p: Product) => void; onClose: () => void }) {
+  const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const { data, isLoading } = useQuery({ queryKey: ['inventory-items'], queryFn: () => api.get('/inventory/items') });
+  const items: Product[] = Array.isArray(data?.data?.data) ? data.data.data : Array.isArray(data?.data) ? data.data : [];
+  const filtered = items.filter(p => {
+    const q = search.toLowerCase();
+    return !q || p.name.toLowerCase().includes(q) || (p.sku ?? '').toLowerCase().includes(q) || (p.barcode ?? '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[70vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between p-4 border-b">
+          <h4 className="font-bold flex items-center gap-2 text-gray-800"><Package size={16} className="text-blue-600" /> בחר מהקטלוג</h4>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+        </div>
+        <div className="p-3 border-b">
+          <div className="relative">
+            <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="חיפוש לפי שם, מקט, ברקוד..."
+              className="w-full border border-gray-300 rounded-lg pr-8 pl-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+        </div>
+        <div className="overflow-y-auto flex-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-24 text-gray-400"><Loader2 size={18} className="animate-spin mr-1" /> טוען...</div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-10 text-gray-400 text-sm">לא נמצאו פריטים</div>
+          ) : (
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 sticky top-0">
+                <tr>
+                  {['שם פריט', 'מקט', 'יחידה', 'מחיר', 'מלאי'].map(h => (
+                    <th key={h} className="px-3 py-2 text-right font-medium text-gray-500">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map(p => (
+                  <tr key={p.id} onClick={() => onSelect(p)} className="hover:bg-blue-50 cursor-pointer">
+                    <td className="px-3 py-2.5">
+                      <div className="font-medium text-gray-800">{p.name}</div>
+                      {p.barcode && <div className="text-gray-400">{p.barcode}</div>}
+                    </td>
+                    <td className="px-3 py-2.5 text-gray-500">{p.sku ?? '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-500">{p.unit ?? 'יח'}</td>
+                    <td className="px-3 py-2.5 font-medium text-blue-700">{p.sellingPrice != null ? `${p.sellingPrice} ₪` : '—'}</td>
+                    <td className="px-3 py-2.5 text-gray-500">{p.stockQuantity ?? '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── New Document Modal ───────────────────────────────────────────────────────
 
 interface Line { description: string; sku: string; unit: string; quantity: number; unitPrice: number; discountPercent: number; vatRate: number; }
-const emptyLine = (): Line => ({ description: '', sku: '', unit: 'יח׳', quantity: 1, unitPrice: 0, discountPercent: 0, vatRate: 0.18 });
+const emptyLine = (): Line => ({ description: '', sku: '', unit: 'יח', quantity: 1, unitPrice: 0, discountPercent: 0, vatRate: 0.18 });
 
 function NewDocModal({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
@@ -49,8 +116,9 @@ function NewDocModal({ onClose }: { onClose: () => void }) {
   const [notes,     setNotes]     = useState('');
   const [discPct,   setDiscPct]   = useState(0);
   const [lines,     setLines]     = useState<Line[]>([emptyLine()]);
-  const [error,     setError]     = useState('');
-  const [step,      setStep]      = useState(1);
+  const [error,        setError]      = useState('');
+  const [step,         setStep]       = useState(1);
+  const [pickerIdx,    setPickerIdx]  = useState<number | null>(null);
 
   const { data: customers = [] } = useQuery({ queryKey: ['customers'], queryFn: getCustomers });
 
@@ -62,6 +130,19 @@ function NewDocModal({ onClose }: { onClose: () => void }) {
 
   const updateLine = (idx: number, field: keyof Line, val: any) =>
     setLines(p => p.map((l, i) => i === idx ? { ...l, [field]: val } : l));
+
+  const handleProductSelect = (product: Product) => {
+    if (pickerIdx === null) return;
+    setLines(p => p.map((l, i) => i === pickerIdx ? {
+      ...l,
+      description: product.name,
+      sku:         product.sku ?? '',
+      unit:        product.unit ?? 'יח',
+      unitPrice:   product.sellingPrice ?? l.unitPrice,
+      vatRate:     product.vatRate ?? 0.18,
+    } : l));
+    setPickerIdx(null);
+  };
 
   const lineSubtotals = lines.map(l => {
     const gross = l.quantity * l.unitPrice;
@@ -162,7 +243,12 @@ function NewDocModal({ onClose }: { onClose: () => void }) {
                     const lt = lineSubtotals[idx];
                     return (
                       <tr key={idx}>
-                        <td className="px-2 py-1.5"><input value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)} placeholder="תיאור פריט" className={lineInput} /></td>
+                        <td className="px-2 py-1.5">
+                          <div className="flex items-center gap-1">
+                            <input value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)} placeholder="תיאור פריט" className={lineInput} />
+                            <button type="button" onClick={() => setPickerIdx(idx)} title="בחר מהקטלוג" className="shrink-0 text-gray-400 hover:text-blue-600 transition"><Package size={14} /></button>
+                          </div>
+                        </td>
                         <td className="px-2 py-1.5"><input value={line.sku} onChange={e => updateLine(idx, 'sku', e.target.value)} placeholder="מקט" className={lineInput} /></td>
                         <td className="px-2 py-1.5"><input value={line.unit} onChange={e => updateLine(idx, 'unit', e.target.value)} className={lineInput + ' w-14'} /></td>
                         <td className="px-2 py-1.5"><input type="number" min={0} value={line.quantity} onChange={e => updateLine(idx, 'quantity', +e.target.value)} className={lineInput + ' w-16 text-center'} /></td>
@@ -213,6 +299,10 @@ function NewDocModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </div>
+
+      {pickerIdx !== null && (
+        <ProductPickerModal onSelect={handleProductSelect} onClose={() => setPickerIdx(null)} />
+      )}
     </div>
   );
 }

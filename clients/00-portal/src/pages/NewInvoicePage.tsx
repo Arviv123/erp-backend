@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Plus, Trash2, Save, Send, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Trash2, Save, Send, Loader2, ChevronDown, ChevronUp, Search, Package, X } from 'lucide-react';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(n);
@@ -19,14 +19,139 @@ interface Line {
   notes:           string;
 }
 
+interface Product {
+  id: string;
+  name: string;
+  sku?: string;
+  barcode?: string;
+  unit?: string;
+  sellingPrice?: number;
+  costPrice?: number;
+  vatRate?: number;
+  category?: string;
+  stockQuantity?: number;
+}
+
 const emptyLine = (): Line => ({
-  description: '', sku: '', barcode: '', unit: 'יח׳',
+  description: '', sku: '', barcode: '', unit: 'יח',
   quantity: 1, unitPrice: 0, discountPercent: 0, vatRate: 0.18, notes: '',
 });
 
 const inputCls = 'w-full border border-gray-200 rounded px-2 py-1.5 text-sm focus:ring-1 focus:ring-blue-500 outline-none';
 const headerInputCls = 'w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none';
 
+// ─── Product Picker Modal ──────────────────────────────────────────────────────
+function ProductPickerModal({
+  onSelect,
+  onClose,
+}: {
+  onSelect: (product: Product) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['inventory-items'],
+    queryFn: () => api.get('/inventory/items'),
+  });
+  const items: Product[] = Array.isArray(data?.data?.data) ? data.data.data
+    : Array.isArray(data?.data) ? data.data : [];
+
+  const filtered = items.filter(p => {
+    const q = search.toLowerCase();
+    return !q || p.name.toLowerCase().includes(q)
+      || (p.sku ?? '').toLowerCase().includes(q)
+      || (p.barcode ?? '').toLowerCase().includes(q);
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <Package size={18} className="text-blue-600" />
+            בחר פריט / שירות מהקטלוג
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
+        </div>
+
+        {/* Search */}
+        <div className="p-4 border-b border-gray-100">
+          <div className="relative">
+            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              ref={inputRef}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="חיפוש לפי שם, מקט, ברקוד..."
+              className="w-full border border-gray-300 rounded-lg pr-9 pl-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+        </div>
+
+        {/* List */}
+        <div className="overflow-y-auto flex-1">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32 text-gray-400">
+              <Loader2 size={20} className="animate-spin mr-2" /> טוען...
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">לא נמצאו פריטים</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 sticky top-0 text-xs text-gray-500">
+                <tr>
+                  <th className="px-4 py-2 text-right font-medium">שם פריט</th>
+                  <th className="px-4 py-2 text-right font-medium w-24">מקט</th>
+                  <th className="px-4 py-2 text-right font-medium w-20">יחידה</th>
+                  <th className="px-4 py-2 text-right font-medium w-28">מחיר מכירה</th>
+                  <th className="px-4 py-2 text-right font-medium w-20">מלאי</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map(p => (
+                  <tr
+                    key={p.id}
+                    onClick={() => onSelect(p)}
+                    className="hover:bg-blue-50 cursor-pointer transition"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-gray-800">{p.name}</div>
+                      {p.barcode && <div className="text-xs text-gray-400">{p.barcode}</div>}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{p.sku ?? '—'}</td>
+                    <td className="px-4 py-3 text-gray-500">{p.unit ?? 'יח'}</td>
+                    <td className="px-4 py-3 font-medium text-blue-700">
+                      {p.sellingPrice != null ? fmt(p.sellingPrice) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">
+                      {p.stockQuantity != null ? (
+                        <span className={p.stockQuantity <= 0 ? 'text-red-500' : ''}>
+                          {p.stockQuantity}
+                        </span>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-3 border-t border-gray-100 bg-gray-50 text-xs text-gray-400 text-center rounded-b-2xl">
+          {filtered.length} פריטים — לחץ על שורה לבחירה
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function NewInvoicePage() {
   const navigate = useNavigate();
   const [customerId,    setCustomerId]    = useState('');
@@ -39,6 +164,7 @@ export default function NewInvoicePage() {
   const [lines,         setLines]         = useState<Line[]>([emptyLine()]);
   const [showAdvanced,  setShowAdvanced]  = useState(false);
   const [error,         setError]         = useState('');
+  const [pickerLineIdx, setPickerLineIdx] = useState<number | null>(null);
 
   const { data: custData } = useQuery({
     queryKey: ['customers'],
@@ -52,8 +178,8 @@ export default function NewInvoicePage() {
       const validLines = lines.filter(l => l.description && l.unitPrice >= 0 && l.quantity > 0);
       const payload = {
         customerId,
-        date:            date,
-        dueDate:         dueDate,
+        date,
+        dueDate,
         notes:           notes || undefined,
         paymentTerms:    paymentTerms || undefined,
         reference:       reference || undefined,
@@ -79,12 +205,26 @@ export default function NewInvoicePage() {
     setLines(prev => prev.filter((_, i) => i !== idx));
   };
 
+  const handleProductSelect = (product: Product) => {
+    if (pickerLineIdx === null) return;
+    setLines(prev => prev.map((l, i) => i === pickerLineIdx ? {
+      ...l,
+      description:  product.name,
+      sku:          product.sku ?? '',
+      barcode:      product.barcode ?? '',
+      unit:         product.unit ?? 'יח',
+      unitPrice:    product.sellingPrice ?? l.unitPrice,
+      vatRate:      product.vatRate ?? 0.18,
+    } : l));
+    setPickerLineIdx(null);
+  };
+
   // Calculations
   const lineSubtotals = lines.map(l => {
-    const gross    = l.quantity * l.unitPrice;
-    const discAmt  = gross * (l.discountPercent / 100);
-    const net      = gross - discAmt;
-    const vatAmt   = net * l.vatRate;
+    const gross   = l.quantity * l.unitPrice;
+    const discAmt = gross * (l.discountPercent / 100);
+    const net     = gross - discAmt;
+    const vatAmt  = net * l.vatRate;
     return { gross, discAmt, net, vatAmt, total: net + vatAmt };
   });
   const subtotal       = lineSubtotals.reduce((s, l) => s + l.net, 0);
@@ -150,7 +290,7 @@ export default function NewInvoicePage() {
               className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700"
             >
               {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              {showAdvanced ? 'הסתר עמודות נוספות' : 'הצג מק"ט / ברקוד / יחידה'}
+              {showAdvanced ? 'הסתר עמודות נוספות' : 'הצג מקט / ברקוד / יחידה'}
             </button>
             <button
               onClick={() => setLines(prev => [...prev, emptyLine()])}
@@ -166,15 +306,15 @@ export default function NewInvoicePage() {
             <thead className="bg-gray-50 text-gray-500 text-xs">
               <tr>
                 <th className="px-3 py-2 text-right font-medium w-7">#</th>
-                {showAdvanced && <th className="px-3 py-2 text-right font-medium w-24">מק"ט</th>}
+                {showAdvanced && <th className="px-3 py-2 text-right font-medium w-24">מקט</th>}
                 {showAdvanced && <th className="px-3 py-2 text-right font-medium w-28">ברקוד</th>}
                 <th className="px-3 py-2 text-right font-medium">תיאור פריט</th>
                 {showAdvanced && <th className="px-3 py-2 text-right font-medium w-16">יחידה</th>}
                 <th className="px-3 py-2 text-right font-medium w-20">כמות</th>
-                <th className="px-3 py-2 text-right font-medium w-28">מחיר יחידה (₪)</th>
+                <th className="px-3 py-2 text-right font-medium w-28">מחיר יחידה</th>
                 <th className="px-3 py-2 text-right font-medium w-20">הנחה %</th>
-                <th className="px-3 py-2 text-right font-medium w-20">מע"מ %</th>
-                <th className="px-3 py-2 text-left font-medium w-28">סה"כ שורה</th>
+                <th className="px-3 py-2 text-right font-medium w-20">מעמ %</th>
+                <th className="px-3 py-2 text-left font-medium w-28">סהכ שורה</th>
                 <th className="px-3 py-2 w-9"></th>
               </tr>
             </thead>
@@ -197,13 +337,28 @@ export default function NewInvoicePage() {
                       </td>
                     )}
                     <td className="px-3 py-2">
-                      <input value={line.description} onChange={e => updateLine(idx, 'description', e.target.value)}
-                        placeholder="תיאור פריט / שירות" className={inputCls} />
+                      {/* Description with catalog picker button */}
+                      <div className="flex items-center gap-1">
+                        <input
+                          value={line.description}
+                          onChange={e => updateLine(idx, 'description', e.target.value)}
+                          placeholder="תיאור פריט / שירות..."
+                          className={inputCls}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setPickerLineIdx(idx)}
+                          title="בחר מהקטלוג"
+                          className="shrink-0 text-gray-400 hover:text-blue-600 transition"
+                        >
+                          <Package size={16} />
+                        </button>
+                      </div>
                     </td>
                     {showAdvanced && (
                       <td className="px-3 py-2">
                         <input value={line.unit} onChange={e => updateLine(idx, 'unit', e.target.value)}
-                          placeholder="יח׳" className={inputCls} />
+                          placeholder="יח" className={inputCls} />
                       </td>
                     )}
                     <td className="px-3 py-2">
@@ -274,7 +429,7 @@ export default function NewInvoicePage() {
             {/* Summary */}
             <div className="text-sm space-y-1 min-w-[240px]">
               <div className="flex justify-between">
-                <span className="text-gray-500">סכום לפני מע"מ:</span>
+                <span className="text-gray-500">סכום לפני מעמ:</span>
                 <span className="font-medium">{fmt(subtotal)}</span>
               </div>
               {discountPct > 0 && (
@@ -284,11 +439,11 @@ export default function NewInvoicePage() {
                 </div>
               )}
               <div className="flex justify-between">
-                <span className="text-gray-500">מע"מ:</span>
+                <span className="text-gray-500">מעמ:</span>
                 <span className="font-medium">{fmt(vatTotal)}</span>
               </div>
               <div className="flex justify-between pt-2 border-t border-gray-300">
-                <span className="font-bold text-gray-800">סה"כ לתשלום:</span>
+                <span className="font-bold text-gray-800">סהכ לתשלום:</span>
                 <span className="font-bold text-lg text-blue-700">{fmt(grandTotal)}</span>
               </div>
             </div>
@@ -310,6 +465,14 @@ export default function NewInvoicePage() {
           שמור ושלח
         </button>
       </div>
+
+      {/* Product picker modal */}
+      {pickerLineIdx !== null && (
+        <ProductPickerModal
+          onSelect={handleProductSelect}
+          onClose={() => setPickerLineIdx(null)}
+        />
+      )}
     </div>
   );
 }

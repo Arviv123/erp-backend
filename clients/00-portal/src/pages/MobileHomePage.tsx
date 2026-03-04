@@ -38,13 +38,13 @@ function calcChildPoints(birthDate: string, taxYear = new Date().getFullYear()):
   return 0.5;
 }
 
-type Tab = 'home'|'payslips'|'leave'|'form101'|'me';
+type Tab = 'home'|'payslips'|'attendance'|'leave'|'me';
 const TABS: { id: Tab; emoji: string; label: string }[] = [
-  { id:'home',     emoji:'🏠', label:'בית'    },
-  { id:'payslips', emoji:'💰', label:'שכר'    },
-  { id:'leave',    emoji:'🏖️',  label:'חופשה' },
-  { id:'form101',  emoji:'📋', label:'טופס 101'},
-  { id:'me',       emoji:'👤', label:'אני'    },
+  { id:'home',       emoji:'🏠', label:'בית'      },
+  { id:'payslips',   emoji:'💰', label:'שכר'      },
+  { id:'attendance', emoji:'🕐', label:'נוכחות'   },
+  { id:'leave',      emoji:'🏖️',  label:'חופשה'   },
+  { id:'me',         emoji:'👤', label:'אני'      },
 ];
 
 // ─── Mini components ──────────────────────────────────────────────
@@ -71,18 +71,20 @@ function HomeTab({ emp, refetchEmp }: { emp: any; refetchEmp: () => void }) {
   const trend  = latest && prev ? Number(latest.netSalary) - Number(prev.netSalary) : null;
   const [clockMsg, setClockMsg] = useState('');
 
-  // Today's attendance
+  // Today's attendance — all entries for today
   const { data: attData, refetch: refetchAtt } = useQuery({
     queryKey: ['mobile-att-today'],
     queryFn:  () => mobileApi.get('/employees/mobile/attendance').then(r => r.data),
     enabled:  !!emp,
     staleTime: 30_000,
   });
-  const todayLog = Array.isArray(attData) ? attData.find((l: any) => {
+  const todayLogs: any[] = Array.isArray(attData) ? attData.filter((l: any) => {
     const d = new Date(l.date); const t = new Date(); t.setHours(0,0,0,0);
     return d.getTime() === t.getTime();
-  }) : null;
-  const isClockedIn = todayLog && !todayLog.clockOut;
+  }) : [];
+  // Active = latest open entry (no clockOut)
+  const activeLog = todayLogs.find((l: any) => !l.clockOut) ?? null;
+  const isClockedIn = !!activeLog;
 
   const clockIn = async () => {
     try {
@@ -142,33 +144,55 @@ function HomeTab({ emp, refetchEmp }: { emp: any; refetchEmp: () => void }) {
         </div>
       </div>
 
-      {/* Clock in/out */}
+      {/* Clock in/out — all today's events */}
       <Card className="p-5">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">נוכחות היום</p>
-        {todayLog ? (
-          <div className="flex items-center justify-between">
-            <div className="text-sm space-y-1">
-              <p className="text-gray-600">כניסה: <span className="font-bold text-gray-900">{fmtTime(todayLog.clockIn)}</span></p>
-              {todayLog.clockOut && <p className="text-gray-600">יציאה: <span className="font-bold text-gray-900">{fmtTime(todayLog.clockOut)}</span></p>}
-            </div>
+
+        {/* Timeline of today's entries */}
+        {todayLogs.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {todayLogs.map((log: any, i: number) => (
+              <div key={log.id} className="flex items-center gap-3 text-sm">
+                <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[11px] font-bold shrink-0">{i+1}</span>
+                <div className="flex-1">
+                  <span className="text-gray-600">כניסה: <span className="font-bold text-gray-900">{fmtTime(log.clockIn)}</span></span>
+                  {log.clockOut && (
+                    <span className="text-gray-600 mr-3">יציאה: <span className="font-bold text-gray-900">{fmtTime(log.clockOut)}</span></span>
+                  )}
+                </div>
+                {!log.clockOut && (
+                  <span className="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">פעיל</span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex items-center justify-between">
+          {todayLogs.length === 0 && (
+            <p className="text-gray-400 text-sm">טרם נרשמה כניסה</p>
+          )}
+          {todayLogs.length > 0 && !isClockedIn && (
+            <p className="text-xs text-gray-400">{todayLogs.length} אירוע(ים) היום</p>
+          )}
+          {todayLogs.length > 0 && isClockedIn && (
+            <p className="text-xs text-gray-400">בתוך משמרת פעילה</p>
+          )}
+          <div className="flex gap-2 mr-auto">
             {isClockedIn ? (
               <button onClick={clockOut}
                 className="bg-red-500 text-white font-bold px-5 py-3 rounded-2xl text-sm active:scale-95 transition-all shadow-lg shadow-red-200">
                 🏁 יציאה
               </button>
             ) : (
-              <span className="bg-emerald-100 text-emerald-700 font-bold px-4 py-2 rounded-xl text-sm">✓ יום הסתיים</span>
+              <button onClick={clockIn}
+                className="bg-emerald-500 text-white font-bold px-5 py-3 rounded-2xl text-sm active:scale-95 transition-all shadow-lg shadow-emerald-200">
+                ⏱ כניסה
+              </button>
             )}
           </div>
-        ) : (
-          <div className="flex items-center justify-between">
-            <p className="text-gray-400 text-sm">טרם נרשמה כניסה</p>
-            <button onClick={clockIn}
-              className="bg-emerald-500 text-white font-bold px-5 py-3 rounded-2xl text-sm active:scale-95 transition-all shadow-lg shadow-emerald-200">
-              ⏱ כניסה
-            </button>
-          </div>
-        )}
+        </div>
         {clockMsg && <p className="text-center text-sm font-bold text-blue-600 mt-2">{clockMsg}</p>}
       </Card>
 
@@ -898,6 +922,283 @@ function MeTab({ emp }: { emp: any }) {
   );
 }
 
+// ─── ATTENDANCE TAB ────────────────────────────────────────────────
+function AttendanceTab({ emp }: { emp: any }) {
+  const [month, setMonth] = useState(new Date().toISOString().slice(0,7));
+  const [clockMsg, setClockMsg] = useState('');
+  const [showAbsenceModal, setShowAbsenceModal] = useState(false);
+  const [absenceDate, setAbsenceDate] = useState(new Date().toISOString().slice(0,10));
+  const [absenceType, setAbsenceType] = useState('');
+  const [absenceNotes, setAbsenceNotes] = useState('');
+  const [absenceMsg, setAbsenceMsg] = useState('');
+
+  const { data: attData, refetch: refetchAtt } = useQuery({
+    queryKey: ['mobile-att-month', month],
+    queryFn: () => mobileApi.get('/employees/mobile/attendance', { params: { month } }).then(r => r.data),
+    enabled: !!emp,
+    staleTime: 30_000,
+  });
+  const { data: leaveTypesData } = useQuery({
+    queryKey: ['mobile-leave-types'],
+    queryFn: () => mobileApi.get('/employees/mobile/leave-types').then(r => r.data),
+    enabled: showAbsenceModal,
+  });
+
+  const logs: any[] = Array.isArray(attData) ? attData : [];
+  const leaveTypes: any[] = Array.isArray(leaveTypesData) ? leaveTypesData : [];
+
+  // Today's logs
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayLogs = logs.filter((l:any) => new Date(l.date).getTime() === today.getTime());
+  const activeLog = todayLogs.find((l:any) => !l.clockOut) ?? null;
+  const isClockedIn = !!activeLog;
+
+  const clockIn = async () => {
+    try {
+      await mobileApi.post('/employees/mobile/clock-in', {});
+      setClockMsg('✓ כניסה נרשמה!');
+      refetchAtt();
+    } catch(e:any) { setClockMsg(e.response?.data?.error ?? 'שגיאה'); }
+    setTimeout(()=>setClockMsg(''),3000);
+  };
+  const clockOut = async () => {
+    try {
+      await mobileApi.post('/employees/mobile/clock-out', { breakMinutes: 0 });
+      setClockMsg('✓ יציאה נרשמה!');
+      refetchAtt();
+    } catch(e:any) { setClockMsg(e.response?.data?.error ?? 'שגיאה'); }
+    setTimeout(()=>setClockMsg(''),3000);
+  };
+  const submitAbsence = async () => {
+    if (!absenceType) { setAbsenceMsg('בחר סוג היעדרות'); return; }
+    try {
+      const d = new Date(absenceDate);
+      await mobileApi.post('/employees/mobile/leave-requests', {
+        leaveTypeId: absenceType,
+        startDate: d.toISOString(),
+        endDate:   d.toISOString(),
+        notes: absenceNotes || undefined,
+      });
+      setAbsenceMsg('✓ דיווח נשלח לאישור');
+      setTimeout(()=>{ setShowAbsenceModal(false); setAbsenceMsg(''); }, 1500);
+    } catch(e:any) { setAbsenceMsg(e.response?.data?.error ?? 'שגיאה'); }
+  };
+
+  // Monthly summary
+  const [y,m] = month.split('-').map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const workDays = logs.filter((l:any) => l.clockOut).length;
+  const totalMins = logs.reduce((s:number, l:any) => {
+    if (!l.clockOut) return s;
+    return s + Math.round((new Date(l.clockOut).getTime() - new Date(l.clockIn).getTime()) / 60000);
+  }, 0);
+  const totalHours = Math.floor(totalMins / 60);
+  const totalMinLeft = totalMins % 60;
+
+  // Build day map for monthly view
+  const dayMap: Record<string, any[]> = {};
+  logs.forEach((l:any) => {
+    const key = new Date(l.date).toISOString().slice(0,10);
+    if (!dayMap[key]) dayMap[key] = [];
+    dayMap[key].push(l);
+  });
+
+  // Generate days of month
+  const days: string[] = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    days.push(`${month}-${String(d).padStart(2,'0')}`);
+  }
+
+  const DAYS_HE = ['א','ב','ג','ד','ה','ו','ש'];
+
+  return (
+    <div className="space-y-4 pb-24">
+
+      {/* Clock action card */}
+      <Card className="p-5">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">נוכחות עכשיו</p>
+        {todayLogs.length > 0 && (
+          <div className="space-y-2 mb-3">
+            {todayLogs.map((log:any, i:number) => {
+              const mins = log.clockOut
+                ? Math.round((new Date(log.clockOut).getTime() - new Date(log.clockIn).getTime()) / 60000)
+                : null;
+              return (
+                <div key={log.id} className="flex items-center gap-2 text-sm bg-gray-50 rounded-xl px-3 py-2">
+                  <span className="text-blue-500 font-bold text-xs w-4">{i+1}</span>
+                  <span className="text-gray-700">⏱ {fmtTime(log.clockIn)}</span>
+                  {log.clockOut ? (
+                    <>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-gray-700">🏁 {fmtTime(log.clockOut)}</span>
+                      {mins !== null && (
+                        <span className="mr-auto text-xs text-gray-400">{Math.floor(mins/60)}:{String(mins%60).padStart(2,'0')} ש׳</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="mr-auto text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">פעיל</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <div className="flex gap-2">
+          {isClockedIn ? (
+            <button onClick={clockOut} className="flex-1 bg-red-500 text-white font-bold py-3.5 rounded-2xl text-sm active:scale-95 transition-all">
+              🏁 סיים משמרת
+            </button>
+          ) : (
+            <button onClick={clockIn} className="flex-1 bg-emerald-500 text-white font-bold py-3.5 rounded-2xl text-sm active:scale-95 transition-all">
+              ⏱ התחל משמרת
+            </button>
+          )}
+          <button onClick={() => setShowAbsenceModal(true)}
+            className="bg-amber-50 border border-amber-200 text-amber-700 font-bold px-4 py-3.5 rounded-2xl text-sm active:scale-95 transition-all">
+            📋 דיווח היעדרות
+          </button>
+        </div>
+        {clockMsg && <p className="text-center text-sm font-bold text-blue-600 mt-2">{clockMsg}</p>}
+      </Card>
+
+      {/* Month selector + summary */}
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">גליון חודשי</p>
+          <input type="month" value={month} onChange={e=>setMonth(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-blue-400" />
+        </div>
+        <div className="grid grid-cols-3 gap-2 mb-4">
+          {[
+            { label:'ימי נוכחות', value:`${workDays} יום` },
+            { label:'סה"כ שעות', value:`${totalHours}:${String(totalMinLeft).padStart(2,'0')}` },
+            { label:'ממוצע יומי', value: workDays > 0 ? `${Math.floor(totalMins/workDays/60)}:${String(Math.floor(totalMins/workDays)%60).padStart(2,'0')}` : '—' },
+          ].map(c => (
+            <div key={c.label} className="bg-blue-50 rounded-xl p-2.5 text-center">
+              <p className="text-[10px] text-blue-400 mb-0.5">{c.label}</p>
+              <p className="font-black text-sm text-blue-800">{c.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Days list */}
+        <div className="space-y-1 max-h-64 overflow-y-auto">
+          {days.reverse().map(day => {
+            const dayDate = new Date(day);
+            const dow = dayDate.getDay();
+            const isWeekend = dow === 5 || dow === 6;
+            const entries = dayMap[day] ?? [];
+            const hasEntries = entries.length > 0;
+            const isToday = day === new Date().toISOString().slice(0,10);
+
+            if (isWeekend && !hasEntries) return null;
+
+            return (
+              <div key={day} className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm ${
+                isToday ? 'bg-blue-50 border border-blue-100' : 'bg-gray-50'
+              }`}>
+                <div className="w-8 text-center">
+                  <div className={`text-xs font-bold ${isWeekend?'text-red-400':isToday?'text-blue-600':'text-gray-500'}`}>
+                    {DAYS_HE[dow]}
+                  </div>
+                  <div className={`text-[11px] ${isToday?'text-blue-600 font-bold':'text-gray-400'}`}>
+                    {dayDate.getDate()}
+                  </div>
+                </div>
+                {hasEntries ? (
+                  <div className="flex-1">
+                    {entries.map((e:any) => (
+                      <div key={e.id} className="text-[11px] text-gray-600">
+                        {fmtTime(e.clockIn)} {e.clockOut ? `→ ${fmtTime(e.clockOut)}` : '(פתוח)'}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-300">—</span>
+                )}
+                {hasEntries && (
+                  <div className="text-[11px] text-gray-400 text-left">
+                    {(() => {
+                      const mins = entries.reduce((s:number, e:any) => {
+                        if (!e.clockOut) return s;
+                        return s + Math.round((new Date(e.clockOut).getTime() - new Date(e.clockIn).getTime()) / 60000);
+                      }, 0);
+                      return `${Math.floor(mins/60)}:${String(mins%60).padStart(2,'0')}`;
+                    })()}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {/* Absence reporting modal */}
+      {showAbsenceModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-end" onClick={() => setShowAbsenceModal(false)}>
+          <div className="bg-white w-full rounded-t-3xl p-6 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-gray-900 text-lg">דיווח היעדרות</h3>
+              <button onClick={() => setShowAbsenceModal(false)} className="text-gray-400 text-xl">✕</button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">תאריך</label>
+              <input type="date" value={absenceDate} onChange={e => setAbsenceDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">סוג היעדרות</label>
+              <div className="grid grid-cols-2 gap-2">
+                {leaveTypes.length > 0 ? leaveTypes.map((lt:any) => (
+                  <button key={lt.id} onClick={() => setAbsenceType(lt.id)}
+                    className={`py-2.5 px-3 rounded-xl text-sm font-semibold border-2 text-right transition ${
+                      absenceType === lt.id
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                    }`}>
+                    {lt.name}
+                  </button>
+                )) : (
+                  <>
+                    {[
+                      {id:'sick', label:'מחלה'},
+                      {id:'emergency', label:'אירוע חירום'},
+                      {id:'vacation', label:'חופשה'},
+                      {id:'reserve', label:'מילואים'},
+                    ].map(t => (
+                      <button key={t.id} onClick={() => setAbsenceType(t.id)}
+                        className={`py-2.5 px-3 rounded-xl text-sm font-semibold border-2 transition ${
+                          absenceType === t.id ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700'
+                        }`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">הערות (אופציונלי)</label>
+              <textarea value={absenceNotes} onChange={e => setAbsenceNotes(e.target.value)}
+                rows={2} placeholder="פרטים נוספים..."
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-400 resize-none" />
+            </div>
+            {absenceMsg && (
+              <p className={`text-center text-sm font-bold ${absenceMsg.startsWith('✓') ? 'text-green-600' : 'text-red-600'}`}>
+                {absenceMsg}
+              </p>
+            )}
+            <button onClick={submitAbsence}
+              className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl text-base active:scale-[0.98] transition-all">
+              שלח דיווח
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── MAIN ─────────────────────────────────────────────────────────
 export default function MobileHomePage() {
   const { token } = useMobileAuth();
@@ -918,7 +1219,7 @@ export default function MobileHomePage() {
   if (!token) return null;
 
   const TAB_LABELS: Record<Tab,string> = {
-    home:'ראשי', payslips:'תלושי שכר', leave:'ניהול חופשות', form101:'טופס 101', me:'פרופיל אישי',
+    home:'ראשי', payslips:'תלושי שכר', attendance:'גליון נוכחות', leave:'ניהול חופשות', me:'פרופיל אישי',
   };
 
   return (
@@ -941,11 +1242,11 @@ export default function MobileHomePage() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 pt-4">
-        {tab==='home'     && <HomeTab    emp={emp} refetchEmp={refetch}/>}
-        {tab==='payslips' && <PayslipsTab emp={emp}/>}
-        {tab==='leave'    && <LeaveTab   emp={emp}/>}
-        {tab==='form101'  && <Form101Tab emp={emp} onSaved={()=>refetch()}/>}
-        {tab==='me'       && <MeTab      emp={emp}/>}
+        {tab==='home'       && <HomeTab       emp={emp} refetchEmp={refetch}/>}
+        {tab==='payslips'   && <PayslipsTab   emp={emp}/>}
+        {tab==='attendance' && <AttendanceTab emp={emp}/>}
+        {tab==='leave'      && <LeaveTab      emp={emp}/>}
+        {tab==='me'         && <MeTab         emp={emp}/>}
       </div>
 
       {/* Tab bar */}
