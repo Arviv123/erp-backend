@@ -28,7 +28,7 @@ async function getPayrollPreview(employeeId: string) {
 type TabKey = 'details' | 'salary' | 'preview' | 'extras';
 
 // ─── Mobile PIN Section (in Extras tab) ─────────────────────────
-function MobilePinSection({ employeeId }: { employeeId: string }) {
+function MobilePinSection({ employeeId, tenantId }: { employeeId: string; tenantId: string }) {
   const [pin,    setPin]    = useState('');
   const [done,   setDone]   = useState(false);
   const [error,  setError]  = useState('');
@@ -85,12 +85,26 @@ function MobilePinSection({ employeeId }: { employeeId: string }) {
         </button>
       </div>
 
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-500">
-        <p className="font-semibold mb-1">קוד חברה לשיתוף עם העובד:</p>
-        <p className="font-mono bg-white border rounded px-2 py-1 text-gray-700 text-sm break-all">
-          {typeof window !== 'undefined' ? window.location.hostname : 'app.company.com'}/m
-        </p>
-        <p className="mt-1">העובד יזין: ת.ז. + PIN + קוד חברה (tenantId מה-URL ה-current)</p>
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-500 space-y-2">
+        <p className="font-semibold text-gray-700">פרטי כניסה לשיתוף עם העובד:</p>
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="w-20 shrink-0">קוד חברה:</span>
+            <span className="font-mono bg-white border rounded px-2 py-0.5 text-gray-900 select-all">{tenantId}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-20 shrink-0">קישור ישיר:</span>
+            <a
+              href={`/m?t=${tenantId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="font-mono bg-white border rounded px-2 py-0.5 text-blue-600 hover:underline break-all"
+            >
+              {typeof window !== 'undefined' ? window.location.origin : ''}/m?t={tenantId}
+            </a>
+          </div>
+        </div>
+        <p className="text-gray-400">הקישור הישיר ממלא את קוד החברה אוטומטית.</p>
       </div>
     </div>
   );
@@ -419,7 +433,7 @@ export default function EmployeeDetailPage() {
 
         {/* Extras Tab — Mobile Access + PIN */}
         {activeTab === 'extras' && (
-          <MobilePinSection employeeId={employee.id} />
+          <MobilePinSection employeeId={employee.id} tenantId={employee.tenantId} />
         )}
       </div>
 

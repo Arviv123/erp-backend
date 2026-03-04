@@ -6,17 +6,17 @@
  * Public route — no auth required
  */
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { mobileApi } from '../lib/mobileApi';
 import { useMobileAuth } from '../contexts/MobileAuthContext';
-
-const COMPANY_CODE_HINT = 'קוד חברה (מסופק ע"י המעסיק)';
 
 export default function MobileLoginPage() {
   const navigate  = useNavigate();
   const { login } = useMobileAuth();
+  const [searchParams] = useSearchParams();
 
-  const [tenantId,  setTenantId]  = useState('');
+  // Pre-fill tenantId from URL ?t=<tenantId> (set by direct link from admin)
+  const [tenantId,  setTenantId]  = useState(searchParams.get('t') ?? '');
   const [idNumber,  setIdNumber]  = useState('');
   const [pin,       setPin]       = useState('');
   const [loading,   setLoading]   = useState(false);
@@ -31,7 +31,7 @@ export default function MobileLoginPage() {
     setLoading(true);
     try {
       const res = await mobileApi.post('/employees/mobile-login', { idNumber, pin, tenantId });
-      const { token, employee } = res.data?.data ?? res.data;
+      const { token, employee } = res.data;
       login(token, employee);
       navigate('/m/home', { replace: true });
     } catch (e: any) {
