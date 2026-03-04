@@ -8,8 +8,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Home, FileText, Settings, LogOut, ChevronLeft, CheckCircle, Info, Download } from 'lucide-react';
-import api from '../lib/api';
-import { useMobileAuth, getMobileHeaders } from '../contexts/MobileAuthContext';
+import { mobileApi } from '../lib/mobileApi';
+import { useMobileAuth } from '../contexts/MobileAuthContext';
 
 const fmtILS = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n);
@@ -19,14 +19,6 @@ const MONTHS_HE = ['','ינואר','פברואר','מרץ','אפריל','מאי'
 function fmtPeriod(period: string) {
   const [y, m] = period.split('-');
   return `${MONTHS_HE[Number(m)]} ${y}`;
-}
-
-// ─── Mobile API helper ─────────────────────────────────────────────
-function mobileApi() {
-  return {
-    get: (url: string) => api.get(url, { headers: getMobileHeaders() }),
-    patch: (url: string, data: any) => api.patch(url, data, { headers: getMobileHeaders() }),
-  };
 }
 
 // ─── TAB IDs ──────────────────────────────────────────────────────
@@ -179,7 +171,7 @@ function Form101Tab({ emp, onSaved }: { emp: any; onSaved: () => void }) {
   const save = async () => {
     setError('');
     try {
-      await mobileApi().patch(`/employees/${emp.id}/form101`, {
+      await mobileApi.patch(`/employees/${emp.id}/form101`, {
         maritalStatus, resident, newImmigrant, veteran, singleParent, spouseWorking,
         signedAt: new Date().toISOString(),
       });
@@ -333,7 +325,7 @@ export default function MobileHomePage() {
 
   const { data: empData, refetch } = useQuery({
     queryKey: ['mobile-me'],
-    queryFn:  () => mobileApi().get('/employees/mobile/me').then(r => r.data?.data ?? r.data),
+    queryFn:  () => mobileApi.get('/employees/mobile/me').then(r => r.data),
     enabled:  !!token,
     staleTime: 5 * 60 * 1000,
   });

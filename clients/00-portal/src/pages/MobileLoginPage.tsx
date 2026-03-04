@@ -7,7 +7,7 @@
  */
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../lib/api';
+import { mobileApi } from '../lib/mobileApi';
 import { useMobileAuth } from '../contexts/MobileAuthContext';
 
 const COMPANY_CODE_HINT = 'קוד חברה (מסופק ע"י המעסיק)';
@@ -30,7 +30,7 @@ export default function MobileLoginPage() {
 
     setLoading(true);
     try {
-      const res = await api.post('/employees/mobile-login', { idNumber, pin, tenantId });
+      const res = await mobileApi.post('/employees/mobile-login', { idNumber, pin, tenantId });
       const { token, employee } = res.data?.data ?? res.data;
       login(token, employee);
       navigate('/m/home', { replace: true });
