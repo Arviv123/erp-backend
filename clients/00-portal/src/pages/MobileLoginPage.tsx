@@ -70,7 +70,7 @@ export default function MobileLoginPage() {
             <label className="block text-xs font-semibold text-gray-500 mb-1 text-right">קוד חברה</label>
             <input
               type="text"
-              placeholder={COMPANY_CODE_HINT}
+              placeholder="קוד חברה (מסופק ע&quot;י המעסיק)"
               value={tenantId}
               onChange={e => setTenantId(e.target.value.trim())}
               className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm text-right focus:ring-2 focus:ring-blue-500 outline-none"
