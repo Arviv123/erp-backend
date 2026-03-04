@@ -769,3 +769,139 @@ export async function generateBankExport(runId: string, tenantId: string): Promi
 
   return BOM + [headers.map(h => `"${h}"`).join(','), ...rows].join('\r\n');
 }
+
+// ─── MASAV Export — מסב — קובץ תשלום בנקאי ────────────────────────
+/**
+ * מסב (MASAV) — Israeli Interbank Clearing Center salary file format.
+ * Fixed-width 80-character records, CRLF line endings.
+ * Encoding: ASCII (Hebrew transliterated in name field).
+ *
+ * Record types:
+ *   A — File header (1 per file)
+ *   B — Employee transaction (1 per employee)
+ *   Z — File trailer (1 per file)
+ *
+ * Amounts are in agorot (1 NIS = 100 agorot).
+ */
+export async function generateMasavExport(
+  runId:             string,
+  tenantId:          string,
+  opts: {
+    institutionCode:   string;  // 3-digit employer MASAV code (assigned by originating bank)
+    bankCode:          string;  // 3-digit originating bank code (e.g. "012" for Hapoalim)
+    branchCode:        string;  // 5-digit originating branch
+    accountNumber:     string;  // 9-digit originating account
+    sequenceNumber?:   number;  // file sequence (default 1)
+    valueDate?:        Date;    // payment date (default today)
+  }
+): Promise<Buffer> {
+  const run = await prisma.payrollRun.findUnique({
+    where:   { id: runId },
+    include: {
+      payslips: {
+        include: {
+          employee: {
+            select: {
+              firstName: true, lastName: true, idNumber: true,
+              bankAccount: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!run || run.tenantId !== tenantId) throw new Error('Payroll run not found');
+  if (run.status === 'DRAFT') throw new Error('Cannot generate MASAV file for DRAFT run — approve first');
+
+  const valueDate   = opts.valueDate   ?? new Date();
+  const seqNum      = opts.sequenceNumber ?? 1;
+
+  function pad(v: string | number, len: number, left = false, padChar = ' '): string {
+    const s = String(v);
+    if (s.length >= len) return s.slice(0, len);
+    return left ? s.padStart(len, padChar) : s.padEnd(len, padChar);
+  }
+  function zeroPad(v: string | number, len: number): string {
+    return String(v).padStart(len, '0');
+  }
+  function fmtDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+  }
+  // Transliterate Hebrew to ASCII for MASAV name field
+  function toAsciiName(s: string): string {
+    return s.replace(/[\u0590-\u05FF]/g, '?').replace(/[^\x20-\x7E]/g, '?');
+  }
+
+  const lines: string[] = [];
+
+  // ── Record A — File header ────────────────────────────────────────
+  const headerLine = [
+    'A',
+    zeroPad(opts.institutionCode, 3),
+    fmtDate(valueDate),              // 8-char value date
+    zeroPad(seqNum, 5),
+    zeroPad(opts.bankCode, 4),
+    zeroPad(opts.accountNumber, 8),
+    zeroPad(opts.branchCode, 5),
+    pad('SALARY', 12),              // description
+    '0001',                          // NIS currency code
+    '0135',                          // Payment type: salary (שכר עבודה)
+    pad('', 26),                     // Reserved
+  ].join('');
+  lines.push(pad(headerLine, 80));
+
+  // ── Record B — Employee transactions ─────────────────────────────
+  let totalAgorot = 0;
+  let txCount = 0;
+  for (const payslip of run.payslips) {
+    const net       = Number(payslip.netSalary);
+    if (net <= 0) continue;  // Skip zero-net payslips
+
+    const amtAgorot = Math.round(net * 100);
+    totalAgorot    += amtAgorot;
+    txCount++;
+
+    const bank     = payslip.employee?.bankAccount as any;
+    const idNum    = payslip.employee?.idNumber ?? '';
+    const empNum   = (payslip.employee as any)?.employeeNumber ?? '';
+    const name     = `${payslip.employee?.firstName ?? ''} ${payslip.employee?.lastName ?? ''}`.trim();
+    const bankCode = bank?.bankCode    ?? bank?.bank      ?? '000';
+    const branch   = bank?.branchCode  ?? '000';
+    const account  = bank?.accountNumber ?? '000000000';
+
+    const txLine = [
+      'B',
+      zeroPad(opts.institutionCode, 3),
+      zeroPad(idNum, 8),                       // Employee ID (8 chars)
+      zeroPad(bankCode, 3),                    // Employee bank code
+      zeroPad(branch, 3),                      // Employee branch
+      zeroPad(account, 8),                     // Employee account
+      pad(toAsciiName(name), 20),              // Employee name (ASCII)
+      zeroPad(amtAgorot, 11),                  // Amount in agorot
+      fmtDate(valueDate),                       // Value date
+      '001',                                    // Reference
+      zeroPad(empNum, 8),                      // Employee number
+      '    ',                                   // Reserved
+    ].join('');
+    lines.push(pad(txLine, 80));
+  }
+
+  // ── Record Z — Trailer ────────────────────────────────────────────
+  const trailerLine = [
+    'Z',
+    zeroPad(opts.institutionCode, 3),
+    zeroPad(totalAgorot, 12),                  // Total amount in agorot
+    zeroPad(txCount, 6),                       // Number of B records
+    fmtDate(valueDate),
+    pad('', 50),                               // Reserved
+  ].join('');
+  lines.push(pad(trailerLine, 80));
+
+  // Return as Buffer with CRLF line endings (MASAV standard)
+  const content = lines.join('\r\n') + '\r\n';
+  return Buffer.from(content, 'ascii');
+}

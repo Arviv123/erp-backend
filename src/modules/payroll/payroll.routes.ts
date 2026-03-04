@@ -274,6 +274,52 @@ router.get(
   }
 );
 
+// ─── GET /payroll/runs/:id/masav-export  (MASAV Israeli bank format) ─
+/**
+ * Returns a fixed-width MASAV file (Israeli Interbank Clearing Center).
+ * Required query params:
+ *   institutionCode — 3-digit employer MASAV code (from originating bank)
+ *   bankCode        — 3-digit originating bank code
+ *   branchCode      — originating branch number
+ *   accountNumber   — originating account number
+ * Optional:
+ *   valueDate       — payment date YYYY-MM-DD (default: today)
+ *   seq             — file sequence number (default: 1)
+ */
+router.get(
+  '/runs/:id/masav-export',
+  requireMinRole('HR_MANAGER') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { institutionCode, bankCode, branchCode, accountNumber, valueDate, seq } =
+        req.query as Record<string, string | undefined>;
+
+      if (!institutionCode || !bankCode || !branchCode || !accountNumber) {
+        sendError(res, 'Required: institutionCode, bankCode, branchCode, accountNumber');
+        return;
+      }
+
+      const run = await prisma.payrollRun.findUnique({ where: { id: req.params.id } });
+      if (!run || run.tenantId !== req.user.tenantId) { sendError(res, 'Run not found', 404); return; }
+
+      const buf = await PayrollService.generateMasavExport(req.params.id, req.user.tenantId, {
+        institutionCode,
+        bankCode,
+        branchCode,
+        accountNumber,
+        sequenceNumber: seq ? Number(seq) : 1,
+        valueDate:      valueDate ? new Date(valueDate) : undefined,
+      });
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Disposition', `attachment; filename="masav-salary-${run.period}.txt"`);
+      res.send(buf);
+    } catch (err: any) {
+      sendError(res, err.message, 400);
+    }
+  }
+);
+
 // ─── GET /payroll/reports/annual/:year  (Form 126 — annual summary) ─
 router.get(
   '/reports/annual/:year',
