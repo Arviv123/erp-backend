@@ -21,6 +21,9 @@ import hrRouter         from './modules/hr/leave.routes';
 import attendanceRouter from './modules/attendance/attendance.routes';
 import auditRouter      from './modules/audit/audit.routes';
 
+// Routes — Platform (SaaS owner layer)
+import platformRouter   from './modules/platform/platform.routes';
+
 // Routes — Phase 3 (Advanced Modules)
 import inventoryRouter  from './modules/inventory/inventory.routes';
 import purchasingRouter from './modules/purchasing/purchasing.routes';
@@ -96,6 +99,9 @@ app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: 'ERP API Docs',
 }));
 app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
+
+// ─── Platform Routes (SaaS owner — no tenant isolation) ───────────
+app.use('/api/platform', platformRouter);
 
 // ─── API Routes ─── Core ──────────────────────────────────────────
 app.use('/api/tenants',    tenantsRouter);

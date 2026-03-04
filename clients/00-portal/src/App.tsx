@@ -104,6 +104,13 @@ import MobileLoginPage from './pages/MobileLoginPage';
 import MobileHomePage  from './pages/MobileHomePage';
 import { MobileAuthProvider } from './contexts/MobileAuthContext';
 
+// Platform Admin (/platform/*)
+import PlatformLoginPage       from './pages/platform/PlatformLoginPage';
+import PlatformDashboardPage   from './pages/platform/PlatformDashboardPage';
+import PlatformTenantsPage     from './pages/platform/PlatformTenantsPage';
+import PlatformTenantDetailPage from './pages/platform/PlatformTenantDetailPage';
+import { PlatformAuthProvider, usePlatformAuth } from './contexts/PlatformAuthContext';
+
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
 function ProtectedRoute({ children, module }: { children: ReactNode; module?: ModuleKey }) {
@@ -126,14 +133,29 @@ function AdminRoute({ children }: { children: ReactNode }) {
   return <Layout>{children}</Layout>;
 }
 
+function PlatformRoute({ children }: { children: ReactNode }) {
+  const { token, loading } = usePlatformAuth();
+  if (loading) return <div className="flex items-center justify-center h-screen bg-slate-950 text-slate-400 text-sm">טוען...</div>;
+  if (!token) return <Navigate to="/platform/login" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <PlatformAuthProvider>
       <MobileAuthProvider>
       <AuthProvider>
         <PermissionsProvider>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
+              {/* ── Platform Admin (/platform/*) — completely separate from tenant UI */}
+              <Route path="/platform/login"    element={<PlatformLoginPage />} />
+              <Route path="/platform/dashboard" element={<PlatformRoute><PlatformDashboardPage /></PlatformRoute>} />
+              <Route path="/platform/tenants"   element={<PlatformRoute><PlatformTenantsPage /></PlatformRoute>} />
+              <Route path="/platform/tenants/:id" element={<PlatformRoute><PlatformTenantDetailPage /></PlatformRoute>} />
+              <Route path="/platform" element={<Navigate to="/platform/login" replace />} />
+
               {/* Mobile Employee App — no main Layout */}
               <Route path="/m/login" element={<MobileLoginPage />} />
               <Route path="/m/home"  element={<MobileHomePage  />} />
@@ -242,6 +264,7 @@ export default function App() {
         </PermissionsProvider>
       </AuthProvider>
       </MobileAuthProvider>
+      </PlatformAuthProvider>
     </QueryClientProvider>
   );
 }

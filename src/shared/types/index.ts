@@ -12,6 +12,15 @@ export interface AuthenticatedRequest extends Request {
   };
 }
 
+// ─── Platform Admin Request ──────────────────────────────────────
+export interface PlatformAdminRequest extends Request {
+  platformAdmin: {
+    adminId: string;
+    email:   string;
+    name:    string;
+  };
+}
+
 // ─── API Response Wrapper ────────────────────────────────────────
 export interface ApiResponse<T = unknown> {
   success: boolean;

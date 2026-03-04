@@ -219,6 +219,17 @@ model Tenant {
   taxSettings    Json     @default("{\"vatRate\": 0.18, \"taxYear\": 2025}")
   settings       Json     @default("{}")
 
+  // ── SaaS Platform Fields ─────────────────────────────────────
+  plan            String   @default("basic")   // basic | pro | enterprise
+  maxUsers        Int      @default(10)
+  maxEmployees    Int      @default(50)
+  // which ERP modules are enabled for this tenant
+  modules         Json     @default("{\"payroll\":true,\"accounting\":true,\"hr\":true,\"crm\":true,\"inventory\":true,\"pos\":true,\"attendance\":true,\"purchasing\":true,\"assets\":true,\"budget\":true,\"documents\":true}")
+  contactName     String?  // איש קשר
+  notes           String?  // הערות פנימיות למנהל הפלטפורמה
+  suspendedAt     DateTime?
+  suspendedReason String?
+
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -259,6 +270,23 @@ model Tenant {
   documents          Document[]
 
   @@map("tenants")
+}
+
+// ─────────────────────────────────────────────
+// PLATFORM ADMIN (בעל הפלטפורמה — מעל כל הטנאנטים)
+// ─────────────────────────────────────────────
+
+model PlatformAdmin {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("platform_admins")
 }
 
 // ─────────────────────────────────────────────
