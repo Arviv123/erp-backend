@@ -284,8 +284,11 @@ router.get(
       sendError(res, 'Year must be a valid 4-digit year (e.g. 2025)');
       return;
     }
+    const half = (['H1', 'H2', 'FULL'].includes(req.query.half as string)
+      ? req.query.half as 'H1' | 'H2' | 'FULL'
+      : 'FULL');
     try {
-      const report = await PayrollService.getAnnualReport(req.user.tenantId, year);
+      const report = await PayrollService.getAnnualReport(req.user.tenantId, year, half);
       sendSuccess(res, report);
     } catch (err: any) {
       sendError(res, err.message, 404);

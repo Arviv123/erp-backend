@@ -14,6 +14,9 @@ export interface EmployeeAdjustment {
   travelWorkDays?:       number;   // ימי נסיעה
   includeRecuperation?:  boolean;  // האם לכלול הבראה חודשית (1/12)
   bonusAmount?:          number;   // בונוס / תשלומים מיוחדים
+  miluimDays?:           number;   // ימי מילואים — לדיווח טופס 126
+  sickDays?:             number;   // ימי מחלה — לדיווח
+  unpaidLeaveDays?:      number;   // ימי חופשה ללא תשלום
   manualDeduction?:      number;   // ניכוי ידני (הלוואה, מס לנוסף וכד')
   partialMonthDays?:     number;   // ימים בפועל (עובד שנכנס/יצא באמצע)
   totalWorkDaysInMonth?: number;   // סה"כ ימי עבודה בחודש
@@ -86,6 +89,10 @@ export async function runPayroll(
       // Training fund — קרן השתלמות
       trainingFundEmpRate: Number(emp.trainingFundRate),
       trainingFundErRate:  Number(emp.trainingFundErRate),
+      // Reporting fields (Form 126)
+      miluimDays:          adj.miluimDays      ?? 0,
+      sickDays:            adj.sickDays        ?? 0,
+      unpaidLeaveDays:     adj.unpaidLeaveDays ?? 0,
     };
 
     const calc = calculatePayslip(engineParams);
@@ -143,6 +150,9 @@ export async function runPayroll(
           carBenefit:           calc.carBenefit,
           trainingFundEmployee: calc.trainingFundEmployee,
           trainingFundEmployer: calc.trainingFundEmployer,
+          miluimDays:           calc.miluimDays   ?? 0,
+          sickDays:             calc.sickDays     ?? 0,
+          unpaidLeaveDays:      calc.unpaidLeaveDays ?? 0,
           // Full breakdown in JSON (includes overtime, travel, recuperation, accruals)
           breakdown: {
             ...calc,
@@ -440,12 +450,16 @@ export async function getMonthlyReport(tenantId: string, period: string) {
 
 // ─── Annual Report — Form 126 ─────────────────────────────────────
 /**
- * טופס 126 — דוח שנתי של מעסיק לרשות המסים ולביטוח לאומי
+ * טופס 126 — דוח שנתי / חצי שנתי של מעסיק לרשות המסים ולביטוח לאומי
  * מסכם עבור כל עובד: שכר שנתי, מס, ב.ל., פנסיה, קרן השתלמות
+ *
+ * half: 'H1' = ינואר–יוני (הגשה עד 31.7)
+ *       'H2' = יולי–דצמבר (הגשה עד 31.1 של השנה הבאה)
+ *       'FULL' = כל השנה (הגשה עד 30.4 של השנה הבאה) — ברירת מחדל
  */
-export async function getAnnualReport(tenantId: string, year: number) {
-  const startPeriod = `${year}-01`;
-  const endPeriod   = `${year}-12`;
+export async function getAnnualReport(tenantId: string, year: number, half: 'H1' | 'H2' | 'FULL' = 'FULL') {
+  const startPeriod = half === 'H2' ? `${year}-07` : `${year}-01`;
+  const endPeriod   = half === 'H1' ? `${year}-06` : `${year}-12`;
 
   const payslips = await prisma.payslip.findMany({
     where: {
@@ -457,7 +471,8 @@ export async function getAnnualReport(tenantId: string, year: number) {
       employee: {
         select: {
           firstName: true, lastName: true, idNumber: true,
-          jobTitle: true, department: true, startDate: true,
+          jobTitle: true, department: true, startDate: true, endDate: true,
+          birthDate: true, gender: true,
           taxCredits: true, pensionFund: true, bankAccount: true,
         },
       },
@@ -489,6 +504,10 @@ export async function getAnnualReport(tenantId: string, year: number) {
     tfEmployer:        number;
     net:               number;
     months:            number;
+    miluimDays:        number;
+    gender:            string;
+    birthDate:         string | null;
+    endDate:           string | null;
   }>();
 
   for (const p of payslips) {
@@ -502,12 +521,16 @@ export async function getAnnualReport(tenantId: string, year: number) {
         jobTitle:        p.employee?.jobTitle ?? '',
         department:      p.employee?.department ?? '',
         startDate:       p.employee?.startDate ? String(p.employee.startDate) : null,
+        endDate:         (p.employee as any)?.endDate ? String((p.employee as any).endDate) : null,
+        birthDate:       (p.employee as any)?.birthDate ? String((p.employee as any).birthDate) : null,
+        gender:          (p.employee as any)?.gender ?? '',
         pensionFund:     p.employee?.pensionFund ?? null,
         taxCredits:      Number(p.employee?.taxCredits ?? 0),
         grossSalary: 0, taxableIncome: 0, carBenefit: 0,
         incomeTax: 0, niEmployee: 0, hiEmployee: 0, niEmployer: 0,
         pensionEmployee: 0, pensionEmployer: 0, severancePay: 0,
         tfEmployee: 0, tfEmployer: 0, net: 0, months: 0,
+        miluimDays: 0,
       });
     }
 
@@ -525,6 +548,7 @@ export async function getAnnualReport(tenantId: string, year: number) {
     row.tfEmployee      += Number(p.trainingFundEmployee ?? bd.trainingFundEmployee ?? 0);
     row.tfEmployer      += Number(p.trainingFundEmployer ?? bd.trainingFundEmployer ?? 0);
     row.net             += Number(p.netSalary);
+    row.miluimDays      += Number(bd.miluimDays ?? 0);
     row.months++;
   }
 
@@ -569,8 +593,17 @@ export async function getAnnualReport(tenantId: string, year: number) {
     }
   );
 
+  const deadlineMap = {
+    H1:   `31.7.${year}`,
+    H2:   `31.1.${year + 1}`,
+    FULL: `30.4.${year + 1}`,
+  };
+
   return {
     year,
+    half,
+    periodLabel: half === 'H1' ? `ינואר–יוני ${year}` : half === 'H2' ? `יולי–דצמבר ${year}` : `כל שנת ${year}`,
+    deadline: deadlineMap[half],
     employeeCount: employees.length,
     employees,
     totals: Object.fromEntries(

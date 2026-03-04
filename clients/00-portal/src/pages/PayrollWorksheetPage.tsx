@@ -89,10 +89,12 @@ interface AdjRow {
   recuperation: boolean;
   bonus: number;
   manualDeduction: number;
+  miluimDays: number;
+  sickDays: number;
 }
 
 function defaultAdj(): AdjRow {
-  return { ot125: 0, ot150: 0, travelDays: 21, recuperation: false, bonus: 0, manualDeduction: 0 };
+  return { ot125: 0, ot150: 0, travelDays: 21, recuperation: false, bonus: 0, manualDeduction: 0, miluimDays: 0, sickDays: 0 };
 }
 
 function calcPayroll(emp: any, adj: AdjRow): CalcResult {
@@ -257,9 +259,22 @@ export default function PayrollWorksheetPage() {
           .filter(e => {
             const a = getAdj(e.id);
             return a.ot125 > 0 || a.ot150 > 0 || a.travelDays !== 21 ||
-                   a.recuperation || a.bonus > 0 || a.manualDeduction > 0;
+                   a.recuperation || a.bonus > 0 || a.manualDeduction > 0 ||
+                   a.miluimDays > 0 || a.sickDays > 0;
           })
-          .map(e => [e.id, getAdj(e.id)])
+          .map(e => {
+            const a = getAdj(e.id);
+            return [e.id, {
+              overtime125Hours:    a.ot125,
+              overtime150Hours:    a.ot150,
+              travelWorkDays:      a.travelDays,
+              includeRecuperation: a.recuperation,
+              bonusAmount:         a.bonus,
+              manualDeduction:     a.manualDeduction,
+              miluimDays:          a.miluimDays,
+              sickDays:            a.sickDays,
+            }];
+          })
       ),
     }),
     onSuccess: (res: any) => {
@@ -451,6 +466,8 @@ export default function PayrollWorksheetPage() {
                 <th className="text-center px-2 py-2 font-semibold text-indigo-700 bg-indigo-50 border-l border-indigo-100 w-14">ימי נסיעה</th>
                 <th className="text-center px-2 py-2 font-semibold text-indigo-700 bg-indigo-50 border-l border-indigo-100 w-12">הבראה</th>
                 <th className="text-center px-2 py-2 font-semibold text-indigo-700 bg-indigo-50 border-l border-indigo-100 w-18">בונוס ₪</th>
+                <th className="text-center px-2 py-2 font-semibold text-yellow-700 bg-yellow-50 border-l border-yellow-100 w-14" title="ימי מילואים — לדיווח טופס 126">מילואים</th>
+                <th className="text-center px-2 py-2 font-semibold text-yellow-700 bg-yellow-50 border-l border-yellow-100 w-14" title="ימי מחלה — לדיווח">מחלה</th>
                 <th className="text-center px-2 py-2 font-semibold text-orange-600 bg-orange-50 border-l border-orange-100 w-18">ניכוי ידני ₪</th>
                 {/* Calculated */}
                 <th className="text-center px-3 py-2 font-semibold text-gray-700 border-l border-gray-200 w-20 bg-gray-50">ברוטו</th>
@@ -545,6 +562,22 @@ export default function PayrollWorksheetPage() {
                         onChange={v => setAdj(emp.id, 'bonus', v)}
                         step={100}
                         highlight={adj.bonus > 0}
+                      />
+                    </td>
+                    <td className="px-1.5 py-1.5 bg-yellow-50 border-l border-yellow-100">
+                      <NumCell
+                        value={adj.miluimDays}
+                        onChange={v => setAdj(emp.id, 'miluimDays', v)}
+                        max={31}
+                        highlight={adj.miluimDays > 0}
+                      />
+                    </td>
+                    <td className="px-1.5 py-1.5 bg-yellow-50 border-l border-yellow-100">
+                      <NumCell
+                        value={adj.sickDays}
+                        onChange={v => setAdj(emp.id, 'sickDays', v)}
+                        max={31}
+                        highlight={adj.sickDays > 0}
                       />
                     </td>
                     <td className="px-1.5 py-1.5 bg-orange-50 border-l border-orange-100">

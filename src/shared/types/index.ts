@@ -77,6 +77,11 @@ export interface PayslipCalculation {
   vacationAccruedDays:  number;  // ימי חופשה שנצברו החודש
   sickLeaveAccruedDays: number;  // ימי מחלה שנצברו = תמיד 1.5
 
+  // ── Reporting fields (for Form 126 / payroll reports) ─────────
+  miluimDays:      number;  // ימי מילואים
+  sickDays:        number;  // ימי מחלה בפועל
+  unpaidLeaveDays: number;  // ימי חופשה ללא תשלום
+
   // ── Breakdown detail ───────────────────────────────────────────
   taxBracketBreakdown: Array<{
     min: number;

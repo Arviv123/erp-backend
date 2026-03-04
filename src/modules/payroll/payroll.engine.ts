@@ -345,6 +345,11 @@ export interface PayslipParams {
   // צו הרחבה — עובד 2.5%, מעסיק 7.5% (0 = ללא קרן)
   trainingFundEmpRate?: number;  // % עובד (e.g. 2.5)
   trainingFundErRate?:  number;  // % מעסיק (e.g. 7.5)
+
+  // ── Reporting fields (do not affect calculation) ───────────
+  miluimDays?:         number;   // ימי מילואים — לדיווח טופס 126
+  sickDays?:           number;   // ימי מחלה — לדיווח
+  unpaidLeaveDays?:    number;   // ימי חופשה ללא תשלום
 }
 
 export function calculatePayslip(params: PayslipParams): PayslipCalculation {
@@ -366,6 +371,9 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     carType             = 'REGULAR',
     trainingFundEmpRate = 0,
     trainingFundErRate  = 0,
+    miluimDays          = 0,
+    sickDays            = 0,
+    unpaidLeaveDays     = 0,
   } = params;
 
   if (grossSalary < 0)         throw new Error('Gross salary cannot be negative');
@@ -489,6 +497,11 @@ export function calculatePayslip(params: PayslipParams): PayslipCalculation {
     // Accruals
     vacationAccruedDays,
     sickLeaveAccruedDays: SICK_LEAVE_MONTHLY,
+
+    // Reporting (stored for Form 126 / payroll reports)
+    miluimDays,
+    sickDays,
+    unpaidLeaveDays,
 
     // Detail
     taxBracketBreakdown: breakdown,
