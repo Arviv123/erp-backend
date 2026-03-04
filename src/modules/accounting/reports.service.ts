@@ -44,8 +44,8 @@ export async function getProfitAndLoss(
     balanceMap.set(line.creditAccountId, creditAcc - Number(line.amount));
   }
 
-  const revenues: Array<{ code: string; name: string; balance: number }> = [];
-  const expenses: Array<{ code: string; name: string; balance: number }> = [];
+  const revenues: Array<{ id: string; code: string; name: string; balance: number }> = [];
+  const expenses: Array<{ id: string; code: string; name: string; balance: number }> = [];
 
   for (const acc of accounts) {
     const raw = balanceMap.get(acc.id) ?? 0;
@@ -54,8 +54,8 @@ export async function getProfitAndLoss(
 
     if (balance === 0) continue;
 
-    if (acc.type === 'REVENUE') revenues.push({ code: acc.code, name: acc.name, balance });
-    else                        expenses.push({ code: acc.code, name: acc.name, balance });
+    if (acc.type === 'REVENUE') revenues.push({ id: acc.id, code: acc.code, name: acc.name, balance });
+    else                        expenses.push({ id: acc.id, code: acc.code, name: acc.name, balance });
   }
 
   const totalRevenue = revenues.reduce((s, a) => s + a.balance, 0);
@@ -108,7 +108,7 @@ export async function getBalanceSheet(tenantId: string, asOf: Date) {
         ? debits - credits
         : credits - debits;
 
-      return { code: acc.code, name: acc.name, type: acc.type, balance: round2(balance) };
+      return { id: acc.id, code: acc.code, name: acc.name, type: acc.type, balance: round2(balance) };
     })
   );
 

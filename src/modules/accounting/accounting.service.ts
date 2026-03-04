@@ -240,17 +240,28 @@ export async function listTransactions(
     sourceType?: string;
     from?: Date;
     to?: Date;
+    accountId?: string;
     page?: number;
     pageSize?: number;
   } = {}
 ) {
-  const { status, sourceType, from, to, page = 1, pageSize = 50 } = filters;
+  const { status, sourceType, from, to, accountId, page = 1, pageSize = 50 } = filters;
 
-  const where = {
+  const where: any = {
     tenantId,
     ...(status     ? { status }                                : {}),
     ...(sourceType ? { sourceType }                            : {}),
     ...(from || to ? { date: { gte: from, lte: to } }         : {}),
+    ...(accountId  ? {
+      lines: {
+        some: {
+          OR: [
+            { debitAccountId:  accountId },
+            { creditAccountId: accountId },
+          ],
+        },
+      },
+    } : {}),
   };
 
   const [items, total] = await Promise.all([

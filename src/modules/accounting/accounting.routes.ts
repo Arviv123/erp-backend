@@ -102,13 +102,14 @@ router.post(
 );
 
 router.get('/transactions', async (req: AuthenticatedRequest, res: Response) => {
-  const { status, sourceType, from, to, page, pageSize } = req.query;
+  const { status, sourceType, from, to, page, pageSize, accountId } = req.query;
 
   const result = await AccountingService.listTransactions(req.user.tenantId, {
     status:     status as any,
     sourceType: sourceType as string,
     from:       from ? new Date(from as string) : undefined,
     to:         to   ? new Date(to   as string) : undefined,
+    accountId:  accountId as string | undefined,
     page:       page     ? parseInt(page as string)     : 1,
     pageSize:   pageSize ? parseInt(pageSize as string) : 50,
   });
