@@ -4,10 +4,11 @@ import { AuthenticatedRequest } from '../shared/types';
 import { sendError } from '../shared/utils/response';
 
 interface JwtPayload {
-  userId: string;
-  tenantId: string;
-  role: string;
-  email: string;
+  userId?:     string;
+  employeeId?: string; // mobile-only sessions
+  tenantId:    string;
+  role:        string;
+  email?:      string;
 }
 
 export function authenticate(
@@ -31,10 +32,11 @@ export function authenticate(
     ) as JwtPayload;
 
     (req as AuthenticatedRequest).user = {
-      userId:   payload.userId,
-      tenantId: payload.tenantId,
-      role:     payload.role as AuthenticatedRequest['user']['role'],
-      email:    payload.email,
+      userId:     payload.userId   ?? '',
+      employeeId: payload.employeeId,
+      tenantId:   payload.tenantId,
+      role:       payload.role as AuthenticatedRequest['user']['role'],
+      email:      payload.email ?? '',
     };
 
     next();

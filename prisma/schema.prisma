@@ -322,6 +322,9 @@ model Employee {
   // פירוט נקודות זיכוי: {resident, gender, children:[{age,points}], veteran, disability, newImmigrant}
   creditPointsDetails Json      @default("{}")
 
+  // Mobile ESS (Employee Self-Service)
+  mobilePin      String?                              // PIN 6 ספרות, מוצפן bcrypt — לממשק מובייל
+
   isActive       Boolean        @default(true)
   metadata       Json           @default("{}")   // שדות גמישים
   createdAt      DateTime       @default(now())

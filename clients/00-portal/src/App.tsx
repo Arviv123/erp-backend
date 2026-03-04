@@ -85,6 +85,11 @@ import UserPermissionsPage from './pages/UserPermissionsPage';
 import EmployeePortalPage from './pages/EmployeePortalPage';
 import EmployeeForm101Page from './pages/EmployeeForm101Page';
 
+// Mobile Employee App (/m/*)
+import MobileLoginPage from './pages/MobileLoginPage';
+import MobileHomePage  from './pages/MobileHomePage';
+import { MobileAuthProvider } from './contexts/MobileAuthContext';
+
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
 
 function ProtectedRoute({ children, module }: { children: ReactNode; module?: ModuleKey }) {
@@ -110,10 +115,16 @@ function AdminRoute({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <MobileAuthProvider>
       <AuthProvider>
         <PermissionsProvider>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
+              {/* Mobile Employee App — no main Layout */}
+              <Route path="/m/login" element={<MobileLoginPage />} />
+              <Route path="/m/home"  element={<MobileHomePage  />} />
+              <Route path="/m"       element={<MobileLoginPage />} />
+
               <Route path="/" element={<LoginPage />} />
 
               {/* Dashboard */}
@@ -202,6 +213,7 @@ export default function App() {
           </BrowserRouter>
         </PermissionsProvider>
       </AuthProvider>
+      </MobileAuthProvider>
     </QueryClientProvider>
   );
 }

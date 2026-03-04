@@ -27,6 +27,75 @@ async function getPayrollPreview(employeeId: string) {
 
 type TabKey = 'details' | 'salary' | 'preview' | 'extras';
 
+// ─── Mobile PIN Section (in Extras tab) ─────────────────────────
+function MobilePinSection({ employeeId }: { employeeId: string }) {
+  const [pin,    setPin]    = useState('');
+  const [done,   setDone]   = useState(false);
+  const [error,  setError]  = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const handleSet = async () => {
+    if (pin.length !== 6 || !/^\d{6}$/.test(pin)) { setError('PIN חייב להיות 6 ספרות'); return; }
+    setError('');
+    setSaving(true);
+    try {
+      await api.post(`/employees/${employeeId}/set-pin`, { pin });
+      setDone(true);
+      setPin('');
+      setTimeout(() => setDone(false), 4000);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'שגיאה בהגדרת PIN');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800">
+        <p className="font-bold mb-1">📱 כניסה לפורטל עובד מובייל</p>
+        <p className="text-xs">
+          הגדר PIN בן 6 ספרות לעובד לכניסה לאפליקציה המובייל.
+          העובד נכנס עם ת.ז. + PIN בכתובת: <span className="font-mono bg-blue-100 px-1 rounded">/m</span>
+        </p>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+        <h3 className="text-sm font-bold text-gray-700">הגדרת PIN מובייל</h3>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">PIN חדש (6 ספרות)</label>
+          <input
+            type="text"
+            maxLength={6}
+            value={pin}
+            onChange={e => setPin(e.target.value.replace(/\D/g, ''))}
+            placeholder="______"
+            className="w-40 border border-gray-300 rounded-lg px-3 py-2 text-lg tracking-widest text-center font-mono focus:ring-2 focus:ring-blue-500 outline-none"
+            dir="ltr"
+          />
+        </div>
+        {error && <p className="text-red-600 text-xs">{error}</p>}
+        {done  && <p className="text-green-600 text-xs">✓ PIN הוגדר בהצלחה!</p>}
+        <button
+          onClick={handleSet}
+          disabled={saving || pin.length !== 6}
+          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+        >
+          {saving ? 'שומר...' : '🔑 הגדר PIN'}
+        </button>
+      </div>
+
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-xs text-gray-500">
+        <p className="font-semibold mb-1">קוד חברה לשיתוף עם העובד:</p>
+        <p className="font-mono bg-white border rounded px-2 py-1 text-gray-700 text-sm break-all">
+          {typeof window !== 'undefined' ? window.location.hostname : 'app.company.com'}/m
+        </p>
+        <p className="mt-1">העובד יזין: ת.ז. + PIN + קוד חברה (tenantId מה-URL ה-current)</p>
+      </div>
+    </div>
+  );
+}
+
 export default function EmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -79,7 +148,7 @@ export default function EmployeeDetailPage() {
     { key: 'details', label: 'פרטים' },
     { key: 'salary',  label: 'שכר' },
     { key: 'preview', label: 'תחזית תלוש' },
-    { key: 'extras',  label: 'תוספות וניכויים' },
+    { key: 'extras',  label: '📱 גישה מובייל' },
   ];
 
   return (
@@ -348,11 +417,9 @@ export default function EmployeeDetailPage() {
           </div>
         )}
 
-        {/* Extras Tab */}
+        {/* Extras Tab — Mobile Access + PIN */}
         {activeTab === 'extras' && (
-          <div className="text-gray-400 text-sm text-center py-10">
-            תוספות וניכויים — בפיתוח
-          </div>
+          <MobilePinSection employeeId={employee.id} />
         )}
       </div>
 

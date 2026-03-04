@@ -1,6 +1,7 @@
-import { Router, Response } from 'express';
+import { Router, Response, Request } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation, withTenant } from '../../middleware/tenant';
 import { requireMinRole } from '../../middleware/rbac';
@@ -9,6 +10,45 @@ import { sendSuccess, sendError } from '../../shared/utils/response';
 import { prisma } from '../../config/database';
 
 const router = Router();
+
+// ─── Public mobile login (no auth middleware) ─────────────────────
+// POST /employees/mobile-login
+// Body: { idNumber, pin, tenantId }
+// Returns: { token, employee: { id, firstName, lastName } }
+router.post('/mobile-login', async (req: Request, res: Response) => {
+  const schema = z.object({
+    idNumber: z.string().length(9),
+    pin:      z.string().length(6).regex(/^\d{6}$/),
+    tenantId: z.string().min(1),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, 'ת.ז. חייבת להיות 9 ספרות ו-PIN 6 ספרות', 400); return; }
+
+  const { idNumber, pin, tenantId } = parsed.data;
+
+  const emp = await prisma.employee.findFirst({
+    where: { tenantId, idNumber, isActive: true },
+    select: { id: true, firstName: true, lastName: true, mobilePin: true, tenantId: true },
+  });
+
+  if (!emp) { sendError(res, 'עובד לא נמצא', 401); return; }
+  if (!emp.mobilePin) { sendError(res, 'PIN לא הוגדר — פנה למעסיק', 401); return; }
+
+  const valid = await bcrypt.compare(pin, emp.mobilePin);
+  if (!valid) { sendError(res, 'PIN שגוי', 401); return; }
+
+  const token = jwt.sign(
+    { employeeId: emp.id, tenantId: emp.tenantId, role: 'EMPLOYEE', email: '' },
+    process.env.JWT_SECRET!,
+    { expiresIn: '30d' }
+  );
+
+  sendSuccess(res, {
+    token,
+    employee: { id: emp.id, firstName: emp.firstName, lastName: emp.lastName },
+  });
+});
+
 router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
 
@@ -53,6 +93,42 @@ router.get('/me', async (req: AuthenticatedRequest, res: Response) => {
   sendSuccess(res, emp);
 });
 
+// ─── Mobile employee self-service routes ─────────────────────────
+
+// GET /employees/mobile/me — employee profile by JWT employeeId
+router.get('/mobile/me', async (req: AuthenticatedRequest, res: Response) => {
+  const empId = req.user.employeeId;
+  if (!empId) { sendError(res, 'לא סשן מובייל', 403); return; }
+  const emp = await prisma.employee.findUnique({
+    where: { id: empId },
+    include: {
+      payslips: {
+        orderBy: { createdAt: 'desc' },
+        take: 6,
+        include: { payrollRun: { select: { period: true, status: true, paidAt: true } } },
+      },
+    },
+  });
+  if (!emp || emp.tenantId !== req.user.tenantId) { sendError(res, 'Employee not found', 404); return; }
+  // Strip sensitive fields
+  const { mobilePin: _pin, ...safeEmp } = emp as any;
+  sendSuccess(res, safeEmp);
+});
+
+// POST /employees/:id/set-pin — HR sets PIN for employee
+router.post('/:id/set-pin', requireMinRole('HR_MANAGER') as any, async (req: AuthenticatedRequest, res: Response) => {
+  const schema = z.object({ pin: z.string().length(6).regex(/^\d{6}$/) });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, 'PIN חייב להיות 6 ספרות', 400); return; }
+
+  const emp = await prisma.employee.findUnique({ where: { id: req.params.id } });
+  if (!emp || emp.tenantId !== req.user.tenantId) { sendError(res, 'Employee not found', 404); return; }
+
+  const pinHash = await bcrypt.hash(parsed.data.pin, 12);
+  await prisma.employee.update({ where: { id: req.params.id }, data: { mobilePin: pinHash } });
+  sendSuccess(res, { message: 'PIN עודכן בהצלחה' });
+});
+
 // PATCH /employees/:id/form101 — save Form 101 (tax declaration data)
 router.patch('/:id/form101', async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
@@ -93,7 +169,7 @@ router.patch('/:id/form101', async (req: AuthenticatedRequest, res: Response) =>
   const { children, ...rest } = parsed.data;
 
   // Recalculate credit points
-  let points = (emp.creditPoints as any) ?? 2.25;
+  let points = Number(emp.taxCredits) ?? 2.25;
   const current = (emp.creditPointsDetails as any) ?? {};
 
   const merged = { ...current, ...rest, ...(children !== undefined ? { children } : {}) };

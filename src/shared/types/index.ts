@@ -4,10 +4,11 @@ import { Request } from 'express';
 // ─── Authenticated Request ───────────────────────────────────────
 export interface AuthenticatedRequest extends Request {
   user: {
-    userId: string;
-    tenantId: string;
-    role: UserRole;
-    email: string;
+    userId:     string;
+    employeeId?: string; // set for mobile-only (PIN) sessions
+    tenantId:   string;
+    role:       UserRole;
+    email:      string;
   };
 }
 
