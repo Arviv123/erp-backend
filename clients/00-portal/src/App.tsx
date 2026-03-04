@@ -79,6 +79,9 @@ import POSPage from './pages/POSPage';
 import SalesHistoryPage from './pages/SalesHistoryPage';
 import SalesSummaryPage from './pages/SalesSummaryPage';
 
+// Accounting extras
+import FixedAssetsPage from './pages/FixedAssetsPage';
+
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
@@ -164,6 +167,7 @@ export default function App() {
               <Route path="/accounting/reports/balance-sheet" element={<ProtectedRoute module="ACCOUNTING"><BalanceSheetPage /></ProtectedRoute>} />
               <Route path="/accounting/reports/vat" element={<ProtectedRoute module="ACCOUNTING"><VATReportPage /></ProtectedRoute>} />
               <Route path="/accounting/reports/cash-flow" element={<ProtectedRoute module="ACCOUNTING"><CashFlowPage /></ProtectedRoute>} />
+              <Route path="/accounting/fixed-assets" element={<ProtectedRoute module="ACCOUNTING"><FixedAssetsPage /></ProtectedRoute>} />
 
               {/* Purchasing */}
               <Route path="/purchasing/vendors" element={<ProtectedRoute module="ACCOUNTING"><VendorsPage /></ProtectedRoute>} />
