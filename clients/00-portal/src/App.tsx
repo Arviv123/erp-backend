@@ -105,10 +105,13 @@ import MobileHomePage  from './pages/MobileHomePage';
 import { MobileAuthProvider } from './contexts/MobileAuthContext';
 
 // Platform Admin (/platform/*)
-import PlatformLoginPage       from './pages/platform/PlatformLoginPage';
-import PlatformDashboardPage   from './pages/platform/PlatformDashboardPage';
-import PlatformTenantsPage     from './pages/platform/PlatformTenantsPage';
+import PlatformLoginPage        from './pages/platform/PlatformLoginPage';
+import PlatformDashboardPage    from './pages/platform/PlatformDashboardPage';
+import PlatformTenantsPage      from './pages/platform/PlatformTenantsPage';
 import PlatformTenantDetailPage from './pages/platform/PlatformTenantDetailPage';
+import PlatformAdminsPage       from './pages/platform/PlatformAdminsPage';
+import PlatformActivityPage     from './pages/platform/PlatformActivityPage';
+import PlatformSettingsPage     from './pages/platform/PlatformSettingsPage';
 import { PlatformAuthProvider, usePlatformAuth } from './contexts/PlatformAuthContext';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } } });
@@ -150,11 +153,14 @@ export default function App() {
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <Routes>
               {/* ── Platform Admin (/platform/*) — completely separate from tenant UI */}
-              <Route path="/platform/login"    element={<PlatformLoginPage />} />
-              <Route path="/platform/dashboard" element={<PlatformRoute><PlatformDashboardPage /></PlatformRoute>} />
-              <Route path="/platform/tenants"   element={<PlatformRoute><PlatformTenantsPage /></PlatformRoute>} />
-              <Route path="/platform/tenants/:id" element={<PlatformRoute><PlatformTenantDetailPage /></PlatformRoute>} />
-              <Route path="/platform" element={<Navigate to="/platform/login" replace />} />
+              <Route path="/platform/login"        element={<PlatformLoginPage />} />
+              <Route path="/platform/dashboard"    element={<PlatformRoute><PlatformDashboardPage /></PlatformRoute>} />
+              <Route path="/platform/tenants"      element={<PlatformRoute><PlatformTenantsPage /></PlatformRoute>} />
+              <Route path="/platform/tenants/:id"  element={<PlatformRoute><PlatformTenantDetailPage /></PlatformRoute>} />
+              <Route path="/platform/admins"       element={<PlatformRoute><PlatformAdminsPage /></PlatformRoute>} />
+              <Route path="/platform/activity"     element={<PlatformRoute><PlatformActivityPage /></PlatformRoute>} />
+              <Route path="/platform/settings"     element={<PlatformRoute><PlatformSettingsPage /></PlatformRoute>} />
+              <Route path="/platform"              element={<Navigate to="/platform/login" replace />} />
 
               {/* Mobile Employee App — no main Layout */}
               <Route path="/m/login" element={<MobileLoginPage />} />

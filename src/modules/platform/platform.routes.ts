@@ -119,11 +119,40 @@ router.post('/tenants/:id/impersonate', asyncHandler(async (req: Request, res: R
 
 // ─── Platform Admin Management ────────────────────────────────────
 
+router.get('/admins', asyncHandler(async (_req: Request, res: Response) => {
+  const admins = await svc.listPlatformAdmins();
+  sendSuccess(res, admins);
+}));
+
 router.post('/admins', asyncHandler(async (req: Request, res: Response) => {
   const { email, password, name } = req.body;
   if (!email || !password || !name) { sendError(res, 'Missing required fields'); return; }
   const admin = await svc.createPlatformAdmin(email, password, name);
   sendSuccess(res, admin, 201);
+}));
+
+router.patch('/admins/:id/deactivate', asyncHandler(async (req: Request, res: Response) => {
+  const requester = (req as any).platformAdmin.adminId;
+  try {
+    const admin = await svc.deactivatePlatformAdmin(req.params.id, requester);
+    sendSuccess(res, admin);
+  } catch (e: any) {
+    if (e.message === 'SELF_DEACTIVATE') { sendError(res, 'Cannot deactivate yourself'); return; }
+    if (e.message === 'LAST_ADMIN') { sendError(res, 'Cannot deactivate the last active admin'); return; }
+    throw e;
+  }
+}));
+
+router.patch('/admins/:id/activate', asyncHandler(async (req: Request, res: Response) => {
+  const admin = await svc.reactivatePlatformAdmin(req.params.id);
+  sendSuccess(res, admin);
+}));
+
+// ─── Platform Activity ────────────────────────────────────────────
+
+router.get('/activity', asyncHandler(async (_req: Request, res: Response) => {
+  const activity = await svc.getPlatformActivity();
+  sendSuccess(res, activity);
 }));
 
 export default router;

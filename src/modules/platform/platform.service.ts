@@ -2,6 +2,84 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../../config/database';
 
+// ─── Platform Admin Management ────────────────────────────────────
+
+export async function listPlatformAdmins() {
+  return prisma.platformAdmin.findMany({
+    select: { id: true, email: true, name: true, isActive: true, lastLoginAt: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+export async function deactivatePlatformAdmin(adminId: string, requesterId: string) {
+  if (adminId === requesterId) throw new Error('SELF_DEACTIVATE');
+  const count = await prisma.platformAdmin.count({ where: { isActive: true } });
+  if (count <= 1) throw new Error('LAST_ADMIN');
+  return prisma.platformAdmin.update({
+    where: { id: adminId },
+    data: { isActive: false },
+    select: { id: true, email: true, name: true, isActive: true },
+  });
+}
+
+export async function reactivatePlatformAdmin(adminId: string) {
+  return prisma.platformAdmin.update({
+    where: { id: adminId },
+    data: { isActive: true },
+    select: { id: true, email: true, name: true, isActive: true },
+  });
+}
+
+// ─── Platform Activity (cross-tenant overview) ────────────────────
+
+export async function getPlatformActivity() {
+  const now = new Date();
+
+  // Last 30 days: new tenants per day
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+
+  const recentTenants = await prisma.tenant.findMany({
+    where: { createdAt: { gte: thirtyDaysAgo } },
+    select: { id: true, name: true, plan: true, isActive: true, suspendedAt: true, createdAt: true, _count: { select: { users: true, employees: true } } },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  // Suspended tenants
+  const suspendedTenants = await prisma.tenant.findMany({
+    where: { suspendedAt: { not: null } },
+    select: { id: true, name: true, suspendedAt: true, suspendedReason: true },
+    orderBy: { suspendedAt: 'desc' },
+    take: 10,
+  });
+
+  // Aggregate per day for chart
+  const byDay: Record<string, number> = {};
+  for (let i = 0; i < 30; i++) {
+    const d = new Date(thirtyDaysAgo);
+    d.setDate(d.getDate() + i);
+    byDay[d.toISOString().slice(0, 10)] = 0;
+  }
+  for (const t of recentTenants) {
+    const key = t.createdAt.toISOString().slice(0, 10);
+    if (key in byDay) byDay[key]++;
+  }
+
+  // Last 7 days payroll runs across all tenants
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const recentPayrollRuns = await prisma.payrollRun.count({ where: { createdAt: { gte: sevenDaysAgo } } });
+  const recentInvoices    = await prisma.invoice.count({ where: { createdAt: { gte: sevenDaysAgo } } });
+
+  return {
+    recentTenants,
+    suspendedTenants,
+    newTenantsByDay: byDay,
+    recentPayrollRuns,
+    recentInvoices,
+  };
+}
+
 // ─── Auth ────────────────────────────────────────────────────────
 
 export async function loginPlatformAdmin(email: string, password: string) {
