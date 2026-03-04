@@ -8,7 +8,7 @@
 import axios from 'axios';
 
 export const mobileApi = axios.create({
-  baseURL: 'https://erp-backend-n433.onrender.com/api',
+  baseURL: import.meta.env.VITE_API_URL ?? 'https://erp-backend-n433.onrender.com/api',
   headers: { 'Content-Type': 'application/json' },
 });
 

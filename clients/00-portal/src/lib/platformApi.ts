@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 export const platformApi = axios.create({
-  baseURL: 'https://erp-backend-n433.onrender.com/api/platform',
+  baseURL: (import.meta.env.VITE_API_URL ?? 'https://erp-backend-n433.onrender.com/api') + '/platform',
   headers: { 'Content-Type': 'application/json' },
 });
 
