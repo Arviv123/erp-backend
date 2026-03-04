@@ -78,10 +78,17 @@ function HomeTab({ emp, refetchEmp }: { emp: any; refetchEmp: () => void }) {
     enabled:  !!emp,
     staleTime: 30_000,
   });
-  const todayLogs: any[] = Array.isArray(attData) ? attData.filter((l: any) => {
-    const d = new Date(l.date); const t = new Date(); t.setHours(0,0,0,0);
-    return d.getTime() === t.getTime();
-  }) : [];
+  // sendSuccess wraps in { success, data:[...] } — unwrap correctly
+  const allAttLogs: any[] = Array.isArray(attData) ? attData
+    : Array.isArray((attData as any)?.data) ? (attData as any).data : [];
+  const todayStr = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  })();
+  const todayLogs: any[] = allAttLogs.filter((l: any) => {
+    const dateVal = l.date ?? l.clockIn ?? '';
+    return String(dateVal).slice(0, 10) === todayStr;
+  });
   // Active = latest open entry (no clockOut)
   const activeLog = todayLogs.find((l: any) => !l.clockOut) ?? null;
   const isClockedIn = !!activeLog;
@@ -944,12 +951,17 @@ function AttendanceTab({ emp }: { emp: any }) {
     enabled: showAbsenceModal,
   });
 
-  const logs: any[] = Array.isArray(attData) ? attData : [];
-  const leaveTypes: any[] = Array.isArray(leaveTypesData) ? leaveTypesData : [];
+  const logs: any[] = Array.isArray(attData) ? attData
+    : Array.isArray((attData as any)?.data) ? (attData as any).data : [];
+  const leaveTypes: any[] = Array.isArray(leaveTypesData) ? leaveTypesData
+    : Array.isArray((leaveTypesData as any)?.data) ? (leaveTypesData as any).data : [];
 
-  // Today's logs
-  const today = new Date(); today.setHours(0,0,0,0);
-  const todayLogs = logs.filter((l:any) => new Date(l.date).getTime() === today.getTime());
+  // Today's logs — compare by date string to avoid timezone issues
+  const todayStr2 = (() => {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+  })();
+  const todayLogs = logs.filter((l:any) => String(l.date ?? l.clockIn ?? '').slice(0,10) === todayStr2);
   const activeLog = todayLogs.find((l:any) => !l.clockOut) ?? null;
   const isClockedIn = !!activeLog;
 
