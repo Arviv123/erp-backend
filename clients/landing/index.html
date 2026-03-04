@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>חשבשבת — מערכת ERP ישראלית מתקדמת</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            }
+          },
+          fontFamily: {
+            sans: ['Segoe UI', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    html { scroll-behavior: smooth; }
+    .hero-gradient { background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 50%, #0ea5e9 100%); }
+    .feature-card:hover { transform: translateY(-4px); }
+    .feature-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .feature-card:hover { box-shadow: 0 20px 40px rgba(0,0,0,0.12); }
+    .plan-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .plan-card:hover { transform: translateY(-4px); }
+    .step-line::after { content: ''; position: absolute; top: 24px; right: -50%; width: 100%; height: 2px; background: #dbeafe; z-index: 0; }
+    @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fadeInUp 0.6s ease-out forwards; }
+    .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; display: none; }
+    .toast.show { display: flex; }
+    input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.15); }
+    .spinner { border: 3px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; width: 20px; height: 20px; animation: spin 0.8s linear infinite; display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-white text-gray-800 font-sans">
+
+<!-- ─── Toast notification ─────────────────────────────── -->
+<div id="toast" class="toast items-center gap-3 bg-white rounded-xl shadow-2xl border px-6 py-4 max-w-sm w-full mx-4">
+  <span id="toast-icon" class="text-2xl">✅</span>
+  <div>
+    <p id="toast-title" class="font-bold text-gray-900"></p>
+    <p id="toast-msg" class="text-sm text-gray-600 mt-0.5"></p>
+  </div>
+</div>
+
+<!-- ─── Navbar ─────────────────────────────────────────── -->
+<nav class="fixed top-0 right-0 left-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200">
+  <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <span class="text-2xl font-black text-brand-700">חשבשבת</span>
+      <span class="text-xs bg-brand-100 text-brand-700 px-2 py-0.5 rounded-full font-medium">ERP</span>
+    </div>
+    <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
+      <a href="#features" class="hover:text-brand-600 transition-colors">יכולות</a>
+      <a href="#how" class="hover:text-brand-600 transition-colors">איך זה עובד</a>
+      <a href="#pricing" class="hover:text-brand-600 transition-colors">תמחור</a>
+      <a href="#faq" class="hover:text-brand-600 transition-colors">שאלות</a>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="https://erp-backend-n433.onrender.com" class="text-sm text-gray-600 hover:text-brand-600 transition-colors hidden md:block">כניסה</a>
+      <a href="#register" class="bg-brand-600 hover:bg-brand-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
+        התחל בחינם
+      </a>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── Hero ───────────────────────────────────────────── -->
+<section class="hero-gradient pt-28 pb-20 px-4 text-white text-center">
+  <div class="max-w-4xl mx-auto">
+    <div class="inline-flex items-center gap-2 bg-white/20 backdrop-blur rounded-full px-4 py-1.5 text-sm font-medium mb-6">
+      🇮🇱 מותאם לחוק הישראלי — מע"מ, ביטוח לאומי, תלושי שכר 2026
+    </div>
+    <h1 class="text-4xl md:text-6xl font-black mb-6 leading-tight">
+      ניהול עסק ישראלי<br />
+      <span class="text-blue-200">בצורה פשוטה ומקצועית</span>
+    </h1>
+    <p class="text-xl text-blue-100 mb-10 max-w-2xl mx-auto leading-relaxed">
+      מערכת ERP מלאה עם חשבונאות כפולה, שכר עובדים, הנהלת חשבונות,
+      חשבוניות ועוד — בענן, מאובטח, לפי חוק ישראל.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="#register" class="bg-white text-brand-700 font-bold px-8 py-4 rounded-xl text-lg hover:bg-blue-50 transition-colors shadow-lg">
+        🚀 פתח עסק בחינם — 30 יום ניסיון
+      </a>
+      <a href="#features" class="border-2 border-white/60 text-white font-medium px-8 py-4 rounded-xl text-lg hover:bg-white/10 transition-colors">
+        ראה יכולות ←
+      </a>
+    </div>
+    <p class="mt-6 text-blue-200 text-sm">ללא צורך בכרטיס אשראי · הגדרה ב-2 דקות · ביטול בכל עת</p>
+  </div>
+</section>
+
+<!-- ─── Stats bar ──────────────────────────────────────── -->
+<section class="bg-gray-50 border-b py-8 px-4">
+  <div class="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+    <div>
+      <div class="text-3xl font-black text-brand-700">500+</div>
+      <div class="text-sm text-gray-500 mt-1">עסקים פעילים</div>
+    </div>
+    <div>
+      <div class="text-3xl font-black text-brand-700">46</div>
+      <div class="text-sm text-gray-500 mt-1">חשבונות ברירת מחדל</div>
+    </div>
+    <div>
+      <div class="text-3xl font-black text-brand-700">99.9%</div>
+      <div class="text-sm text-gray-500 mt-1">זמינות שרת</div>
+    </div>
+    <div>
+      <div class="text-3xl font-black text-brand-700">GDPR</div>
+      <div class="text-sm text-gray-500 mt-1">תאימות רגולטורית</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Features ───────────────────────────────────────── -->
+<section id="features" class="py-20 px-4">
+  <div class="max-w-6xl mx-auto">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl md:text-4xl font-black text-gray-900 mb-4">כל מה שעסק ישראלי צריך</h2>
+      <p class="text-gray-500 text-lg max-w-xl mx-auto">מודולים מקצועיים שמדברים אחד עם השני, תחת קורת גג אחת</p>
+    </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+      <div class="feature-card bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="text-3xl mb-4">💰</div>
+        <h3 class="text-lg font-bold mb-2">חשבונאות כפולה</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">תרשים חשבונות ישראלי מובנה, פנקסי יומן, מאזן בוחן, דוח רווח והפסד, מאזן.</p>
+      </div>
+
+      <div class="feature-card bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="text-3xl mb-4">👥</div>
+        <h3 class="text-lg font-bold mb-2">שכר ועובדים</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">תלושי שכר אוטומטיים לפי מדרגות מס 2026, ביטוח לאומי, פנסיה, ייצוא לבנק.</p>
+      </div>
+
+      <div class="feature-card bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="text-3xl mb-4">🧾</div>
+        <h3 class="text-lg font-bold mb-2">חשבוניות ומע"מ</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">חשבוניות מס, קבלות, דוחות מע"מ — עם יצירת פקודות יומן אוטומטית.</p>
+      </div>
+
+      <div class="feature-card bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="text-3xl mb-4">📊</div>
+        <h3 class="text-lg font-bold mb-2">דוחות בזמן אמת</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">P&L, Balance Sheet, Trial Balance, דוח 102, טופס 106 — ייצוא ל-Excel/PDF.</p>
+      </div>
+
+      <div class="feature-card bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="text-3xl mb-4">🏢</div>
+        <h3 class="text-lg font-bold mb-2">CRM לקוחות</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">ניהול לקוחות, היסטוריית עסקאות, הצעות מחיר — עם metadata גמיש.</p>
+      </div>
+
+      <div class="feature-card bg-white border border-gray-200 rounded-2xl p-6">
+        <div class="text-3xl mb-4">⏰</div>
+        <h3 class="text-lg font-bold mb-2">נוכחות וחופשות</h3>
+        <p class="text-gray-500 text-sm leading-relaxed">שעון נוכחות עם GPS, ניהול חופשות ומחלה, חגים ישראליים 2026 מוכנים.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ─── How it works ───────────────────────────────────── -->
+<section id="how" class="py-20 px-4 bg-gray-50">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl md:text-4xl font-black text-gray-900 mb-4">מתחילים בדקות</h2>
+      <p class="text-gray-500 text-lg">4 צעדים פשוטים להפעלת המערכת</p>
+    </div>
+    <div class="grid md:grid-cols-4 gap-8 relative">
+      <div class="text-center relative z-10">
+        <div class="w-12 h-12 bg-brand-600 text-white rounded-full flex items-center justify-center text-xl font-black mx-auto mb-4">1</div>
+        <h4 class="font-bold mb-2">נרשם</h4>
+        <p class="text-sm text-gray-500">הזן פרטי העסק ושם משתמש</p>
+      </div>
+      <div class="text-center relative z-10">
+        <div class="w-12 h-12 bg-brand-600 text-white rounded-full flex items-center justify-center text-xl font-black mx-auto mb-4">2</div>
+        <h4 class="font-bold mb-2">מערכת מוכנה</h4>
+        <p class="text-sm text-gray-500">46 חשבונות + חגים + סוגי חופשה נוצרים אוטומטית</p>
+      </div>
+      <div class="text-center relative z-10">
+        <div class="w-12 h-12 bg-brand-600 text-white rounded-full flex items-center justify-center text-xl font-black mx-auto mb-4">3</div>
+        <h4 class="font-bold mb-2">הוסף עובדים</h4>
+        <p class="text-sm text-gray-500">ייבא עובדים, הגדר שכר ופרטי בנק</p>
+      </div>
+      <div class="text-center relative z-10">
+        <div class="w-12 h-12 bg-brand-600 text-white rounded-full flex items-center justify-center text-xl font-black mx-auto mb-4">4</div>
+        <h4 class="font-bold mb-2">ניהול שוטף</h4>
+        <p class="text-sm text-gray-500">שכר, חשבוניות, דוחות — הכל מחובר</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Pricing ─────────────────────────────────────────── -->
+<section id="pricing" class="py-20 px-4">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-14">
+      <h2 class="text-3xl md:text-4xl font-black text-gray-900 mb-4">תמחור שקוף</h2>
+      <p class="text-gray-500 text-lg">ללא עמלות נסתרות · ביטול בכל עת</p>
+    </div>
+    <div class="grid md:grid-cols-3 gap-6">
+
+      <!-- Starter -->
+      <div class="plan-card border-2 border-gray-200 rounded-2xl p-8">
+        <div class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">STARTER</div>
+        <div class="text-4xl font-black text-gray-900 mb-1">₪99<span class="text-lg font-normal text-gray-400">/חודש</span></div>
+        <p class="text-gray-500 text-sm mb-6">לעסק קטן עד 5 עובדים</p>
+        <ul class="space-y-3 text-sm mb-8">
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> עד 5 עובדים</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> חשבונאות כפולה</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> חשבוניות ומע"מ</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> תלושי שכר</li>
+          <li class="flex items-center gap-2"><span class="text-gray-300">✗</span> דוחות מתקדמים</li>
+          <li class="flex items-center gap-2"><span class="text-gray-300">✗</span> API גישה</li>
+        </ul>
+        <button onclick="selectPlan('STARTER')" class="w-full border-2 border-brand-600 text-brand-600 font-bold py-3 rounded-xl hover:bg-brand-50 transition-colors">
+          בחר Starter
+        </button>
+      </div>
+
+      <!-- Professional (highlighted) -->
+      <div class="plan-card border-2 border-brand-600 rounded-2xl p-8 relative bg-brand-50">
+        <div class="absolute -top-3 right-1/2 translate-x-1/2 bg-brand-600 text-white text-xs font-bold px-4 py-1 rounded-full">הכי פופולרי</div>
+        <div class="text-sm font-bold text-brand-600 uppercase tracking-wide mb-2">PROFESSIONAL</div>
+        <div class="text-4xl font-black text-gray-900 mb-1">₪299<span class="text-lg font-normal text-gray-400">/חודש</span></div>
+        <p class="text-gray-500 text-sm mb-6">לעסק בצמיחה עד 20 עובדים</p>
+        <ul class="space-y-3 text-sm mb-8">
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> עד 20 עובדים</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> חשבונאות כפולה</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> חשבוניות ומע"מ</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> תלושי שכר + בנק CSV</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> דוחות מתקדמים</li>
+          <li class="flex items-center gap-2"><span class="text-gray-300">✗</span> API גישה</li>
+        </ul>
+        <button onclick="selectPlan('PROFESSIONAL')" class="w-full bg-brand-600 text-white font-bold py-3 rounded-xl hover:bg-brand-700 transition-colors">
+          בחר Professional
+        </button>
+      </div>
+
+      <!-- Enterprise -->
+      <div class="plan-card border-2 border-gray-200 rounded-2xl p-8">
+        <div class="text-sm font-bold text-gray-500 uppercase tracking-wide mb-2">ENTERPRISE</div>
+        <div class="text-4xl font-black text-gray-900 mb-1">₪699<span class="text-lg font-normal text-gray-400">/חודש</span></div>
+        <p class="text-gray-500 text-sm mb-6">לחברות ועסקים גדולים</p>
+        <ul class="space-y-3 text-sm mb-8">
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> עובדים ללא הגבלה</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> כל יכולות Professional</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> API גישה מלאה</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> White-label</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> SLA 99.9% + תמיכה 24/7</li>
+          <li class="flex items-center gap-2"><span class="text-green-500">✓</span> אינטגרציות מותאמות</li>
+        </ul>
+        <button onclick="selectPlan('ENTERPRISE')" class="w-full border-2 border-brand-600 text-brand-600 font-bold py-3 rounded-xl hover:bg-brand-50 transition-colors">
+          בחר Enterprise
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Registration Form ───────────────────────────────── -->
+<section id="register" class="py-20 px-4 bg-gradient-to-br from-brand-900 via-brand-700 to-blue-500">
+  <div class="max-w-2xl mx-auto">
+    <div class="text-center text-white mb-10">
+      <h2 class="text-3xl md:text-4xl font-black mb-4">פתח את העסק שלך עכשיו</h2>
+      <p class="text-blue-200 text-lg">30 יום ניסיון חינם · ללא כרטיס אשראי</p>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-2xl p-8">
+      <form id="registerForm" onsubmit="handleRegister(event)" novalidate>
+
+        <!-- Step indicator -->
+        <div class="flex items-center gap-2 mb-8">
+          <div id="step1-dot" class="w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+          <div class="flex-1 h-1 bg-gray-200 rounded"><div id="step-progress" class="h-full bg-brand-600 rounded transition-all duration-300" style="width:50%"></div></div>
+          <div id="step2-dot" class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold">2</div>
+        </div>
+
+        <!-- Step 1: Business info -->
+        <div id="step1">
+          <h3 class="text-lg font-bold text-gray-900 mb-6">🏢 פרטי העסק</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">שם העסק *</label>
+              <input id="businessName" type="text" placeholder="לדוגמה: חברת ישראל בע״מ"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">ח.פ. / ע.מ. *</label>
+              <input id="businessNumber" type="text" placeholder="515123456"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">מספר מע"מ</label>
+              <input id="vatNumber" type="text" placeholder="515123456"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">טלפון</label>
+              <input id="phone" type="tel" placeholder="050-0000000"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">אימייל עסקי</label>
+              <input id="bizEmail" type="email" placeholder="info@mybiz.co.il"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">רחוב ומספר *</label>
+              <input id="street" type="text" placeholder="הרצל 1"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">עיר *</label>
+              <input id="city" type="text" placeholder="תל אביב"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">מיקוד</label>
+              <input id="zip" type="text" placeholder="6100000"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">תוכנית *</label>
+              <select id="plan" class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm bg-white">
+                <option value="STARTER">Starter — ₪99/חודש (עד 5 עובדים)</option>
+                <option value="PROFESSIONAL" selected>Professional — ₪299/חודש (עד 20 עובדים) ⭐</option>
+                <option value="ENTERPRISE">Enterprise — ₪699/חודש (ללא הגבלה)</option>
+              </select>
+            </div>
+          </div>
+          <button type="button" onclick="goToStep2()"
+            class="mt-6 w-full bg-brand-600 text-white font-bold py-3 rounded-xl hover:bg-brand-700 transition-colors">
+            המשך לפרטי כניסה ←
+          </button>
+        </div>
+
+        <!-- Step 2: Admin user -->
+        <div id="step2" class="hidden">
+          <h3 class="text-lg font-bold text-gray-900 mb-6">👤 פרטי מנהל המערכת</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">שם פרטי *</label>
+              <input id="firstName" type="text" placeholder="ישראל"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">שם משפחה *</label>
+              <input id="lastName" type="text" placeholder="ישראלי"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" required />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">אימייל כניסה *</label>
+              <input id="adminEmail" type="email" placeholder="admin@mybiz.co.il"
+                class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm" required />
+            </div>
+            <div class="col-span-2">
+              <label class="block text-sm font-medium text-gray-700 mb-1">סיסמה (לפחות 8 תווים) *</label>
+              <div class="relative">
+                <input id="password" type="password" placeholder="סיסמה חזקה"
+                  class="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm pr-12" required />
+                <button type="button" onclick="togglePw()" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  👁
+                </button>
+              </div>
+              <div id="pw-strength" class="mt-1 flex gap-1">
+                <div class="h-1 flex-1 rounded bg-gray-200" id="pw-s1"></div>
+                <div class="h-1 flex-1 rounded bg-gray-200" id="pw-s2"></div>
+                <div class="h-1 flex-1 rounded bg-gray-200" id="pw-s3"></div>
+                <div class="h-1 flex-1 rounded bg-gray-200" id="pw-s4"></div>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">לפחות 8 תווים, ספרה אחת ואות גדולה</p>
+            </div>
+          </div>
+
+          <!-- Terms -->
+          <div class="flex items-start gap-3 mt-4">
+            <input id="terms" type="checkbox" class="mt-1 w-4 h-4 text-brand-600 rounded" required />
+            <label for="terms" class="text-sm text-gray-600">
+              אני מסכים ל<a href="#" class="text-brand-600 underline">תנאי השימוש</a> ול<a href="#" class="text-brand-600 underline">מדיניות הפרטיות</a>
+            </label>
+          </div>
+
+          <!-- Error message -->
+          <div id="form-error" class="hidden mt-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3"></div>
+
+          <div class="flex gap-3 mt-6">
+            <button type="button" onclick="goToStep1()"
+              class="flex-1 border-2 border-gray-300 text-gray-600 font-medium py-3 rounded-xl hover:bg-gray-50 transition-colors">
+              ← חזרה
+            </button>
+            <button type="submit" id="submitBtn"
+              class="flex-1 bg-brand-600 text-white font-bold py-3 rounded-xl hover:bg-brand-700 transition-colors flex items-center justify-center gap-2">
+              <span id="submit-text">🚀 צור חשבון</span>
+              <div class="spinner" id="submit-spinner"></div>
+            </button>
+          </div>
+        </div>
+
+      </form>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FAQ ────────────────────────────────────────────── -->
+<section id="faq" class="py-20 px-4 bg-gray-50">
+  <div class="max-w-3xl mx-auto">
+    <h2 class="text-3xl font-black text-center text-gray-900 mb-12">שאלות נפוצות</h2>
+    <div class="space-y-4" id="faq-list">
+      <div class="faq-item bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <button class="faq-q w-full flex justify-between items-center px-6 py-4 text-right font-medium text-gray-900 hover:bg-gray-50 transition-colors" onclick="toggleFaq(this)">
+          האם המערכת עומדת בדרישות רשות המסים?
+          <span class="faq-arrow text-brand-600 font-bold transition-transform">+</span>
+        </button>
+        <div class="faq-a hidden px-6 pb-4 text-sm text-gray-600 leading-relaxed">
+          כן. המערכת כוללת חשבוניות מס, דוחות מע"מ, טופס 856, דוח 102 ו-106 בפורמט הנדרש. אנחנו מעדכנים את מדרגות המס ושיעורי ה-NI בכל שנת מס.
+        </div>
+      </div>
+      <div class="faq-item bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <button class="faq-q w-full flex justify-between items-center px-6 py-4 text-right font-medium text-gray-900 hover:bg-gray-50 transition-colors" onclick="toggleFaq(this)">
+          האם הנתונים שלי מאובטחים?
+          <span class="faq-arrow text-brand-600 font-bold transition-transform">+</span>
+        </button>
+        <div class="faq-a hidden px-6 pb-4 text-sm text-gray-600 leading-relaxed">
+          כן. המידע מאוחסן ב-Neon PostgreSQL עם הצפנה at-rest ו-in-transit. כל עסק מבודד ברמת ה-tenantId — אף עסק לא יכול לגשת לנתוני עסק אחר.
+        </div>
+      </div>
+      <div class="faq-item bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <button class="faq-q w-full flex justify-between items-center px-6 py-4 text-right font-medium text-gray-900 hover:bg-gray-50 transition-colors" onclick="toggleFaq(this)">
+          האם אפשר לייבא נתונים ממערכת קיימת?
+          <span class="faq-arrow text-brand-600 font-bold transition-transform">+</span>
+        </button>
+        <div class="faq-a hidden px-6 pb-4 text-sm text-gray-600 leading-relaxed">
+          בתוכנית Professional ו-Enterprise יש API מלא לייבוא עובדים, לקוחות וחשבונות. לתוכנית Starter יש ייבוא Excel לעובדים ולקוחות.
+        </div>
+      </div>
+      <div class="faq-item bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <button class="faq-q w-full flex justify-between items-center px-6 py-4 text-right font-medium text-gray-900 hover:bg-gray-50 transition-colors" onclick="toggleFaq(this)">
+          איך עובד ניסיון 30 הימים?
+          <span class="faq-arrow text-brand-600 font-bold transition-transform">+</span>
+        </button>
+        <div class="faq-a hidden px-6 pb-4 text-sm text-gray-600 leading-relaxed">
+          נרשמים ומתחילים לעבוד עם המערכת המלאה. ב-30 הימים הראשונים לא נדרש תשלום. בסיום הניסיון תקבל הצעה להמשיך — ללא התחייבות.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Footer ─────────────────────────────────────────── -->
+<footer class="bg-gray-900 text-gray-400 py-12 px-4">
+  <div class="max-w-5xl mx-auto grid md:grid-cols-4 gap-8">
+    <div>
+      <div class="text-white font-black text-xl mb-2">חשבשבת</div>
+      <p class="text-sm">מערכת ERP ישראלית מקצועית לעסקים קטנים ובינוניים.</p>
+    </div>
+    <div>
+      <div class="text-white font-semibold mb-3">מוצר</div>
+      <ul class="space-y-2 text-sm">
+        <li><a href="#features" class="hover:text-white transition-colors">יכולות</a></li>
+        <li><a href="#pricing" class="hover:text-white transition-colors">תמחור</a></li>
+        <li><a href="#faq" class="hover:text-white transition-colors">שאלות</a></li>
+      </ul>
+    </div>
+    <div>
+      <div class="text-white font-semibold mb-3">API</div>
+      <ul class="space-y-2 text-sm">
+        <li><a href="https://erp-backend-n433.onrender.com/api/docs" class="hover:text-white transition-colors">תיעוד Swagger</a></li>
+        <li><code class="text-xs text-gray-500">POST /api/tenants/register</code></li>
+      </ul>
+    </div>
+    <div>
+      <div class="text-white font-semibold mb-3">כניסה</div>
+      <ul class="space-y-2 text-sm">
+        <li><a href="https://erp-backend-n433.onrender.com" class="hover:text-white transition-colors">כניסת עסק</a></li>
+        <li><a href="https://erp-backend-n433.onrender.com/platform/login" class="hover:text-white transition-colors">ניהול פלטפורמה</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="max-w-5xl mx-auto mt-8 pt-8 border-t border-gray-800 text-sm text-center">
+    © 2026 חשבשבת · כל הזכויות שמורות
+  </div>
+</footer>
+
+<!-- ─── JavaScript ──────────────────────────────────────── -->
+<script>
+  // ─── API endpoint ─────────────────────────────────────
+  const API = 'https://erp-backend-n433.onrender.com/api';
+
+  // ─── Toast ────────────────────────────────────────────
+  function showToast(icon, title, msg, type = 'success') {
+    const toast = document.getElementById('toast');
+    document.getElementById('toast-icon').textContent = icon;
+    document.getElementById('toast-title').textContent = title;
+    document.getElementById('toast-msg').textContent = msg;
+    toast.className = 'toast show items-center gap-3 rounded-xl shadow-2xl border px-6 py-4 max-w-sm w-full mx-4 ' +
+      (type === 'error' ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200');
+    setTimeout(() => { toast.classList.remove('show'); toast.classList.add('hidden'); }, 5000);
+  }
+
+  // ─── Plan selector from pricing section ───────────────
+  function selectPlan(plan) {
+    document.getElementById('plan').value = plan;
+    document.getElementById('register').scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('step1').classList.remove('hidden');
+    document.getElementById('step2').classList.add('hidden');
+    updateStepUI(1);
+  }
+
+  // ─── Step navigation ──────────────────────────────────
+  function updateStepUI(step) {
+    const s1 = document.getElementById('step1-dot');
+    const s2 = document.getElementById('step2-dot');
+    const prog = document.getElementById('step-progress');
+    if (step === 1) {
+      s1.className = 'w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold';
+      s2.className = 'w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-bold';
+      prog.style.width = '50%';
+    } else {
+      s1.className = 'w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold';
+      s2.className = 'w-8 h-8 bg-brand-600 text-white rounded-full flex items-center justify-center text-sm font-bold';
+      prog.style.width = '100%';
+    }
+  }
+
+  function goToStep2() {
+    const required = ['businessName', 'businessNumber', 'street', 'city'];
+    for (const id of required) {
+      const el = document.getElementById(id);
+      if (!el.value.trim()) {
+        el.focus();
+        el.classList.add('border-red-400');
+        setTimeout(() => el.classList.remove('border-red-400'), 2000);
+        return;
+      }
+    }
+    document.getElementById('step1').classList.add('hidden');
+    document.getElementById('step2').classList.remove('hidden');
+    updateStepUI(2);
+  }
+
+  function goToStep1() {
+    document.getElementById('step2').classList.add('hidden');
+    document.getElementById('step1').classList.remove('hidden');
+    updateStepUI(1);
+  }
+
+  // ─── Password strength ────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('password')?.addEventListener('input', function() {
+      const v = this.value;
+      let score = 0;
+      if (v.length >= 8) score++;
+      if (/[A-Z]/.test(v)) score++;
+      if (/[0-9]/.test(v)) score++;
+      if (/[^A-Za-z0-9]/.test(v)) score++;
+      const colors = ['bg-red-400','bg-orange-400','bg-yellow-400','bg-green-500'];
+      for (let i = 1; i <= 4; i++) {
+        const el = document.getElementById('pw-s' + i);
+        el.className = 'h-1 flex-1 rounded ' + (i <= score ? colors[score-1] : 'bg-gray-200');
+      }
+    });
+  });
+
+  function togglePw() {
+    const pw = document.getElementById('password');
+    pw.type = pw.type === 'password' ? 'text' : 'password';
+  }
+
+  // ─── FAQ toggle ───────────────────────────────────────
+  function toggleFaq(btn) {
+    const ans = btn.nextElementSibling;
+    const arrow = btn.querySelector('.faq-arrow');
+    const isOpen = !ans.classList.contains('hidden');
+    ans.classList.toggle('hidden', isOpen);
+    arrow.textContent = isOpen ? '+' : '−';
+  }
+
+  // ─── Register form submit ─────────────────────────────
+  async function handleRegister(e) {
+    e.preventDefault();
+    const errorEl = document.getElementById('form-error');
+    errorEl.classList.add('hidden');
+
+    if (!document.getElementById('terms').checked) {
+      errorEl.textContent = 'יש לאשר את תנאי השימוש';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    const pw = document.getElementById('password').value;
+    if (pw.length < 8) {
+      errorEl.textContent = 'הסיסמה חייבת להכיל לפחות 8 תווים';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    // Loading state
+    const btn = document.getElementById('submitBtn');
+    document.getElementById('submit-text').style.display = 'none';
+    document.getElementById('submit-spinner').style.display = 'block';
+    btn.disabled = true;
+
+    const payload = {
+      businessName:   document.getElementById('businessName').value.trim(),
+      businessNumber: document.getElementById('businessNumber').value.trim(),
+      vatNumber:      document.getElementById('vatNumber').value.trim() || undefined,
+      phone:          document.getElementById('phone').value.trim() || undefined,
+      email:          document.getElementById('bizEmail').value.trim() || undefined,
+      address: {
+        street:  document.getElementById('street').value.trim(),
+        city:    document.getElementById('city').value.trim(),
+        zip:     document.getElementById('zip').value.trim() || undefined,
+        country: 'IL',
+      },
+      adminFirstName: document.getElementById('firstName').value.trim(),
+      adminLastName:  document.getElementById('lastName').value.trim(),
+      adminEmail:     document.getElementById('adminEmail').value.trim(),
+      adminPassword:  pw,
+      plan:           document.getElementById('plan').value,
+    };
+
+    try {
+      const res = await fetch(`${API}/tenants/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'שגיאה בתהליך הרישום');
+      }
+
+      // Success — show modal
+      showSuccessModal(data.data || data);
+
+    } catch (err) {
+      errorEl.textContent = err.message;
+      errorEl.classList.remove('hidden');
+    } finally {
+      document.getElementById('submit-text').style.display = '';
+      document.getElementById('submit-spinner').style.display = 'none';
+      btn.disabled = false;
+    }
+  }
+
+  // ─── Success modal ────────────────────────────────────
+  function showSuccessModal(data) {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4';
+    modal.innerHTML = `
+      <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8 text-center animate-fade-in">
+        <div class="text-6xl mb-4">🎉</div>
+        <h2 class="text-2xl font-black text-gray-900 mb-2">ברוך הבא!</h2>
+        <p class="text-gray-600 mb-6">העסק <strong>${data.tenantName || ''}</strong> נרשם בהצלחה.<br/>30 יום ניסיון מתחילים עכשיו.</p>
+        <div class="bg-gray-50 rounded-xl p-4 text-sm text-right mb-6 space-y-1">
+          <div class="flex justify-between"><span class="text-gray-500">מזהה עסק:</span><code class="font-mono text-xs bg-gray-200 px-2 py-0.5 rounded">${data.tenantId || ''}</code></div>
+          <div class="flex justify-between"><span class="text-gray-500">אימייל כניסה:</span><span class="font-medium">${data.adminUser?.email || ''}</span></div>
+          <div class="flex justify-between"><span class="text-gray-500">תוכנית:</span><span class="font-medium">${data.plan || ''}</span></div>
+        </div>
+        <a href="https://erp-backend-n433.onrender.com"
+          class="block w-full bg-brand-600 text-white font-bold py-3 rounded-xl hover:bg-brand-700 transition-colors mb-3">
+          כניסה למערכת →
+        </a>
+        <button onclick="this.closest('.fixed').remove()" class="text-sm text-gray-500 hover:text-gray-700">סגור</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+</script>
+</body>
+</html>

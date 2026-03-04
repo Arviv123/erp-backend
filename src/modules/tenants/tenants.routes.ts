@@ -1,12 +1,20 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/rbac';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { prisma } from '../../config/database';
+import { initTenantDefaults } from '../accounting/default-chart';
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1_000, // 1 hour
+  max: 10,
+  message: { success: false, error: 'יותר מדי ניסיונות רישום — נסה שוב בעוד שעה' },
+});
 
 const router = Router();
 
@@ -30,10 +38,13 @@ const RegisterSchema = z.object({
   adminLastName:  z.string().min(1),
   adminEmail:     z.string().email(),
   adminPassword:  z.string().min(8),
+  // Subscription plan
+  plan: z.enum(['STARTER', 'PROFESSIONAL', 'ENTERPRISE']).default('STARTER'),
 });
 
 router.post(
   '/register',
+  registerLimiter,
   asyncHandler(async (req: Request, res: Response) => {
     const parsed = RegisterSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -43,7 +54,7 @@ router.post(
 
     const {
       businessName, businessNumber, vatNumber, phone, email, address,
-      adminFirstName, adminLastName, adminEmail, adminPassword,
+      adminFirstName, adminLastName, adminEmail, adminPassword, plan,
     } = parsed.data;
 
     // Check business number uniqueness
@@ -55,9 +66,18 @@ router.post(
       return;
     }
 
+    // Check admin email uniqueness across all tenants
+    const existingUser = await prisma.user.findFirst({
+      where: { email: adminEmail },
+    });
+    if (existingUser) {
+      sendError(res, 'Email already in use', 409);
+      return;
+    }
+
     const passwordHash = await bcrypt.hash(adminPassword, 12);
 
-    // Create tenant + admin user in one transaction
+    // Create tenant + admin user + defaults in one transaction
     const result = await prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
         data: {
@@ -68,6 +88,7 @@ router.post(
           email,
           address,
           taxSettings: { vatRate: 0.18, taxYear: 2026 },
+          settings:    { plan, trialEndsAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) },
         },
       });
 
@@ -83,14 +104,18 @@ router.post(
         select: { id: true, email: true, role: true },
       });
 
+      // Seed chart of accounts, Israeli holidays, leave types
+      await initTenantDefaults(tenant.id, tx);
+
       return { tenant, adminUser };
-    });
+    }, { timeout: 30_000 });
 
     sendSuccess(res, {
-      tenantId: result.tenant.id,
+      tenantId:   result.tenant.id,
       tenantName: result.tenant.name,
+      plan,
       adminUser:  result.adminUser,
-      message: 'Business registered successfully. Use the admin credentials to log in.',
+      message:    'הרישום הושלם בהצלחה! התחבר עם פרטי המנהל שלך.',
     }, 201);
   })
 );
