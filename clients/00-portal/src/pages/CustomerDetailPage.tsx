@@ -54,6 +54,10 @@ export default function CustomerDetailPage() {
         <h1 className="text-2xl font-bold text-gray-900">{customer.name}</h1>
         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${TYPE_STYLE[customer.type] ?? ''}`}>{TYPE_LABEL[customer.type] ?? customer.type}</span>
         <span className={`text-xs px-1.5 py-0.5 ${customer.isActive ? 'text-green-600' : 'text-gray-400'}`}>{customer.isActive ? '● פעיל' : '● לא פעיל'}</span>
+        <button onClick={() => navigate(`/crm/customers/${id}/statement`)}
+          className="mr-auto flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold px-3 py-1.5 rounded-lg border border-blue-200 transition">
+          📄 דף חשבון
+        </button>
       </div>
 
       {/* Tabs */}

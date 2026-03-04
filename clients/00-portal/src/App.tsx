@@ -53,6 +53,7 @@ import APAgingPage from './pages/APAgingPage';
 // CRM
 import CustomersPage from './pages/CustomersPage';
 import CustomerDetailPage from './pages/CustomerDetailPage';
+import CustomerStatementPage from './pages/CustomerStatementPage';
 import NewCustomerPage from './pages/NewCustomerPage';
 
 // HR
@@ -200,6 +201,7 @@ export default function App() {
               <Route path="/crm/customers" element={<ProtectedRoute module="CRM"><CustomersPage /></ProtectedRoute>} />
               <Route path="/crm/customers/new" element={<ProtectedRoute module="CRM"><NewCustomerPage /></ProtectedRoute>} />
               <Route path="/crm/customers/:id" element={<ProtectedRoute module="CRM"><CustomerDetailPage /></ProtectedRoute>} />
+              <Route path="/crm/customers/:id/statement" element={<ProtectedRoute module="CRM"><CustomerStatementPage /></ProtectedRoute>} />
 
               {/* HR */}
               <Route path="/hr" element={<ProtectedRoute module="HR"><HRDashboardPage /></ProtectedRoute>} />
