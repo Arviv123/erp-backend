@@ -167,28 +167,76 @@ export default function VATReportPage() {
             </div>
           </div>
 
-          {/* Summary */}
-          <div className={`rounded-xl border-2 p-5 ${summary.isRefund ? 'bg-green-50 border-green-300' : 'bg-teal-50 border-teal-300'}`}>
-            <h3 className="text-sm font-bold text-gray-800 mb-3">סיכום — מע&quot;מ לדיווח</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">מע&quot;מ עסקאות (חייב):</span>
-                <span className="font-semibold text-blue-700">{fmtCurrency(summary.vatCollected)}</span>
+          {/* Summary — Official Form 83 Fields */}
+          <div className="bg-white rounded-xl border-2 border-gray-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 bg-gray-800 text-white">
+              <h3 className="text-sm font-bold">טופס 83 — שדות רשמיים</h3>
+              <p className="text-xs text-gray-300 mt-0.5">דיווח מע&quot;מ לרשות המסים</p>
+            </div>
+            <div className="divide-y divide-gray-100">
+              {/* שדה 01 — עסקאות חייבות */}
+              <div className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded w-10 text-center">01</span>
+                  <span className="text-sm text-gray-700">עסקאות חייבות במע&quot;מ</span>
+                </div>
+                <span className="font-semibold text-gray-900 text-sm">{fmtCurrency(sales.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-600">מע&quot;מ תשומות (ניכוי):</span>
-                <span className="font-semibold text-green-700">({fmtCurrency(summary.vatPaid)})</span>
+              {/* שדה 02 — עסקאות פטורות */}
+              <div className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 opacity-60">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded w-10 text-center">02</span>
+                  <span className="text-sm text-gray-700">עסקאות פטורות</span>
+                  <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">לא מיושם</span>
+                </div>
+                <span className="font-semibold text-gray-400 text-sm">₪0</span>
               </div>
-              <div className={`flex justify-between text-lg font-bold pt-2 border-t-2 ${summary.isRefund ? 'border-green-300 text-green-800' : 'border-teal-300 text-teal-800'}`}>
-                <span>{summary.isRefund ? 'מע&quot;מ להחזר' : 'מע&quot;מ לתשלום לרשות המסים'}</span>
-                <span>{fmtCurrency(Math.abs(summary.vatDue))}</span>
+              {/* שדה 11 — שיעור אפס/ייצוא */}
+              <div className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 opacity-60">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded w-10 text-center">11</span>
+                  <span className="text-sm text-gray-700">עסקאות בשיעור אפס (ייצוא)</span>
+                  <span className="text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">לא מיושם</span>
+                </div>
+                <span className="font-semibold text-gray-400 text-sm">₪0</span>
+              </div>
+              {/* שדה 40 — תשומות */}
+              <div className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded w-10 text-center">40</span>
+                  <span className="text-sm text-gray-700">תשומות</span>
+                </div>
+                <span className="font-semibold text-gray-900 text-sm">{fmtCurrency(purchases.subtotal)}</span>
+              </div>
+              {/* שדה 60 — מע"מ עסקאות */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-blue-50 hover:bg-blue-100">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono bg-blue-200 text-blue-800 px-1.5 py-0.5 rounded w-10 text-center">60</span>
+                  <span className="text-sm font-semibold text-blue-800">מע&quot;מ עסקאות</span>
+                </div>
+                <span className="font-bold text-blue-800">{fmtCurrency(summary.vatCollected)}</span>
+              </div>
+              {/* שדה 62 — מע"מ תשומות */}
+              <div className="flex items-center justify-between px-4 py-2.5 bg-green-50 hover:bg-green-100">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-mono bg-green-200 text-green-800 px-1.5 py-0.5 rounded w-10 text-center">62</span>
+                  <span className="text-sm font-semibold text-green-800">מע&quot;מ תשומות (ניכוי)</span>
+                </div>
+                <span className="font-bold text-green-800">({fmtCurrency(summary.vatPaid)})</span>
+              </div>
+              {/* שדה 64 — הפרש */}
+              <div className={`flex items-center justify-between px-4 py-3 ${summary.isRefund ? 'bg-green-100' : 'bg-red-50'}`}>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs font-mono px-1.5 py-0.5 rounded w-10 text-center font-bold ${summary.isRefund ? 'bg-green-300 text-green-900' : 'bg-red-200 text-red-800'}`}>64</span>
+                  <span className={`text-base font-bold ${summary.isRefund ? 'text-green-800' : 'text-red-800'}`}>
+                    {summary.isRefund ? 'מע&quot;מ להחזר' : 'מע&quot;מ לתשלום'}
+                  </span>
+                </div>
+                <span className={`text-lg font-bold ${summary.isRefund ? 'text-green-800' : 'text-red-800'}`}>
+                  {fmtCurrency(Math.abs(summary.vatDue))}
+                </span>
               </div>
             </div>
-            {summary.isRefund && (
-              <p className="text-xs text-green-700 mt-2 bg-green-100 rounded-lg px-3 py-1.5">
-                ✅ התשומות עולות על העסקאות — קיים זיכוי מע&quot;מ להחזר
-              </p>
-            )}
           </div>
         </div>
       )}

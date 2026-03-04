@@ -69,14 +69,28 @@ export default function EmployeeForm101Page() {
   const removeChild = (i: number) =>
     setForm(p => ({ ...p, children: p.children.filter((_, idx) => idx !== i) }));
 
+  // New immigrant monthly credit: ¾ pt yr1, ½ pt yr2, ¼ pt yr3 (section 35 ITO)
+  const newImmigrantMonthlyCredit = (() => {
+    if (!form.newImmigrant || !form.newImmigrantDate) return 0;
+    const aliyahDate = new Date(form.newImmigrantDate);
+    const now = new Date();
+    const months = (now.getFullYear() - aliyahDate.getFullYear()) * 12
+      + (now.getMonth() - aliyahDate.getMonth());
+    if (months <= 12)  return 0.75;
+    if (months <= 24)  return 0.5;
+    if (months <= 36)  return 0.25;
+    return 0; // credit period ended
+  })();
+
   // Estimate total credit points
   const estimatedPoints = (() => {
     let pts = 0;
     if (form.resident)      pts += 1.0;
     if (profile?.gender === 'F') pts += 0.5;
-    if (form.spouseWorking) pts += 0.5;
+    // spouseWorking credit: only when married (section 36 ITO)
+    if (form.spouseWorking && form.maritalStatus === 'MARRIED') pts += 0.5;
     if (form.singleParent)  pts += 1.0;
-    if (form.newImmigrant)  pts += 1.0;
+    pts += newImmigrantMonthlyCredit; // graduated monthly credit
     if (form.veteran)       pts += 0.5;
     if (form.disability && form.disabilityPct >= 90) pts += 1.0;
     else if (form.disability && form.disabilityPct >= 50) pts += 0.5;
@@ -150,7 +164,7 @@ export default function EmployeeForm101Page() {
           <div className="space-y-3">
             {[
               { key: 'resident',      label: 'תושב ישראל',                     points: '1 נקודה',   note: 'אוטומטי לתושבי ישראל' },
-              { key: 'newImmigrant',  label: 'עולה חדש',                        points: '1 נקודה',   note: 'לשנתיים ראשונות' },
+              { key: 'newImmigrant',  label: 'עולה חדש',                        points: '¾/½/¼ נקודה', note: 'מדורג: ¾ נק׳ שנה 1, ½ נק׳ שנה 2, ¼ נק׳ שנה 3' },
               { key: 'veteran',       label: 'שירות צבאי / לאומי',              points: '0.5 נקודה', note: 'ל-3 שנים לאחר שחרור' },
               { key: 'disability',    label: 'נכות מוכרת',                       points: 'עד 1 נקודה', note: 'בהתאם לאחוז הנכות' },
               { key: 'academicDegree', label: 'תואר אקדמי',                     points: '0.25 נקודה', note: 'תואר ראשון ומעלה' },
@@ -170,6 +184,24 @@ export default function EmployeeForm101Page() {
                 <span className="text-xs font-medium text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">{item.points}</span>
               </label>
             ))}
+
+            {form.newImmigrant && (
+              <div className="mr-7 bg-blue-50 rounded-lg p-3 space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">תאריך עלייה</label>
+                  <input type="date" value={form.newImmigrantDate}
+                    onChange={e => set('newImmigrantDate', e.target.value)}
+                    className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-44" />
+                </div>
+                {newImmigrantMonthlyCredit > 0 ? (
+                  <p className="text-xs text-blue-700">
+                    זיכוי חודשי נוכחי: <strong>{newImmigrantMonthlyCredit} נקודה</strong> (סעיף 35 לפקודת מס הכנסה)
+                  </p>
+                ) : form.newImmigrantDate ? (
+                  <p className="text-xs text-orange-600">תקופת הזיכוי לעולים חדשים הסתיימה (36 חודשים)</p>
+                ) : null}
+              </div>
+            )}
 
             {form.disability && (
               <div className="mr-7">

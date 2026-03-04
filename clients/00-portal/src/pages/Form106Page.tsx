@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Printer, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../lib/api';
+import { useEmployerInfo } from '../hooks/useEmployerInfo';
 
 const fmt = (n: number | undefined | null) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 2 }).format(n ?? 0);
@@ -44,11 +45,31 @@ interface EmpAnnual {
   payslips: any[];
 }
 
+// ── קודי הכנסה רשמיים (רשות המסים) ──────────────────────────────
+// קוד 020: שכר עבודה רגיל | 042: שעות נוספות | 045: דמי הבראה
+// 046: דמי חופשה | 049: בונוס/מענק | 124: נסיעות (פטור) | 161: שווי רכב צמוד
+// 172: פנסיה מעסיק | 158: קרן השתלמות מעסיק (פטור)
+function buildIncomeCodes(ps: any): string {
+  const breakdown = ps?.breakdown ?? {};
+  const codes: string[] = [];
+  if (Number(breakdown.baseSalary ?? ps.grossSalary ?? 0) > 0)    codes.push('020');
+  if (Number(breakdown.overtimePay125 ?? 0) > 0 || Number(breakdown.overtimePay150 ?? 0) > 0) codes.push('042');
+  if (Number(breakdown.recuperationPay ?? 0) > 0)                 codes.push('045');
+  if (Number(breakdown.bonusAmount ?? 0) > 0)                     codes.push('049');
+  if (Number(breakdown.travelAllowance ?? 0) > 0)                 codes.push('124');
+  if (Number(breakdown.carBenefit ?? ps.carBenefit ?? 0) > 0)     codes.push('161');
+  if (Number(ps.pensionEmployer ?? 0) > 0)                        codes.push('172');
+  if (Number(breakdown.trainingFundEmployer ?? 0) > 0)            codes.push('158');
+  return codes.join(', ') || '020';
+}
+
 export default function Form106Page() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [printId, setPrintId] = useState<string | null>(null);
+
+  const { data: employer } = useEmployerInfo();
 
   // Get all runs
   const { data: runsData, isLoading: runsLoading } = useQuery({
@@ -233,7 +254,17 @@ export default function Form106Page() {
             <div className="text-center mb-4 print:block hidden">
               <p className="text-lg font-bold">טופס 106 — אישור שנתי על הכנסות ותשלומים</p>
               <p className="text-sm">שנת מס: {year} | {emp.firstName} {emp.lastName} | ת.ז.: {emp.idNumber}</p>
-              <p className="text-xs text-gray-500">המעסיק: שם החברה — הדגמה | תיק ניכויים: 000000</p>
+              <p className="text-xs text-gray-500">
+                המעסיק: {employer?.businessName ?? '—'} | ח.פ.: {employer?.businessNumber ?? '—'}
+                {employer?.withholdingFileNumber ? ` | תיק ניכויים: ${employer.withholdingFileNumber}` : ''}
+              </p>
+            </div>
+
+            {/* Income codes */}
+            <div className="mb-3 bg-indigo-50 rounded-lg px-3 py-2 text-xs text-indigo-700">
+              <span className="font-semibold">קודי הכנסה: </span>
+              {Array.from(new Set(emp.payslips.flatMap((ps: any) => buildIncomeCodes(ps).split(', ')))).sort().join(', ')}
+              <span className="text-indigo-400 mr-2 text-[10px]">(020=שכר רגיל, 042=שעות נוספות, 045=הבראה, 049=בונוס, 124=נסיעות, 158=קה"ש מעסיק, 161=רכב, 172=פנסיה מעסיק)</span>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">

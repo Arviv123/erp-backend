@@ -15,6 +15,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronRight, Printer, AlertCircle, AlertTriangle, CheckCircle } from 'lucide-react';
 import api from '../lib/api';
+import { useEmployerInfo, fmtAddress } from '../hooks/useEmployerInfo';
 
 const fmt = (n: number | null | undefined) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', minimumFractionDigits: 2 }).format(n ?? 0);
@@ -55,6 +56,8 @@ export default function PayslipPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
+  const { data: employer } = useEmployerInfo();
+
   const { data: psData, isLoading, error } = useQuery({
     queryKey: ['payslip', id],
     queryFn: () => api.get(`/payroll/payslips/${id}`).then(r => r.data),
@@ -70,7 +73,10 @@ export default function PayslipPage() {
   });
 
   const emp = empData?.data ?? empData ?? {};
-  const snapshot = (ps?.breakdown as any)?.employeeSnapshot ?? {};
+  const snapshot   = (ps?.breakdown as any)?.employeeSnapshot ?? {};
+  // Payment date: from the run (approvedAt / paidAt) embedded in payslip breakdown or ps.run
+  const paymentDate: string | undefined =
+    (ps?.run?.paidAt) ?? (ps?.run?.approvedAt) ?? (ps?.breakdown as any)?.paidAt;
   const breakdown = ps?.breakdown as any ?? {};
   const adjustments = breakdown.adjustments ?? {};
   const taxBrackets: any[] = breakdown.taxBracketBreakdown ?? [];
@@ -163,6 +169,11 @@ export default function PayslipPage() {
           <div className="text-left">
             <p className="text-xl font-bold text-indigo-700">{fmtPeriod(ps.period)}</p>
             <p className="text-xs text-gray-500">תקופת שכר</p>
+            {paymentDate && (
+              <p className="text-xs text-gray-500 mt-0.5">
+                תאריך תשלום: <strong>{fmtDate(paymentDate)}</strong>
+              </p>
+            )}
           </div>
         </div>
 
@@ -170,10 +181,17 @@ export default function PayslipPage() {
         <div className="grid grid-cols-2 divide-x divide-gray-200 border-b border-gray-200">
           <div className="px-6 py-4">
             <p className="text-xs font-bold text-gray-500 uppercase mb-2">פרטי המעסיק</p>
-            <p className="font-semibold text-gray-900">שם החברה — הדגמה</p>
-            <p className="text-sm text-gray-600">ח.פ. / ע.מ.: 000000000</p>
-            <p className="text-sm text-gray-600">מספר תיק ניכויים: 000000</p>
-            <p className="text-sm text-gray-600">כתובת: תל אביב, ישראל</p>
+            <p className="font-semibold text-gray-900">{employer?.businessName || '—'}</p>
+            <p className="text-sm text-gray-600">ח.פ. / ע.מ.: {employer?.businessNumber || '—'}</p>
+            {employer?.withholdingFileNumber && (
+              <p className="text-sm text-gray-600">תיק ניכויים: {employer.withholdingFileNumber}</p>
+            )}
+            {employer?.niFileNumber && (
+              <p className="text-sm text-gray-600">תיק ב.ל.: {employer.niFileNumber}</p>
+            )}
+            {employer?.address && (
+              <p className="text-sm text-gray-600">{fmtAddress(employer.address)}</p>
+            )}
           </div>
           <div className="px-6 py-4">
             <p className="text-xs font-bold text-gray-500 uppercase mb-2">פרטי העובד</p>
@@ -491,13 +509,16 @@ export default function PayslipPage() {
           </div>
 
           {/* DISCLAIMER */}
-          <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-700 flex gap-2 no-print">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <span>
-              פרטי המעסיק (שם חברה, ח.פ., כתובת, מספר תיק ניכויים) יש לעדכן בהגדרות המערכת.
-              חישובים לפי נתוני העובד ועל בסיס תקנות 2026.
-            </span>
-          </div>
+          {(!employer?.withholdingFileNumber || !employer?.niFileNumber) && (
+            <div className="bg-amber-50 border border-amber-200 rounded p-2 text-xs text-amber-700 flex gap-2 no-print">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                {!employer?.withholdingFileNumber && 'מספר תיק ניכויים חסר. '}
+                {!employer?.niFileNumber && 'מספר תיק ביטוח לאומי חסר. '}
+                יש לעדכן בהגדרות המערכת (הרשאות מנהל → הגדרות עסק).
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

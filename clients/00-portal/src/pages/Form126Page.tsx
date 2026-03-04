@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { FileText, Printer, Download, ChevronRight, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
+import { useEmployerInfo } from '../hooks/useEmployerInfo';
 
 const fmtILS = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n);
@@ -49,6 +50,8 @@ export default function Form126Page() {
     queryFn:  () => api.get(`/payroll/reports/annual/${year}`).then(r => r.data?.data ?? r.data),
     enabled:  !!year,
   });
+
+  const { data: employer } = useEmployerInfo();
 
   const report = data as any;
   const employees: any[] = report?.employees ?? [];
@@ -152,19 +155,19 @@ export default function Form126Page() {
             </div>
           </div>
 
-          {/* Employer info placeholder */}
+          {/* Employer info */}
           <div className="mt-3 grid grid-cols-3 gap-4 bg-indigo-50 rounded-lg p-3 text-sm">
             <div>
               <span className="text-gray-500">שם המעסיק:</span>{' '}
-              <span className="font-semibold text-gray-900">_______________</span>
+              <span className="font-semibold text-gray-900">{employer?.businessName || '—'}</span>
             </div>
             <div>
               <span className="text-gray-500">ח.פ. / ע.מ.:</span>{' '}
-              <span className="font-semibold text-gray-900">_______________</span>
+              <span className="font-semibold text-gray-900">{employer?.businessNumber || '—'}</span>
             </div>
             <div>
               <span className="text-gray-500">מספר תיק ניכויים:</span>{' '}
-              <span className="font-semibold text-gray-900">_______________</span>
+              <span className="font-semibold text-gray-900">{employer?.withholdingFileNumber || '—'}</span>
             </div>
           </div>
         </div>

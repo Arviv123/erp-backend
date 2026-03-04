@@ -2,7 +2,8 @@
  * MonthlyReport102Page — דוח ניכויים חודשי (טופס 102)
  *
  * יש להגיש לרשות המסים ולביטוח הלאומי עד ה-15 לחודש העוקב.
- * כולל: מס הכנסה שנוכה, ב.ל. עובד + מעסיק, ביטוח בריאות, פנסיה.
+ * כולל: מס הכנסה שנוכה, ב.ל. עובד + מעסיק, ביטוח בריאות.
+ * פנסיה אינה חלק מטופס 102 — מועברת ישירות לקרן תוך 7 ימי עסקים.
  *
  * Law: פקודת מס הכנסה, חוק ביטוח לאומי, צו פנסיה חובה.
  */
@@ -11,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Printer, AlertTriangle, CheckCircle, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
+import { useEmployerInfo } from '../hooks/useEmployerInfo';
 
 const fmt = (n: number | null | undefined) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n ?? 0);
@@ -40,7 +42,7 @@ function SumBox({
 }
 
 // ─── Printable page ───────────────────────────────────────────────
-function Report102Document({ data, period }: { data: any; period: string }) {
+function Report102Document({ data, period, employer }: { data: any; period: string; employer?: any }) {
   const now = new Date();
   const dueDate = (() => {
     const [y, m] = period.split('-').map(Number);
@@ -68,19 +70,23 @@ function Report102Document({ data, period }: { data: any; period: string }) {
         </div>
       </div>
 
-      {/* Employer info placeholder */}
-      <div className="grid grid-cols-3 gap-4 border-b border-gray-200 px-6 py-3 bg-gray-50 text-xs">
+      {/* Employer info */}
+      <div className="grid grid-cols-4 gap-4 border-b border-gray-200 px-6 py-3 bg-gray-50 text-xs">
         <div>
           <p className="font-semibold text-gray-600">שם המעסיק</p>
-          <p className="text-gray-800">___________________</p>
+          <p className="text-gray-800">{employer?.businessName || '—'}</p>
         </div>
         <div>
           <p className="font-semibold text-gray-600">ח.פ. / ע.מ.</p>
-          <p className="text-gray-800">___________________</p>
+          <p className="text-gray-800">{employer?.businessNumber || '—'}</p>
         </div>
         <div>
           <p className="font-semibold text-gray-600">מספר תיק ניכויים</p>
-          <p className="text-gray-800">___________________</p>
+          <p className="text-gray-800">{employer?.withholdingFileNumber || '—'}</p>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-600">מספר תיק ב.ל.</p>
+          <p className="text-gray-800">{employer?.niFileNumber || '—'}</p>
         </div>
       </div>
 
@@ -116,9 +122,6 @@ function Report102Document({ data, period }: { data: any; period: string }) {
                 <th className="text-right px-2 py-2 font-semibold text-orange-600 border-l border-gray-200">ב.ל. עובד</th>
                 <th className="text-right px-2 py-2 font-semibold text-orange-700 border-l border-gray-200">בריאות עובד</th>
                 <th className="text-right px-2 py-2 font-semibold text-orange-800 border-l border-gray-200">ב.ל. מעסיק</th>
-                <th className="text-right px-2 py-2 font-semibold text-blue-600 border-l border-gray-200">פנסיה עובד</th>
-                <th className="text-right px-2 py-2 font-semibold text-blue-700 border-l border-gray-200">פנסיה מעסיק</th>
-                <th className="text-right px-2 py-2 font-semibold text-blue-800 border-l border-gray-200">פיצויים</th>
                 <th className="text-right px-2 py-2 font-semibold text-green-700">נטו</th>
               </tr>
             </thead>
@@ -132,9 +135,6 @@ function Report102Document({ data, period }: { data: any; period: string }) {
                   <td className="px-2 py-1.5 text-orange-600 border-l border-gray-200">({fmtN(emp.niEmployee, 0)})</td>
                   <td className="px-2 py-1.5 text-orange-700 border-l border-gray-200">({fmtN(emp.hiEmployee, 0)})</td>
                   <td className="px-2 py-1.5 text-orange-800 border-l border-gray-200">({fmtN(emp.niEmployer, 0)})</td>
-                  <td className="px-2 py-1.5 text-blue-600 border-l border-gray-200">({fmtN(emp.pensionEmp, 0)})</td>
-                  <td className="px-2 py-1.5 text-blue-700 border-l border-gray-200">({fmtN(emp.pensionEr, 0)})</td>
-                  <td className="px-2 py-1.5 text-blue-800 border-l border-gray-200">({fmtN(emp.severance, 0)})</td>
                   <td className="px-2 py-1.5 text-green-700 font-semibold">{fmtN(emp.net, 0)}</td>
                 </tr>
               ))}
@@ -155,15 +155,6 @@ function Report102Document({ data, period }: { data: any; period: string }) {
                 </td>
                 <td className="px-2 py-2 border-l border-gray-700 text-orange-300">
                   ({fmtN(data.totalNIEmployer, 0)})
-                </td>
-                <td className="px-2 py-2 border-l border-gray-700 text-blue-300">
-                  ({fmtN(data.totalPensionEmployee, 0)})
-                </td>
-                <td className="px-2 py-2 border-l border-gray-700 text-blue-300">
-                  ({fmtN(data.totalPensionEmployer, 0)})
-                </td>
-                <td className="px-2 py-2 border-l border-gray-700 text-blue-300">
-                  ({fmtN(data.totalSeverance, 0)})
                 </td>
                 <td className="px-2 py-2 text-green-300">
                   {fmtN(data.employees.reduce((s: number, e: any) => s + e.net, 0), 0)}
@@ -194,12 +185,12 @@ function Report102Document({ data, period }: { data: any; period: string }) {
             <p className="text-2xl font-bold text-orange-700 mt-1">{fmt(data.totalNITotal)}</p>
             <p className="text-xs text-gray-500 mt-1">יש לשלם עד ה-15 לחודש העוקב</p>
           </div>
-          {/* Pension */}
-          <div className="border border-blue-200 rounded p-3 bg-blue-50">
-            <p className="font-bold text-blue-800 mb-1">לקרן פנסיה (עובד + מעסיק + פיצויים)</p>
-            <p className="text-xs text-gray-600">תוך 7 ימים מיום הוצאת השכר</p>
-            <p className="text-2xl font-bold text-blue-700 mt-1">{fmt(data.totalPensionTotal)}</p>
-            <p className="text-xs text-gray-500 mt-1">חוק פנסיה חובה — צו הרחבה</p>
+          {/* Pension note — NOT part of Form 102 */}
+          <div className="border border-blue-200 rounded p-3 bg-blue-50 col-span-1">
+            <p className="font-bold text-blue-800 mb-1">פנסיה — לא חלק מטופס 102</p>
+            <p className="text-xs text-gray-600">פנסיה מועברת ישירות לקרן תוך 7 ימי עסקים</p>
+            <p className="text-xs text-blue-700 mt-1 font-medium">{fmt(data.totalPensionTotal ?? 0)}</p>
+            <p className="text-xs text-gray-500 mt-1">צו הרחבה פנסיה חובה</p>
           </div>
         </div>
       </div>
@@ -239,6 +230,8 @@ export default function MonthlyReport102Page() {
     enabled:  !!period,
     retry:    false,
   });
+
+  const { data: employer } = useEmployerInfo();
 
   const data = rawData?.data ?? rawData;
 
@@ -336,7 +329,7 @@ export default function MonthlyReport102Page() {
               <span>שכר לתקופה זו סומן כשולם בתאריך {data.paidAt ? new Date(data.paidAt).toLocaleDateString('he-IL') : '—'}</span>
             </div>
           )}
-          <Report102Document data={data} period={period} />
+          <Report102Document data={data} period={period} employer={employer} />
         </>
       )}
 
