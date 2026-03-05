@@ -286,6 +286,11 @@ model Tenant {
   trainingCourses         TrainingCourse[]
   employeeTrainings       EmployeeTraining[]
   onboardingTasks         OnboardingTask[]
+  // Phase 3 modules
+  recurringInvoices       RecurringInvoice[]
+  priceLists              PriceList[]
+  exchangeRates           ExchangeRate[]
+  notifications           Notification[]
 
   @@map("tenants")
 }
@@ -324,9 +329,10 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
-  employee     Employee?
-  terminations Termination[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  employee      Employee?
+  terminations  Termination[]
+  notifications Notification[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -623,6 +629,9 @@ model Customer {
   deals         Deal[]
   documents     Document[]
   salesOrders   SalesOrder[]
+  recurringInvoices RecurringInvoice[]
+  priceList         PriceList?         @relation("CustomerPriceList", fields: [priceListId], references: [id])
+  priceListId       String?
 
   @@index([tenantId, status])
   @@index([tenantId, type])
@@ -1076,6 +1085,8 @@ model Product {
   invoiceLines   InvoiceLine[]       @relation("ProductInvoiceLines")
   poLines        PurchaseOrderLine[]
   billLines      BillLine[]
+  recurringLines RecurringInvoiceLine[]
+  priceListItems PriceListItem[]
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -1923,4 +1934,151 @@ model OnboardingTask {
   employee Employee @relation(fields: [employeeId], references: [id])
 
   @@index([tenantId, employeeId])
+}
+
+// ─── Phase 3: Recurring Invoices ─────────────────────────────────
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum RecurringStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  COMPLETED
+}
+
+model RecurringInvoice {
+  id            String              @id @default(cuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  customerId    String
+  customer      Customer            @relation(fields: [customerId], references: [id])
+  title         String
+  frequency     RecurrenceFrequency
+  nextRunDate   DateTime
+  endDate       DateTime?
+  dayOfMonth    Int?                // 1-31, for MONTHLY
+  status        RecurringStatus     @default(ACTIVE)
+  vatRate       Decimal             @default(17)
+  notes         String?
+  lines         RecurringInvoiceLine[]
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([tenantId, status, nextRunDate])
+}
+
+model RecurringInvoiceLine {
+  id                 String           @id @default(cuid())
+  recurringInvoiceId String
+  recurringInvoice   RecurringInvoice @relation(fields: [recurringInvoiceId], references: [id], onDelete: Cascade)
+  description        String
+  quantity           Decimal
+  unitPrice          Decimal
+  productId          String?
+  product            Product?         @relation(fields: [productId], references: [id])
+
+  @@index([recurringInvoiceId])
+}
+
+// ─── Phase 3: Price Lists ─────────────────────────────────────────
+
+enum PriceListType {
+  CUSTOMER_SPECIFIC
+  VOLUME_DISCOUNT
+  PROMOTIONAL
+}
+
+model PriceList {
+  id          String        @id @default(cuid())
+  tenantId    String
+  tenant      Tenant        @relation(fields: [tenantId], references: [id])
+  name        String
+  type        PriceListType @default(CUSTOMER_SPECIFIC)
+  discountPct Decimal?      // flat discount percentage if no per-product override
+  startDate   DateTime?
+  endDate     DateTime?
+  isDefault   Boolean       @default(false)
+  items       PriceListItem[]
+  customers   Customer[]    @relation("CustomerPriceList")
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model PriceListItem {
+  id          String    @id @default(cuid())
+  priceListId String
+  priceList   PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id])
+  unitPrice   Decimal   // override price for this product
+  minQty      Decimal   @default(1) // minimum quantity for this price
+
+  @@unique([priceListId, productId])
+  @@index([priceListId])
+}
+
+// ─── Phase 3: Exchange Rates (Multi-Currency) ─────────────────────
+
+model ExchangeRate {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  fromCurrency  String   // e.g. "USD"
+  toCurrency    String   // e.g. "ILS"
+  rate          Decimal  // 1 fromCurrency = rate toCurrency
+  effectiveDate DateTime @default(now())
+  source        String?  // "BOI" (Bank of Israel), "manual", etc.
+  createdAt     DateTime @default(now())
+
+  @@unique([tenantId, fromCurrency, toCurrency, effectiveDate])
+  @@index([tenantId, fromCurrency, toCurrency])
+}
+
+// ─── Phase 3: Notifications ──────────────────────────────────────
+
+enum NotificationType {
+  INVOICE_OVERDUE
+  INVOICE_DUE_SOON
+  LOW_STOCK
+  PAYMENT_RECEIVED
+  PAYROLL_DUE
+  CREDIT_LIMIT_REACHED
+  LEAVE_REQUEST_PENDING
+  TRAINING_EXPIRING
+  GENERAL
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  BOTH
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  tenantId  String
+  tenant    Tenant              @relation(fields: [tenantId], references: [id])
+  userId    String?
+  user      User?               @relation(fields: [userId], references: [id])
+  type      NotificationType
+  channel   NotificationChannel @default(IN_APP)
+  title     String
+  body      String
+  data      Json?               // extra context (invoiceId, customerId, etc.)
+  isRead    Boolean             @default(false)
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+
+  @@index([tenantId, userId, isRead])
+  @@index([tenantId, type, createdAt])
 }

@@ -51,6 +51,20 @@ import posRouter        from './modules/pos/pos.routes';
 import settingsRouter   from './modules/settings/settings.routes';
 import documentsRouter  from './modules/documents/documents.routes';
 import bankImportRouter    from './modules/bank/bank-import.routes';
+import agingRouter         from './modules/accounting/aging.routes';
+import priceListsRouter    from './modules/price-lists/price-lists.routes';
+
+// Routes — Recurring Invoices
+import recurringInvoicesRouter from './modules/recurring-invoices/recurring-invoices.routes';
+
+// Routes — Cash Flow Forecast
+import cashFlowForecastRouter from './modules/accounting/cash-flow-forecast.routes';
+
+// Routes — Multi-Currency / Exchange Rates
+import currencyRouter from './modules/currency/currency.routes';
+
+// Routes — Notifications
+import notificationsRouter from './modules/notifications/notifications.routes';
 
 // Routes — Phase 2 (Financial Operations & HR)
 import batchPaymentsRouter from './modules/batch-payments/batch-payments.routes';
@@ -167,6 +181,11 @@ app.use('/api/settings',   settingsRouter);
 app.use('/api/documents',  documentsRouter);
 app.use('/api/sales-orders', salesOrdersRouter);
 app.use('/api/bank',         bankImportRouter);
+app.use('/api/aging',               agingRouter);
+app.use('/api/recurring-invoices',  recurringInvoicesRouter);
+app.use('/api/price-lists',         priceListsRouter);
+app.use('/api/cash-flow',           cashFlowForecastRouter);
+app.use('/api/currency',            currencyRouter);
 
 // ─── API Routes ─── Phase 2 ───────────────────────────────────────
 app.use('/api/batch-payments',  batchPaymentsRouter);
@@ -175,6 +194,7 @@ app.use('/api/petty-cash',      pettyCashRouter);
 app.use('/api/credit-cards',    creditCardsRouter);
 app.use('/api/hr/training',     trainingRouter);
 app.use('/api/hr/onboarding',   onboardingRouter);
+app.use('/api/notifications',   notificationsRouter);
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
