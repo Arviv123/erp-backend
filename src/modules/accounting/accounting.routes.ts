@@ -9,6 +9,12 @@ import { prisma } from '../../config/database';
 import * as AccountingService from './accounting.service';
 import * as ReportsService from './reports.service';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
+import {
+  exportPnLToExcel,
+  exportBalanceSheetToExcel,
+  exportTrialBalanceToExcel,
+  exportVatToExcel,
+} from './reports-export.service';
 
 const router = Router();
 
@@ -165,6 +171,8 @@ router.get(
   requireMinRole('ACCOUNTANT') as any,
   async (req: AuthenticatedRequest, res: Response) => {
     const { from, to } = req.query;
+    const format = req.query.format as string;
+
     if (from && to) {
       // 6-column format: opening / period debits+credits / closing
       const fromDate = new Date(from as string);
@@ -172,10 +180,28 @@ router.get(
       const result = await AccountingService.getTrialBalancePeriod(
         req.user.tenantId, fromDate, toDate
       );
+
+      if (format === 'xlsx') {
+        const buffer = exportTrialBalanceToExcel(result);
+        const filename = `trial-balance-${fromDate.toISOString().slice(0, 10)}-${toDate.toISOString().slice(0, 10)}.xlsx`;
+        res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.set('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(buffer);
+      }
+
       sendSuccess(res, result);
     } else {
       const asOf = req.query.asOf ? new Date(req.query.asOf as string) : undefined;
       const result = await AccountingService.getTrialBalance(req.user.tenantId, asOf);
+
+      if (format === 'xlsx') {
+        const buffer = exportTrialBalanceToExcel(result as any);
+        const filename = `trial-balance-${new Date().toISOString().slice(0, 10)}.xlsx`;
+        res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.set('Content-Disposition', `attachment; filename="${filename}"`);
+        return res.send(buffer);
+      }
+
       sendSuccess(res, result);
     }
   }
@@ -299,7 +325,17 @@ router.get(
       new Date(from as string),
       new Date(to   as string)
     );
-    sendSuccess(res, result);
+
+    const format = req.query.format as string;
+    if (format === 'xlsx') {
+      const buffer = exportPnLToExcel(result);
+      const filename = `pl-report-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.set('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } else {
+      sendSuccess(res, result);
+    }
   })
 );
 
@@ -310,7 +346,17 @@ router.get(
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const asOf = req.query.asOf ? new Date(req.query.asOf as string) : new Date();
     const result = await ReportsService.getBalanceSheet(req.user.tenantId, asOf);
-    sendSuccess(res, result);
+
+    const format = req.query.format as string;
+    if (format === 'xlsx') {
+      const buffer = exportBalanceSheetToExcel(result);
+      const filename = `balance-sheet-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.set('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } else {
+      sendSuccess(res, result);
+    }
   })
 );
 
@@ -323,7 +369,17 @@ router.get(
     if (!period) { sendError(res, 'period (YYYY-MM) is required'); return; }
 
     const result = await ReportsService.getVatReport(req.user.tenantId, period);
-    sendSuccess(res, result);
+
+    const format = req.query.format as string;
+    if (format === 'xlsx') {
+      const buffer = exportVatToExcel(result);
+      const filename = `vat-report-${period}.xlsx`;
+      res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.set('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(buffer);
+    } else {
+      sendSuccess(res, result);
+    }
   })
 );
 

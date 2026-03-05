@@ -8,6 +8,10 @@ import { sendSuccess, sendError } from '../../shared/utils/response';
 import { prisma } from '../../config/database';
 import * as PayrollService from './payroll.service';
 import { PAYROLL_CONSTANTS_2026 } from './payroll.engine';
+import { generatePayslipPDF } from './payslip.pdf.service';
+import { generateForm102Excel } from './form102.service';
+import { generateForm106PDF } from './form106.service';
+import { sendPayslipEmail } from '../../services/email.service';
 
 const router = Router();
 
@@ -705,6 +709,203 @@ router.get(
         totalLiability:  Math.round(severancePay + noticeDays*dailyRate + vacationPayout + recupPayout),
       },
     });
+  }
+);
+
+// ─── GET /payroll/payslips/:id/pdf ────────────────────────────────
+// Download a payslip as a PDF. Also fires an async email to the employee.
+router.get(
+  '/payslips/:id/pdf',
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const payslip = await prisma.payslip.findFirst({
+        where:   { id: req.params.id, tenantId: req.user.tenantId },
+        include: { employee: { include: { user: true } } },
+      });
+
+      if (!payslip) { sendError(res, 'Payslip not found', 404); return; }
+
+      const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } });
+
+      const emp     = payslip.employee;
+      const bd      = (payslip.breakdown as any) ?? {};
+      const name    = `${emp.firstName} ${emp.lastName}`;
+
+      const pdfBuffer = generatePayslipPDF({
+        payslip: {
+          id:                         payslip.id,
+          period:                     payslip.period,
+          grossSalary:                Number(payslip.grossSalary),
+          netSalary:                  Number(payslip.netSalary),
+          incomeTax:                  Number(payslip.incomeTax),
+          nationalInsuranceEmployee:  Number(payslip.nationalInsurance),
+          nationalInsuranceEmployer:  Number(payslip.niEmployer),
+          healthInsurance:            Number(payslip.healthInsurance),
+          pensionEmployee:            Number(payslip.pensionEmployee),
+          pensionEmployer:            Number(payslip.pensionEmployer),
+          trainingFundEmployee:       Number(payslip.trainingFundEmployee),
+          trainingFundEmployer:       Number(payslip.trainingFundEmployer),
+          sickDays:                   payslip.sickDays ?? 0,
+          vacationDays:               bd.vacationAccruedDays ?? 0,
+          recuperationPay:            bd.recuperationPay  ?? 0,
+          recuperationDays:           (payslip as any).recuperationDays ?? bd.recuperationDays ?? 0,
+          overtimePay:                bd.overtimePay125 != null
+                                        ? (Number(bd.overtimePay125 ?? 0) + Number(bd.overtimePay150 ?? 0))
+                                        : ((payslip as any).overtimePay ?? 0),
+          overtimeHours:              bd.adjustments?.overtime125Hours != null
+                                        ? (Number(bd.adjustments.overtime125Hours ?? 0) + Number(bd.adjustments.overtime150Hours ?? 0))
+                                        : ((payslip as any).overtimeHours ?? 0),
+          baseSalary:                 bd.baseSalary ?? Number(payslip.grossSalary),
+        },
+        employeeName:     name,
+        employeeId:       emp.id,
+        idNumber:         emp.idNumber,
+        jobTitle:         emp.jobTitle,
+        department:       emp.department,
+        companyName:      tenant?.name ?? 'החברה',
+        companyVatNumber: tenant?.vatNumber ?? tenant?.businessNumber,
+      });
+
+      res.set('Content-Type', 'application/pdf');
+      res.set('Content-Disposition', `attachment; filename="payslip-${payslip.period}.pdf"`);
+      res.send(pdfBuffer);
+
+      // Fire-and-forget email (do not await)
+      const userEmail = (emp as any).user?.email;
+      if (userEmail) {
+        const [yr, mo] = payslip.period.split('-').map(Number);
+        sendPayslipEmail({
+          to:           userEmail,
+          employeeName: name,
+          month:        mo,
+          year:         yr,
+          netSalary:    Number(payslip.netSalary),
+          pdfBuffer,
+        }).catch(() => {});
+      }
+    } catch (err: any) {
+      sendError(res, err.message, 500);
+    }
+  }
+);
+
+// ─── POST /payroll/payslips/:id/send-email ─────────────────────
+// Explicitly send a payslip PDF via email to the employee.
+router.post(
+  '/payslips/:id/send-email',
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const payslip = await prisma.payslip.findFirst({
+        where:   { id: req.params.id, tenantId: req.user.tenantId },
+        include: { employee: { include: { user: true } } },
+      });
+
+      if (!payslip) { sendError(res, 'Payslip not found', 404); return; }
+
+      const emp    = payslip.employee;
+      const email  = (emp as any).user?.email;
+      if (!email) { sendError(res, 'Employee has no linked user email', 400); return; }
+
+      const tenant = await prisma.tenant.findUnique({ where: { id: req.user.tenantId } });
+      const bd     = (payslip.breakdown as any) ?? {};
+      const name   = `${emp.firstName} ${emp.lastName}`;
+
+      const pdfBuffer = generatePayslipPDF({
+        payslip: {
+          id:                         payslip.id,
+          period:                     payslip.period,
+          grossSalary:                Number(payslip.grossSalary),
+          netSalary:                  Number(payslip.netSalary),
+          incomeTax:                  Number(payslip.incomeTax),
+          nationalInsuranceEmployee:  Number(payslip.nationalInsurance),
+          nationalInsuranceEmployer:  Number(payslip.niEmployer),
+          healthInsurance:            Number(payslip.healthInsurance),
+          pensionEmployee:            Number(payslip.pensionEmployee),
+          pensionEmployer:            Number(payslip.pensionEmployer),
+          trainingFundEmployee:       Number(payslip.trainingFundEmployee),
+          trainingFundEmployer:       Number(payslip.trainingFundEmployer),
+          sickDays:                   payslip.sickDays ?? 0,
+          vacationDays:               bd.vacationAccruedDays ?? 0,
+          recuperationPay:            bd.recuperationPay ?? 0,
+          recuperationDays:           (payslip as any).recuperationDays ?? bd.recuperationDays ?? 0,
+          overtimePay:                bd.overtimePay125 != null
+                                        ? (Number(bd.overtimePay125 ?? 0) + Number(bd.overtimePay150 ?? 0))
+                                        : ((payslip as any).overtimePay ?? 0),
+          overtimeHours:              bd.adjustments?.overtime125Hours != null
+                                        ? (Number(bd.adjustments.overtime125Hours ?? 0) + Number(bd.adjustments.overtime150Hours ?? 0))
+                                        : ((payslip as any).overtimeHours ?? 0),
+          baseSalary:                 bd.baseSalary ?? Number(payslip.grossSalary),
+        },
+        employeeName:     name,
+        employeeId:       emp.id,
+        idNumber:         emp.idNumber,
+        jobTitle:         emp.jobTitle,
+        department:       emp.department,
+        companyName:      tenant?.name ?? 'החברה',
+        companyVatNumber: tenant?.vatNumber ?? tenant?.businessNumber,
+      });
+
+      const [yr, mo] = payslip.period.split('-').map(Number);
+      await sendPayslipEmail({
+        to:           email,
+        employeeName: name,
+        month:        mo,
+        year:         yr,
+        netSalary:    Number(payslip.netSalary),
+        pdfBuffer,
+      });
+
+      sendSuccess(res, { success: true, message: 'תלוש שכר נשלח בדוא"ל', to: email });
+    } catch (err: any) {
+      sendError(res, err.message, 500);
+    }
+  }
+);
+
+// ─── GET /payroll/reports/form102 ─────────────────────────────
+// Download Form 102 (monthly employer report) as XLSX.
+router.get(
+  '/reports/form102',
+  requireMinRole('ACCOUNTANT') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const { period } = req.query as Record<string, string | undefined>;
+    if (!period || !/^\d{4}-\d{2}$/.test(period)) {
+      sendError(res, 'period is required and must be in YYYY-MM format'); return;
+    }
+
+    try {
+      const buf = await generateForm102Excel(req.user.tenantId, period, prisma);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="form102-${period}.xlsx"`);
+      res.send(buf);
+    } catch (err: any) {
+      sendError(res, err.message, 500);
+    }
+  }
+);
+
+// ─── GET /payroll/reports/form106/:employeeId ─────────────────
+// Download Form 106 (annual wage certificate) as PDF.
+router.get(
+  '/reports/form106/:employeeId',
+  requireMinRole('ACCOUNTANT') as any,
+  async (req: AuthenticatedRequest, res: Response) => {
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+
+    // Verify employee belongs to this tenant
+    const emp = await prisma.employee.findUnique({ where: { id: req.params.employeeId } });
+    if (!emp || emp.tenantId !== req.user.tenantId) {
+      sendError(res, 'Employee not found', 404); return;
+    }
+
+    try {
+      const buf = await generateForm106PDF(req.params.employeeId, year, prisma);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="form106-${req.params.employeeId}-${year}.pdf"`);
+      res.send(buf);
+    } catch (err: any) {
+      sendError(res, err.message, 500);
+    }
   }
 );
 

@@ -1,4 +1,15 @@
 import 'dotenv/config';
+import * as Sentry from '@sentry/node';
+
+// ─── Sentry Error Monitoring ───────────────────────────────────────
+if (process.env.SENTRY_DSN) {
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV ?? 'development',
+    tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
+  });
+}
+
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -23,6 +34,9 @@ import auditRouter      from './modules/audit/audit.routes';
 
 // Routes — Platform (SaaS owner layer)
 import platformRouter   from './modules/platform/platform.routes';
+
+// Routes — Phase 4 (Sales & Documents)
+import salesOrdersRouter from './modules/sales-orders/sales-orders.routes';
 
 // Routes — Phase 3 (Advanced Modules)
 import inventoryRouter  from './modules/inventory/inventory.routes';
@@ -142,6 +156,12 @@ app.use('/api/dashboard',  dashboardRouter);
 app.use('/api/pos',        posRouter);
 app.use('/api/settings',   settingsRouter);
 app.use('/api/documents',  documentsRouter);
+app.use('/api/sales-orders', salesOrdersRouter);
+
+// ─── Sentry Error Handler (must be before custom error handler) ────
+if (process.env.SENTRY_DSN) {
+  app.use(Sentry.expressErrorHandler());
+}
 
 // ─── Global Error Handler ─────────────────────────────────────────
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {

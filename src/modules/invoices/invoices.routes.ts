@@ -8,6 +8,8 @@ import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { prisma } from '../../config/database';
 import * as InvoiceService from './invoices.service';
+import { generateInvoicePDF } from './invoice.pdf.service';
+import { sendInvoiceEmail } from '../../services/email.service';
 
 const router = Router();
 router.use(authenticate as any);
@@ -182,6 +184,158 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const count = await InvoiceService.updateOverdueInvoices(req.user.tenantId);
     sendSuccess(res, { updated: count, message: `${count} invoices marked as overdue` });
+  })
+);
+
+// GET /invoices/:id/pdf
+router.get(
+  '/:id/pdf',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id:        req.params.id,
+        tenantId:  req.user.tenantId,
+        deletedAt: null,
+      },
+      include: {
+        lines:    { orderBy: { sortOrder: 'asc' } },
+        customer: true,
+        tenant:   true,
+      },
+    });
+
+    if (!invoice) {
+      sendError(res, 'Invoice not found', 404);
+      return;
+    }
+
+    const pdfBuffer = await generateInvoicePDF(
+      {
+        id:             invoice.id,
+        number:         invoice.number,
+        invoiceType:    invoice.invoiceType,
+        date:           invoice.date,
+        dueDate:        invoice.dueDate,
+        status:         invoice.status,
+        subtotal:       Number(invoice.subtotal),
+        vatAmount:      Number(invoice.vatAmount),
+        total:          Number(invoice.total),
+        discountAmount: invoice.discountAmount ? Number(invoice.discountAmount) : null,
+        notes:          invoice.notes,
+        lines: invoice.lines.map(l => ({
+          description: l.description,
+          quantity:    Number(l.quantity),
+          unitPrice:   Number(l.unitPrice),
+          vatRate:     Number(l.vatRate),
+          lineTotal:   Number(l.lineTotal),
+          productId:   l.productId ?? undefined,
+        })),
+      },
+      {
+        name:           invoice.tenant.name,
+        vatNumber:      invoice.tenant.vatNumber,
+        businessNumber: invoice.tenant.businessNumber,
+        address:        invoice.tenant.address,
+        phone:          invoice.tenant.phone,
+        email:          invoice.tenant.email,
+      },
+      {
+        name:       invoice.customer.name,
+        email:      invoice.customer.email,
+        phone:      invoice.customer.phone,
+        businessId: invoice.customer.businessId,
+        address:    invoice.customer.address,
+      }
+    );
+
+    res.set('Content-Type', 'application/pdf');
+    res.set('Content-Disposition', `attachment; filename="invoice-${invoice.number}.pdf"`);
+    res.send(pdfBuffer);
+  })
+);
+
+// POST /invoices/:id/send-email
+router.post(
+  '/:id/send-email',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const invoice = await prisma.invoice.findFirst({
+      where: {
+        id:        req.params.id,
+        tenantId:  req.user.tenantId,
+        deletedAt: null,
+      },
+      include: {
+        lines:    { orderBy: { sortOrder: 'asc' } },
+        customer: true,
+        tenant:   true,
+      },
+    });
+
+    if (!invoice) {
+      sendError(res, 'Invoice not found', 404);
+      return;
+    }
+
+    if (!invoice.customer?.email) {
+      sendError(res, 'אין כתובת דוא"ל ללקוח', 400);
+      return;
+    }
+
+    const pdfBuffer = await generateInvoicePDF(
+      {
+        id:             invoice.id,
+        number:         invoice.number,
+        invoiceType:    invoice.invoiceType,
+        date:           invoice.date,
+        dueDate:        invoice.dueDate,
+        status:         invoice.status,
+        subtotal:       Number(invoice.subtotal),
+        vatAmount:      Number(invoice.vatAmount),
+        total:          Number(invoice.total),
+        discountAmount: invoice.discountAmount ? Number(invoice.discountAmount) : null,
+        notes:          invoice.notes,
+        lines: invoice.lines.map(l => ({
+          description: l.description,
+          quantity:    Number(l.quantity),
+          unitPrice:   Number(l.unitPrice),
+          vatRate:     Number(l.vatRate),
+          lineTotal:   Number(l.lineTotal),
+          productId:   l.productId ?? undefined,
+        })),
+      },
+      {
+        name:           invoice.tenant.name,
+        vatNumber:      invoice.tenant.vatNumber,
+        businessNumber: invoice.tenant.businessNumber,
+        address:        invoice.tenant.address,
+        phone:          invoice.tenant.phone,
+        email:          invoice.tenant.email,
+      },
+      {
+        name:       invoice.customer.name,
+        email:      invoice.customer.email,
+        phone:      invoice.customer.phone,
+        businessId: invoice.customer.businessId,
+        address:    invoice.customer.address,
+      }
+    );
+
+    await sendInvoiceEmail({
+      to:            invoice.customer.email,
+      customerName:  invoice.customer.name,
+      invoiceNumber: invoice.number,
+      total:         Number(invoice.total),
+      pdfBuffer,
+    });
+
+    if (invoice.status === 'DRAFT') {
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data:  { status: 'SENT', sentAt: new Date() },
+      });
+    }
+
+    sendSuccess(res, { success: true, message: 'חשבונית נשלחה בדוא"ל' });
   })
 );
 
