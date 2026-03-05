@@ -296,6 +296,14 @@ model Tenant {
   contracts               Contract[]
   paymentLinks            PaymentLink[]
   bulkImportJobs          BulkImportJob[]
+  // Phase 5 modules
+  branches                  Branch[]
+  greenInvoiceSubmissions   GreenInvoiceSubmission[]
+  whatsAppLogs              WhatsAppLog[]
+  pensionFunds              PensionFund[]
+  pensionAllocations        EmployeePensionAllocation[]
+  customerPortalSessions    CustomerPortalSession[]
+  form161s                  Form161[]
 
   @@map("tenants")
 }
@@ -406,6 +414,13 @@ model Employee {
   metadata  Json     @default("{}") // שדות גמישים
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Phase 5: Branch
+  branchId          String?
+  branch            Branch?                    @relation("EmployeeBranch", fields: [branchId], references: [id])
+  managedBranch     Branch?                    @relation("BranchManager")
+  pensionAllocations EmployeePensionAllocation[]
+  form161s          Form161[]
 
   tenant          Tenant             @relation(fields: [tenantId], references: [id])
   user            User?              @relation(fields: [userId], references: [id])
@@ -639,6 +654,7 @@ model Customer {
   priceListId       String?
   quotes            Quote[]
   contracts         Contract[]
+  portalSessions    CustomerPortalSession[]
 
   @@index([tenantId, status])
   @@index([tenantId, type])
@@ -722,6 +738,7 @@ model Invoice {
   creditNotes   Invoice[]           @relation("CreditNotes")
   paymentAllocs PaymentAllocation[]
   paymentLinks  PaymentLink[]
+  greenInvoiceSubmission GreenInvoiceSubmission?
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
@@ -2264,4 +2281,191 @@ model BulkImportJob {
   createdAt     DateTime         @default(now())
 
   @@index([tenantId, status, createdAt])
+}
+
+// ─── Phase 5: Multi-Branch ────────────────────────────────────────
+
+model Branch {
+  id          String     @id @default(cuid())
+  tenantId    String
+  tenant      Tenant     @relation(fields: [tenantId], references: [id])
+  name        String
+  code        String     // short code e.g. "TLV", "HFA"
+  address     Json?
+  phone       String?
+  email       String?
+  managerId   String?    @unique
+  manager     Employee?  @relation("BranchManager", fields: [managerId], references: [id])
+  isActive    Boolean    @default(true)
+  employees   Employee[] @relation("EmployeeBranch")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+// ─── Phase 5: Green Invoice (חשבונית ירוקה) ──────────────────────
+
+enum GreenInvoiceStatus {
+  PENDING
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  ERROR
+}
+
+model GreenInvoiceSubmission {
+  id            String              @id @default(cuid())
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  invoiceId     String
+  invoice       Invoice             @relation(fields: [invoiceId], references: [id])
+  status        GreenInvoiceStatus  @default(PENDING)
+  submittedAt   DateTime?
+  responseCode  String?
+  responseMsg   String?
+  documentId    String?             // Green Invoice document ID
+  signedUrl     String?             // URL of signed document
+  rawResponse   Json?
+  retryCount    Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@unique([invoiceId])
+  @@index([tenantId, status])
+}
+
+// ─── Phase 5: WhatsApp Messages ───────────────────────────────────
+
+enum WhatsAppStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum WhatsAppMessageType {
+  INVOICE
+  PAYMENT_REMINDER
+  QUOTE
+  PAYMENT_LINK
+  GENERAL
+}
+
+model WhatsAppLog {
+  id          String              @id @default(cuid())
+  tenantId    String
+  tenant      Tenant              @relation(fields: [tenantId], references: [id])
+  phone       String              // recipient phone
+  messageType WhatsAppMessageType
+  status      WhatsAppStatus      @default(QUEUED)
+  messageId   String?             // WhatsApp message SID
+  templateName String?
+  body        String?
+  refId       String?             // invoiceId, quoteId, etc.
+  errorMsg    String?
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime            @default(now())
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, phone])
+}
+
+// ─── Phase 5: Pension Funds ───────────────────────────────────────
+
+enum PensionFundType {
+  PENSION         // קרן פנסיה
+  PROVIDENT       // קופת גמל
+  LIFE_INSURANCE  // ביטוח מנהלים
+}
+
+model PensionFund {
+  id           String          @id @default(cuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id])
+  name         String          // e.g. "מגדל מקפת", "הראל"
+  type         PensionFundType
+  code         String?         // fund identification code
+  isActive     Boolean         @default(true)
+  allocations  EmployeePensionAllocation[]
+  createdAt    DateTime        @default(now())
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model EmployeePensionAllocation {
+  id            String      @id @default(cuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  employeeId    String
+  employee      Employee    @relation(fields: [employeeId], references: [id])
+  pensionFundId String
+  pensionFund   PensionFund @relation(fields: [pensionFundId], references: [id])
+  employeePct   Decimal     // % from employee salary
+  employerPct   Decimal     // % from employer
+  severancePct  Decimal     @default(8.33) // פיצויים %
+  startDate     DateTime
+  endDate       DateTime?
+  isActive      Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([employeeId, pensionFundId, startDate])
+  @@index([tenantId, employeeId])
+}
+
+// ─── Phase 5: Customer Portal ─────────────────────────────────────
+
+model CustomerPortalSession {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  token       String   @unique @default(cuid())
+  email       String   // email the magic link was sent to
+  expiresAt   DateTime
+  lastUsedAt  DateTime?
+  isRevoked   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([token])
+  @@index([tenantId, customerId])
+}
+
+// ─── Phase 5: Form 161 (פיצויים ומס) ────────────────────────────
+
+enum Form161Status {
+  DRAFT
+  SUBMITTED
+  APPROVED
+}
+
+model Form161 {
+  id                 String        @id @default(cuid())
+  tenantId           String
+  tenant             Tenant        @relation(fields: [tenantId], references: [id])
+  employeeId         String
+  employee           Employee      @relation(fields: [employeeId], references: [id])
+  status             Form161Status @default(DRAFT)
+  terminationDate    DateTime
+  lastSalary         Decimal       // משכורת אחרונה
+  yearsOfService     Decimal       // שנות עבודה
+  severancePay       Decimal       // פיצויי פיטורים
+  pensionSeverance   Decimal       @default(0) // פיצויים מקרן פנסיה
+  taxExempt          Decimal       @default(0) // פטור ממס
+  taxableAmount      Decimal       @default(0) // סכום חייב במס
+  taxRate            Decimal       @default(0) // שיעור מס
+  taxAmount          Decimal       @default(0) // מס לתשלום
+  notes              String?
+  submittedAt        DateTime?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([tenantId, employeeId, terminationDate])
+  @@index([tenantId, status])
 }

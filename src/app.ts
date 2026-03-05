@@ -38,6 +38,9 @@ import platformRouter   from './modules/platform/platform.routes';
 // Routes — Employee Self-Service Portal
 import employeePortalRouter from './modules/employee-portal/employee-portal.routes';
 
+// Routes — Customer Self-Service Portal
+import customerPortalRouter from './modules/customer-portal/customer-portal.routes';
+
 // Routes — Phase 4 (Sales & Documents)
 import salesOrdersRouter  from './modules/sales-orders/sales-orders.routes';
 import quotesRouter        from './modules/quotes/quotes.routes';
@@ -66,8 +69,23 @@ import recurringInvoicesRouter from './modules/recurring-invoices/recurring-invo
 // Routes — Contracts (חוזי שירות)
 import contractsRouter from './modules/contracts/contracts.routes';
 
+// Routes — Form 161 (Termination + Severance Tax — טופס 161)
+import form161Router from './modules/form161/form161.routes';
+
+// Routes — Pension Fund Management
+import pensionRouter from './modules/pension/pension.routes';
+
 // Routes — Analytics KPI
 import analyticsRouter from './modules/analytics/analytics.routes';
+
+// Routes — Green Invoice (חשבונית ירוקה) Integration
+import greenInvoiceRouter from './modules/green-invoice/green-invoice.routes';
+
+// Routes — WhatsApp Business API
+import whatsAppRouter from './modules/whatsapp/whatsapp.routes';
+
+// Routes — Phase 5 (Multi-Branch)
+import branchesRouter from './modules/branches/branches.routes';
 
 // Routes — Cash Flow Forecast
 import cashFlowForecastRouter from './modules/accounting/cash-flow-forecast.routes';
@@ -170,6 +188,9 @@ app.use('/api/platform', platformRouter);
 // ─── Employee Self-Service Portal ─────────────────────────────────
 app.use('/api/employee-portal', employeePortalRouter);
 
+// ─── Customer Self-Service Portal ─────────────────────────────────
+app.use('/api/customer-portal', customerPortalRouter);
+
 // ─── API Routes ─── Core ──────────────────────────────────────────
 app.use('/api/tenants',    tenantsRouter);
 app.use('/api/users',      usersRouter);
@@ -215,6 +236,11 @@ app.use('/api/notifications',   notificationsRouter);
 app.use('/api/bulk-import',     bulkImportRouter);
 app.use('/api/contracts',       contractsRouter);
 app.use('/api/analytics',       analyticsRouter);
+app.use('/api/pension',         pensionRouter);
+app.use('/api/branches',        branchesRouter);
+app.use('/api/green-invoice',   greenInvoiceRouter);
+app.use('/api/whatsapp',        whatsAppRouter);
+app.use('/api/form161',         form161Router);
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
