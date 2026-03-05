@@ -320,6 +320,18 @@ model Tenant {
   giftCards             GiftCard[]
   posHeldTransactions   PosHeldTransaction[]
   posZReports           PosZReport[]
+  posFloors             PosFloor[]
+  posTables             PosTable[]
+  posOrders             PosOrder[]
+  kitchenStations       KitchenDisplayStation[]
+  cashDrawerEvents      CashDrawerEvent[]
+  cashCounts            CashCount[]
+  cashierShifts         CashierShift[]
+  // POS Config modules
+  posButtonLayouts      PosButtonLayout[]
+  productVariants       ProductVariant[]
+  comboProducts         ComboProduct[]
+  posReceiptTemplate    PosReceiptTemplate?
 
   @@map("tenants")
 }
@@ -676,6 +688,7 @@ model Customer {
   receipts              Receipt[]
   cardPaymentTxs        CardPaymentTransaction[]
   loyaltyAccount        LoyaltyAccount?
+  posOrders             PosOrder[]
 
   @@index([tenantId, status])
   @@index([tenantId, type])
@@ -1136,6 +1149,10 @@ model Product {
   priceListItems PriceListItem[]
   quoteLines     QuoteLine[]
   contractLines  ContractLine[]
+  posOrderItems  PosOrderItem[]
+  variants       ProductVariant[]
+  comboItems     ComboItem[]
+  posButtons     PosButton[]
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -1601,6 +1618,10 @@ model PosSession {
   transactions     PosTransaction[]
   heldTransactions PosHeldTransaction[]
   zReports         PosZReport[]
+  posOrders        PosOrder[]
+  cashDrawerEvents CashDrawerEvent[]
+  cashCounts       CashCount[]
+  cashierShifts    CashierShift[]
 
   @@index([tenantId])
   @@map("pos_sessions")
@@ -3152,4 +3173,365 @@ model PosZReport {
   createdAt DateTime @default(now())
 
   @@map("pos_z_reports")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// POS Complete — Table Management, Delivery Orders, Kitchen Display
+// ──────────────────────────────────────────────────────────────────────────────
+
+model PosFloor {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String                          // "קומה 1", "גינה", "בר"
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  tables      PosTable[]
+  createdAt   DateTime @default(now())
+  @@index([tenantId])
+  @@map("pos_floors")
+}
+
+model PosTable {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  floorId     String?
+  floor       PosFloor? @relation(fields: [floorId], references: [id])
+  name        String                          // "שולחן 1", "A1"
+  capacity    Int      @default(4)
+  posX        Int      @default(0)            // grid position for floor map
+  posY        Int      @default(0)
+  shape       String   @default("rect")       // rect | round
+  status      TableStatus @default(AVAILABLE)
+  currentOrderId String?
+  currentOrder   PosOrder? @relation("TableCurrentOrder", fields: [currentOrderId], references: [id])
+  orders      PosOrder[] @relation("TableOrders")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  @@index([tenantId, status])
+  @@map("pos_tables")
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+  BLOCKED
+}
+
+model PosOrder {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+  orderNumber     String
+  type            OrderType @default(DINE_IN)
+  status          OrderStatus @default(OPEN)
+
+  tableId         String?
+  table           PosTable? @relation("TableOrders", fields: [tableId], references: [id])
+  currentForTable PosTable[] @relation("TableCurrentOrder")
+
+  sessionId       String?
+  session         PosSession? @relation(fields: [sessionId], references: [id])
+
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  customerName    String?
+  customerPhone   String?
+  guestsCount     Int?
+
+  // Delivery info
+  deliveryAddress Json?
+  deliveryNotes   String?
+  deliveryTime    DateTime?
+  deliveryFee     Decimal? @db.Decimal(8,2)
+  estimatedReady  DateTime?
+
+  items           PosOrderItem[]
+
+  subtotal        Decimal  @db.Decimal(12,2) @default(0)
+  vatAmount       Decimal  @db.Decimal(12,2) @default(0)
+  discountAmount  Decimal  @db.Decimal(12,2) @default(0)
+  total           Decimal  @db.Decimal(12,2) @default(0)
+
+  notes           String?
+  posTransactionId String?                    // when paid
+
+  openedBy        String
+  closedBy        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  closedAt        DateTime?
+
+  @@index([tenantId, status])
+  @@index([tenantId, type])
+  @@map("pos_orders")
+}
+
+model PosOrderItem {
+  id              String   @id @default(cuid())
+  orderId         String
+  order           PosOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId       String?
+  product         Product? @relation(fields: [productId], references: [id])
+  description     String
+  quantity        Decimal  @db.Decimal(8,3)
+  unitPrice       Decimal  @db.Decimal(10,2)
+  vatRate         Decimal  @db.Decimal(5,4) @default(0.18)
+  discount        Decimal  @db.Decimal(10,2) @default(0)
+  lineTotal       Decimal  @db.Decimal(12,2)
+  notes           String?                    // customer modifications: "without onions"
+  status          ItemStatus @default(PENDING)
+  kitchenSentAt   DateTime?
+  kitchenReadyAt  DateTime?
+  printStation    String?                    // which kitchen printer: "BAR" | "KITCHEN" | "GRILL"
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  @@index([orderId])
+  @@map("pos_order_items")
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEOUT
+  DELIVERY
+  DRIVE_THROUGH
+}
+
+enum OrderStatus {
+  OPEN
+  SENT_TO_KITCHEN
+  PARTIALLY_READY
+  READY
+  SERVED
+  PAID
+  CANCELLED
+  VOID
+}
+
+enum ItemStatus {
+  PENDING
+  SENT
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+model KitchenDisplayStation {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String                          // "מטבח ראשי", "בר", "גריל"
+  stationCode String                          // short code for routing: KITCHEN, BAR, GRILL
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  @@index([tenantId])
+  @@map("kitchen_display_stations")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// POS Complete — Quick Buttons, Product Variants, Combos, Receipt Templates
+// ──────────────────────────────────────────────────────────────────────────────
+
+model PosButtonLayout {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String                          // "מסך ראשי", "משקאות", "פיצה"
+  isDefault   Boolean  @default(false)
+  terminalId  String?                         // null = all terminals
+  buttons     PosButton[]
+  createdAt   DateTime @default(now())
+  @@index([tenantId])
+  @@map("pos_button_layouts")
+}
+
+model PosButton {
+  id           String          @id @default(cuid())
+  layoutId     String
+  layout       PosButtonLayout @relation(fields: [layoutId], references: [id], onDelete: Cascade)
+  row          Int
+  col          Int
+  label        String
+  color        String          @default("#4F46E5")    // hex color
+  icon         String?                                // emoji or icon name
+  type         ButtonType                             // PRODUCT | CATEGORY | FUNCTION | PLU
+  productId    String?
+  product      Product?        @relation(fields: [productId], references: [id])
+  categoryId   String?
+  functionCode String?                                // DISCOUNT | VOID | NO_SALE | PRICE_OVERRIDE
+  plu          String?                                // direct PLU code
+  subLayoutId  String?                                // for category drill-down
+  @@unique([layoutId, row, col])
+  @@map("pos_buttons")
+}
+
+enum ButtonType {
+  PRODUCT
+  CATEGORY
+  FUNCTION
+  PLU
+  LAYOUT_LINK
+}
+
+model ProductVariant {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  name        String                          // "גדול", "אדום", "XL"
+  sku         String?
+  barcode     String?
+  priceAdjust Decimal  @db.Decimal(10,2) @default(0)  // +/- from base price
+  costAdjust  Decimal  @db.Decimal(10,2) @default(0)
+  attributes  Json     @default("{}")         // {size: "L", color: "red"}
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  @@index([tenantId, productId])
+  @@map("product_variants")
+}
+
+model ComboProduct {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  name        String
+  description String?
+  price       Decimal  @db.Decimal(10,2)
+  isActive    Boolean  @default(true)
+  items       ComboItem[]
+  createdAt   DateTime @default(now())
+  @@index([tenantId])
+  @@map("combo_products")
+}
+
+model ComboItem {
+  id          String       @id @default(cuid())
+  comboId     String
+  combo       ComboProduct @relation(fields: [comboId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product      @relation(fields: [productId], references: [id])
+  quantity    Decimal      @db.Decimal(8,3) @default(1)
+  isOptional  Boolean      @default(false)   // substitutable item
+  groupName   String?                        // "בחר שתייה", "בחר תוספת"
+  @@map("combo_items")
+}
+
+model PosReceiptTemplate {
+  id           String  @id @default(cuid())
+  tenantId     String  @unique
+  tenant       Tenant  @relation(fields: [tenantId], references: [id])
+  // Header
+  showLogo     Boolean @default(false)
+  logoBase64   String? @db.Text
+  headerLine1  String?                        // company name override
+  headerLine2  String?                        // tagline
+  headerLine3  String?                        // address
+  headerLine4  String?                        // phone/website
+  // Content options
+  showVatNumber   Boolean @default(true)
+  showCashierName Boolean @default(true)
+  showTableNumber Boolean @default(true)
+  showBarcode     Boolean @default(false)
+  showQrCode      Boolean @default(false)     // QR to customer portal
+  // Footer
+  footerLine1  String? @default("תודה על רכישתך!")
+  footerLine2  String?
+  footerLine3  String?                        // wifi password, website, etc.
+  // Print settings
+  paperWidth   Int     @default(80)           // 58 or 80 mm
+  fontSize     String  @default("normal")     // small | normal | large
+  @@map("pos_receipt_templates")
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// POS Complete — Cash Drawer, Cashier Shifts, Denomination Count
+// ──────────────────────────────────────────────────────────────────────────────
+
+enum CashDrawerEventType {
+  OPEN_FLOAT   // initial cash at start of day
+  CASH_IN      // adding cash (e.g. safe drop)
+  CASH_OUT     // removing cash (e.g. safe drop)
+  NO_SALE      // drawer opened with no sale
+  SALE         // cash sale
+  REFUND       // cash refund
+  CLOSE_COUNT  // end of day count
+}
+
+enum ShiftStatus {
+  ACTIVE
+  HANDED_OVER
+  CLOSED
+}
+
+model CashDrawerEvent {
+  id            String             @id @default(cuid())
+  tenantId      String
+  tenant        Tenant             @relation(fields: [tenantId], references: [id])
+  sessionId     String
+  session       PosSession         @relation(fields: [sessionId], references: [id])
+  type          CashDrawerEventType
+  amount        Decimal            @db.Decimal(10, 2)
+  reason        String?
+  balanceBefore Decimal            @db.Decimal(10, 2)
+  balanceAfter  Decimal            @db.Decimal(10, 2)
+  performedBy   String
+  createdAt     DateTime           @default(now())
+
+  @@index([tenantId, sessionId])
+  @@map("cash_drawer_events")
+}
+
+model CashCount {
+  id             String     @id @default(cuid())
+  tenantId       String
+  tenant         Tenant     @relation(fields: [tenantId], references: [id])
+  sessionId      String
+  session        PosSession @relation(fields: [sessionId], references: [id])
+  countedBy      String
+  countedAt      DateTime   @default(now())
+  // ILS denominations
+  bills_200      Int        @default(0)
+  bills_100      Int        @default(0)
+  bills_50       Int        @default(0)
+  bills_20       Int        @default(0)
+  coins_10       Int        @default(0)
+  coins_5        Int        @default(0)
+  coins_2        Int        @default(0)
+  coins_1        Int        @default(0)
+  coins_050      Int        @default(0) // 50 agorot
+  coins_010      Int        @default(0) // 10 agorot
+  totalCounted   Decimal    @db.Decimal(10, 2)
+  expectedAmount Decimal    @db.Decimal(10, 2)
+  variance       Decimal    @db.Decimal(10, 2)
+  notes          String?
+
+  @@map("cash_counts")
+}
+
+model CashierShift {
+  id               String      @id @default(cuid())
+  tenantId         String
+  tenant           Tenant      @relation(fields: [tenantId], references: [id])
+  sessionId        String
+  session          PosSession  @relation(fields: [sessionId], references: [id])
+  cashierId        String                   // userId
+  startedAt        DateTime    @default(now())
+  endedAt          DateTime?
+  openingFloat     Decimal     @db.Decimal(10, 2) @default(0)
+  closingFloat     Decimal?    @db.Decimal(10, 2)
+  totalSales       Decimal     @db.Decimal(12, 2) @default(0)
+  totalReturns     Decimal     @db.Decimal(12, 2) @default(0)
+  transactionCount Int         @default(0)
+  status           ShiftStatus @default(ACTIVE)
+  handedTo         String?                  // userId of next cashier
+  notes            String?
+
+  @@index([tenantId, cashierId])
+  @@index([tenantId, sessionId])
+  @@map("cashier_shifts")
 }

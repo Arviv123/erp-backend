@@ -100,6 +100,15 @@ import printersRouter from './modules/printers/printers.routes';
 // Routes — POS Phase 2 (Promotions, Loyalty, Gift Cards, Z-Report)
 import posPhase2Router from './modules/pos/pos-phase2.routes';
 
+// Routes — POS Complete (Table Management, Delivery Orders, Kitchen Display)
+import posTablesRouter from './modules/pos/pos-tables.routes';
+
+// Routes — POS Cash Drawer, Cashier Shifts, Analytics
+import posCashRouter from './modules/pos/pos-cash.routes';
+
+// Routes — POS Config (Quick Buttons, Variants, Combos, Receipt Templates, Returns)
+import posConfigRouter from './modules/pos/pos-config.routes';
+
 // Routes — Holiday Calendar
 import calendarRouter from './modules/calendar/calendar.routes';
 
@@ -277,6 +286,15 @@ app.use('/api/calendar',        calendarRouter);
 
 // ─── API Routes ─── POS Phase 2 ───────────────────────────────────
 app.use('/api/pos', posPhase2Router);  // extends existing /api/pos prefix
+
+// ─── API Routes ─── POS Complete (Tables, Orders, Kitchen) ─────────
+app.use('/api/pos', posTablesRouter);  // extends existing /api/pos prefix
+
+// ─── API Routes ─── POS Cash Drawer, Cashier Shifts, Analytics ─────
+app.use('/api/pos', posCashRouter);    // extends existing /api/pos prefix
+
+// ─── API Routes ─── POS Config (Buttons, Variants, Combos, Templates) ──────
+app.use('/api/pos', posConfigRouter);  // extends existing /api/pos prefix
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
