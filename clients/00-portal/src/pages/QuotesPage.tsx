@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Plus, Eye, Trash2, FileDown, Loader2 } from 'lucide-react';
+import { Plus, Eye, Trash2, FileDown, Loader2, Search } from 'lucide-react';
 
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(n);
@@ -44,6 +44,7 @@ export default function QuotesPage() {
   const [status, setStatus] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const params: Record<string, string> = { page: '1', limit: '100' };
@@ -64,13 +65,20 @@ export default function QuotesPage() {
     },
   });
 
-  const quotes: any[] = Array.isArray(data?.data)
+  const quotesAll: any[] = Array.isArray(data?.data)
     ? data.data
     : Array.isArray(data?.data?.data)
     ? data.data.data
     : Array.isArray(data)
     ? data
     : [];
+
+  const quotes = search
+    ? quotesAll.filter((q: any) =>
+        (q.customer?.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+        (q.quoteNumber ?? '').toLowerCase().includes(search.toLowerCase())
+      )
+    : quotesAll;
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -161,9 +169,15 @@ export default function QuotesPage() {
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
             title="עד תאריך"
           />
-          {(status || from || to) && (
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="text" placeholder="חפש לפי לקוח / מספר הצעה..." value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full border border-gray-300 rounded-lg pr-8 pl-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+          </div>
+          {(status || from || to || search) && (
             <button
-              onClick={clearFilters}
+              onClick={() => { clearFilters(); setSearch(''); }}
               className="text-sm text-gray-500 hover:text-gray-700 underline"
             >
               נקה

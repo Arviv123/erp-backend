@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Plus, Receipt } from 'lucide-react';
+import { Plus, Receipt, Search } from 'lucide-react';
 import api from '../lib/api';
 
 const fmtCurrency = (n: number) =>
@@ -25,10 +25,19 @@ async function getBills(status: string) {
 
 export default function BillsListPage() {
   const [status, setStatus] = useState('');
+  const [search, setSearch] = useState('');
   const { data = [], isLoading } = useQuery({
     queryKey: ['bills', status],
     queryFn: () => getBills(status),
   });
+
+  const bills: any[] = data as any[];
+  const filtered = search
+    ? bills.filter((b: any) =>
+        (b.vendor?.name ?? '').toLowerCase().includes(search.toLowerCase()) ||
+        (b.number ?? '').toLowerCase().includes(search.toLowerCase())
+      )
+    : bills;
 
   const today = new Date();
 
@@ -42,20 +51,26 @@ export default function BillsListPage() {
         </Link>
       </div>
 
-      <div className="flex gap-2 mb-4 flex-wrap">
+      <div className="flex flex-wrap gap-2 mb-4 items-center">
         {['', 'DRAFT', 'POSTED', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'].map(s => (
           <button key={s} onClick={() => setStatus(s)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${status === s ? 'bg-blue-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
             {s === '' ? 'הכל' : STATUS_LABEL[s]}
           </button>
         ))}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input type="text" placeholder="חפש לפי ספק / מספר חשבונית..." value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg pr-9 pl-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" />
+        </div>
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center h-40 text-gray-400">טוען...</div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          {(data as any[]).length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">
               <Receipt className="w-8 h-8" />
               <p className="text-sm">אין חשבוניות ספקים. <Link to="/purchasing/bills/new" className="text-blue-600 hover:underline">הוסף חשבונית</Link></p>
@@ -75,7 +90,7 @@ export default function BillsListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {(data as any[]).map((b: any) => {
+                {filtered.map((b: any) => {
                   const dueDate = new Date(b.dueDate);
                   const overdue = dueDate < today && b.status !== 'PAID';
                   return (

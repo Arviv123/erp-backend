@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
 import api from '../lib/api';
+import SearchSelect from '../components/SearchSelect';
 
 const VAT_RATE = 0.18;
 
@@ -81,11 +82,12 @@ export default function NewBillPage() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">ספק *</label>
-              <select value={vendorId} onChange={e => setVendorId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                <option value="">-- בחר ספק --</option>
-                {(vendors as any[]).map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
-              </select>
+              <SearchSelect
+                value={vendorId}
+                onChange={setVendorId}
+                placeholder="חפש ספק..."
+                options={(vendors as any[]).map((v: any) => ({ value: v.id, label: v.name, sublabel: v.vatNumber ?? v.phone }))}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">מס&apos; חשבונית ספק (חיצוני)</label>

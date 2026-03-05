@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { Plus, Trash2, Save, Send, Loader2, ChevronDown, ChevronUp, Search, X } from 'lucide-react';
+import SearchSelect from '../components/SearchSelect';
 
 const fmt = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(n);
@@ -61,15 +62,15 @@ function NewItemModal({
   const [err,      setErr]      = useState('');
 
   const { isPending, mutate } = useMutation({
-    mutationFn: () => api.post('/inventory/items', {
-      name: name.trim(),
-      sku:          sku.trim()      || undefined,
-      barcode:      barcode.trim()  || undefined,
-      unit:         unit.trim()     || 'יח',
-      sellingPrice: parseFloat(price) || 0,
+    mutationFn: () => api.post('/inventory/products', {
+      name:          name.trim(),
+      sku:           sku.trim() || `SKU-${Date.now()}`,
+      barcode:       barcode.trim() || undefined,
+      unitOfMeasure: unit.trim() || 'יחידה',
+      costPrice:     0,
+      sellingPrice:  parseFloat(price) || 0,
       vatRate,
-      category:     category.trim() || undefined,
-      trackInventory: false,
+      isService:     true,
     }),
     onSuccess: res => {
       const item: Product = res.data?.data ?? res.data;
@@ -332,7 +333,7 @@ export default function NewInvoicePage() {
   // Fetch inventory items for autocomplete
   const { data: itemsData } = useQuery({
     queryKey: ['inventory-items-search'],
-    queryFn: () => api.get('/inventory/items', { params: { pageSize: 1000 } }),
+    queryFn: () => api.get('/inventory/products', { params: { pageSize: 1000 } }),
     staleTime: 5 * 60_000,
   });
   const allItems: Product[] = Array.isArray(itemsData?.data?.data) ? itemsData.data.data
@@ -433,10 +434,12 @@ export default function NewInvoicePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">לקוח *</label>
-            <select value={customerId} onChange={e => setCustomerId(e.target.value)} className={headerInputCls}>
-              <option value="">בחר לקוח...</option>
-              {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <SearchSelect
+              value={customerId}
+              onChange={setCustomerId}
+              placeholder="חפש לקוח..."
+              options={customers.map((c: any) => ({ value: c.id, label: c.name, sublabel: c.phone ?? c.email }))}
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">תאריך חשבונית *</label>

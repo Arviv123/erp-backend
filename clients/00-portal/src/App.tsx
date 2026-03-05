@@ -136,6 +136,9 @@ import PettyCashPage from './pages/PettyCashPage';
 // Integration Health
 import IntegrationHealthPage from './pages/IntegrationHealthPage';
 
+// Batch Entry
+import BatchEntryPage from './pages/BatchEntryPage';
+
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
@@ -338,6 +341,7 @@ export default function App() {
 
               {/* Integration Health */}
               <Route path="/integration-health" element={<ProtectedRoute module="ACCOUNTING"><IntegrationHealthPage /></ProtectedRoute>} />
+              <Route path="/batch-entry" element={<ProtectedRoute module="ACCOUNTING"><BatchEntryPage /></ProtectedRoute>} />
 
               {/* Employee Self-Service Portal (ESS) — accessible to all logged-in users */}
               <Route path="/employee" element={<ProtectedRoute module="DASHBOARD"><EmployeePortalPage /></ProtectedRoute>} />
