@@ -86,11 +86,33 @@ import ExpenseReportsPage from './pages/ExpenseReportsPage';
 import BudgetPage from './pages/BudgetPage';
 import BankReconciliationPage from './pages/BankReconciliationPage';
 import AccountLedgerPage from './pages/AccountLedgerPage';
+import LedgerCardsPage from './pages/LedgerCardsPage';
+import CreditCardReconPage from './pages/CreditCardReconPage';
 
 // Documents & Settings
 import DocumentsPage from './pages/DocumentsPage';
 import DocumentDetailPage from './pages/DocumentDetailPage';
 import CompanySettingsPage from './pages/CompanySettingsPage';
+
+// Receipts
+import ReceiptsPage from './pages/ReceiptsPage';
+
+// Smart Import
+import SmartImportPage from './pages/SmartImportPage';
+
+// POS Phase 2
+import POSPromotionsPage from './pages/POSPromotionsPage';
+import POSLoyaltyPage from './pages/POSLoyaltyPage';
+import GiftCardsPage from './pages/GiftCardsPage';
+import POSZReportPage from './pages/POSZReportPage';
+
+// POS Phase 3
+import POSTablesPage from './pages/POSTablesPage';
+import POSCashPage from './pages/POSCashPage';
+import POSAnalyticsPage from './pages/POSAnalyticsPage';
+
+// Payment Terminals
+import PaymentTerminalsPage from './pages/PaymentTerminalsPage';
 
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
@@ -217,6 +239,14 @@ export default function App() {
               <Route path="/accounting/budget" element={<ProtectedRoute module="ACCOUNTING"><BudgetPage /></ProtectedRoute>} />
               <Route path="/accounting/bank-recon" element={<ProtectedRoute module="ACCOUNTING"><BankReconciliationPage /></ProtectedRoute>} />
               <Route path="/accounting/ledger" element={<ProtectedRoute module="ACCOUNTING"><AccountLedgerPage /></ProtectedRoute>} />
+              <Route path="/accounting/ledger-cards" element={<ProtectedRoute module="ACCOUNTING"><LedgerCardsPage /></ProtectedRoute>} />
+              <Route path="/accounting/credit-card-recon" element={<ProtectedRoute module="ACCOUNTING"><CreditCardReconPage /></ProtectedRoute>} />
+
+              {/* Receipts */}
+              <Route path="/receipts" element={<ProtectedRoute module="INVOICES"><ReceiptsPage /></ProtectedRoute>} />
+
+              {/* Smart Import */}
+              <Route path="/smart-import" element={<ProtectedRoute module="ACCOUNTING"><SmartImportPage /></ProtectedRoute>} />
 
               {/* Purchasing */}
               <Route path="/purchasing/vendors" element={<ProtectedRoute module="ACCOUNTING"><VendorsPage /></ProtectedRoute>} />
@@ -254,6 +284,14 @@ export default function App() {
               <Route path="/pos" element={<ProtectedRoute module="POS"><POSPage /></ProtectedRoute>} />
               <Route path="/pos/sales" element={<ProtectedRoute module="POS"><SalesHistoryPage /></ProtectedRoute>} />
               <Route path="/pos/summary" element={<ProtectedRoute module="POS"><SalesSummaryPage /></ProtectedRoute>} />
+              <Route path="/pos/tables" element={<ProtectedRoute module="POS"><POSTablesPage /></ProtectedRoute>} />
+              <Route path="/pos/cash" element={<ProtectedRoute module="POS"><POSCashPage /></ProtectedRoute>} />
+              <Route path="/pos/analytics" element={<ProtectedRoute module="POS"><POSAnalyticsPage /></ProtectedRoute>} />
+              <Route path="/pos/promotions" element={<ProtectedRoute module="POS"><POSPromotionsPage /></ProtectedRoute>} />
+              <Route path="/pos/loyalty" element={<ProtectedRoute module="POS"><POSLoyaltyPage /></ProtectedRoute>} />
+              <Route path="/pos/gift-cards" element={<ProtectedRoute module="POS"><GiftCardsPage /></ProtectedRoute>} />
+              <Route path="/pos/z-report" element={<ProtectedRoute module="POS"><POSZReportPage /></ProtectedRoute>} />
+              <Route path="/pos/payment-terminals" element={<ProtectedRoute module="POS"><PaymentTerminalsPage /></ProtectedRoute>} />
 
               {/* Employee Self-Service Portal (ESS) — accessible to all logged-in users */}
               <Route path="/employee" element={<ProtectedRoute module="DASHBOARD"><EmployeePortalPage /></ProtectedRoute>} />

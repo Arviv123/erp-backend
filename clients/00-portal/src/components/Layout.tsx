@@ -6,7 +6,7 @@ import type { ModuleKey } from '../lib/modules';
 import {
   LayoutDashboard, Users, DollarSign, FileText, BookOpen, UserCheck,
   Umbrella, Clock, Package, ShoppingCart, ChevronDown, ChevronLeft,
-  LogOut, Building2, Menu, X, Shield, Briefcase
+  LogOut, Building2, Menu, X, Shield, Briefcase, Upload, CreditCard, Receipt
 } from 'lucide-react';
 
 interface NavItem {
@@ -44,6 +44,7 @@ const NAV: NavItem[] = [
     children: [
       { label: 'כל החשבוניות', to: '/invoices' },
       { label: 'חשבונית חדשה', to: '/invoices/new' },
+      { label: 'קבלות ★', to: '/receipts' },
       { label: 'מסמכים עסקיים ★', to: '/documents' },
       { label: 'דוח גיל חוב', to: '/invoices/aging' },
       { label: 'הגדרות חברה ★', to: '/settings/company' },
@@ -60,7 +61,9 @@ const NAV: NavItem[] = [
       { label: 'מאזן', to: '/accounting/reports/balance-sheet' },
       { label: 'מע"מ — טופס 83', to: '/accounting/reports/vat' },
       { label: 'תזרים מזומנים', to: '/accounting/reports/cash-flow' },
-      { label: 'כרטסת חשבון ★', to: '/accounting/ledger' },
+      { label: 'כרטסות ★', to: '/accounting/ledger-cards' },
+      { label: 'כרטסת חשבון', to: '/accounting/ledger' },
+      { label: 'התאמת כ.אשראי ★', to: '/accounting/credit-card-recon' },
       { label: 'רכוש קבוע ★', to: '/accounting/fixed-assets' },
       { label: 'דוחות הוצאות ★', to: '/accounting/expenses' },
       { label: 'תקציב וביצוע ★', to: '/accounting/budget' },
@@ -115,9 +118,21 @@ const NAV: NavItem[] = [
     label: 'קופה', icon: ShoppingCart, module: 'POS',
     children: [
       { label: 'קופה רושמת', to: '/pos' },
+      { label: 'ניהול שולחנות ★', to: '/pos/tables' },
+      { label: 'ניהול קופה ★', to: '/pos/cash' },
+      { label: 'מבצעים ★', to: '/pos/promotions' },
+      { label: 'נאמנות לקוחות ★', to: '/pos/loyalty' },
+      { label: 'כרטיסי מתנה ★', to: '/pos/gift-cards' },
+      { label: 'דוח Z/X ★', to: '/pos/z-report' },
+      { label: 'אנליטיקס קופה ★', to: '/pos/analytics' },
+      { label: 'מסופי תשלום ★', to: '/pos/payment-terminals' },
       { label: 'היסטוריית מכירות', to: '/pos/sales' },
       { label: 'סיכום מכירות', to: '/pos/summary' },
     ],
+  },
+  {
+    label: 'ייבוא חכם', icon: Upload, module: 'ACCOUNTING',
+    to: '/smart-import',
   },
   {
     label: 'פורטל עובד', icon: Briefcase, module: 'DASHBOARD',
