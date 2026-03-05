@@ -304,6 +304,15 @@ model Tenant {
   pensionAllocations        EmployeePensionAllocation[]
   customerPortalSessions    CustomerPortalSession[]
   form161s                  Form161[]
+  // Phase 6 modules
+  smartImportJobs           SmartImportJob[]
+  creditCardStatements      CreditCardStatement[]
+  creditCardReconciliations CreditCardReconciliation[]
+  receipts              Receipt[]
+  paymentTerminals      PaymentTerminal[]
+  cardPaymentTxs        CardPaymentTransaction[]
+  printers              Printer[]
+  printJobs             PrintJob[]
 
   @@map("tenants")
 }
@@ -505,8 +514,9 @@ model Transaction {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  tenant Tenant            @relation(fields: [tenantId], references: [id])
-  lines  TransactionLine[]
+  tenant                    Tenant                    @relation(fields: [tenantId], references: [id])
+  lines                     TransactionLine[]
+  creditCardReconciliations CreditCardReconciliation[]
 
   @@index([tenantId, date])
   @@index([tenantId, sourceType, sourceId])
@@ -642,6 +652,7 @@ model Customer {
 
   creditLimit       Decimal?  @db.Decimal(12, 2)
   paymentTermsDays  Int?      // 0=COD, 30=net30, 60=net60
+  loyaltyBarcode    String?   // ברקוד כרטיס נאמנות
 
   tenant        Tenant       @relation(fields: [tenantId], references: [id])
   invoices      Invoice[]
@@ -655,9 +666,12 @@ model Customer {
   quotes            Quote[]
   contracts         Contract[]
   portalSessions    CustomerPortalSession[]
+  receipts              Receipt[]
+  cardPaymentTxs        CardPaymentTransaction[]
 
   @@index([tenantId, status])
   @@index([tenantId, type])
+  @@index([tenantId, loyaltyBarcode])
   @@map("customers")
 }
 
@@ -1117,6 +1131,8 @@ model Product {
 
   @@unique([tenantId, sku])
   @@index([tenantId])
+  @@index([tenantId, barcode])
+  @@index([tenantId, name])
   @@map("products")
 }
 
@@ -1729,8 +1745,9 @@ model BankStatementLine {
   matchedTxId   String?
   importedAt    DateTime  @default(now())
 
-  tenant      Tenant      @relation(fields: [tenantId], references: [id])
-  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+  tenant          Tenant                    @relation(fields: [tenantId], references: [id])
+  bankAccount     BankAccount               @relation(fields: [bankAccountId], references: [id])
+  reconciliations CreditCardReconciliation[]
 
   @@index([tenantId])
   @@index([date])
@@ -1862,6 +1879,7 @@ model CorporateCreditCard {
 
   tenant       Tenant                  @relation(fields: [tenantId], references: [id])
   transactions CreditCardTransaction[]
+  statements   CreditCardStatement[]
 
   @@index([tenantId])
 }
@@ -2300,6 +2318,9 @@ model Branch {
   employees   Employee[] @relation("EmployeeBranch")
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  receipts              Receipt[]
+  paymentTerminals      PaymentTerminal[]
+  printers              Printer[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -2468,4 +2489,442 @@ model Form161 {
 
   @@unique([tenantId, employeeId, terminationDate])
   @@index([tenantId, status])
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Phase 6 — Smart Universal Import
+// ──────────────────────────────────────────────────────────────────────────────
+
+model SmartImportJob {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  name            String                           // user-supplied job name
+  sourceType      SmartImportSourceType            // CSV | EXCEL | JSON | PDF | PRIORITY | HASHAVSHEVET | MANUAL
+  entityType      SmartImportEntityType            // CUSTOMERS | PRODUCTS | EMPLOYEES | VENDORS | ACCOUNTS | TRANSACTIONS
+  status          SmartImportStatus  @default(PENDING)
+
+  originalFilename String?
+  rawData         String?  @db.Text                // stored raw text/JSON for AI re-processing
+  fieldMapping    Json?                             // {sourceColumn: targetField} mapping
+  aiSuggestions   Json?                             // Claude's suggested field mapping
+  validationErrors Json?                            // per-row validation errors
+
+  totalRows       Int      @default(0)
+  importedRows    Int      @default(0)
+  failedRows      Int      @default(0)
+  skippedRows     Int      @default(0)
+
+  errorLog        String?  @db.Text
+  resultSummary   Json?
+
+  createdBy       String
+  createdAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  @@map("smart_import_jobs")
+}
+
+enum SmartImportSourceType {
+  CSV
+  EXCEL
+  JSON
+  PDF
+  PRIORITY
+  HASHAVSHEVET
+  SAP
+  MANUAL
+}
+
+enum SmartImportEntityType {
+  CUSTOMERS
+  PRODUCTS
+  EMPLOYEES
+  VENDORS
+  CHART_OF_ACCOUNTS
+  TRANSACTIONS
+  INVOICES
+}
+
+enum SmartImportStatus {
+  PENDING
+  ANALYZING
+  MAPPED
+  IMPORTING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Phase 6 — Credit Card Reconciliation
+// ──────────────────────────────────────────────────────────────────────────────
+
+model CreditCardStatement {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  cardId          String
+  card            CorporateCreditCard @relation(fields: [cardId], references: [id])
+
+  statementDate   DateTime
+  periodFrom      DateTime
+  periodTo        DateTime
+
+  processor       CreditCardProcessor                // CAL | LEUMI_CARD | ISRACARD | POALIM_EXPRESS | AMEX
+  rawFilename     String?
+  totalAmount     Decimal  @db.Decimal(15,2)
+  currency        String   @default("ILS")
+  status          StatementReconciliationStatus @default(PENDING)
+
+  transactions    CreditCardStatementLine[]
+  reconciliations CreditCardReconciliation[]
+
+  createdAt       DateTime @default(now())
+  createdBy       String
+
+  @@map("credit_card_statements")
+}
+
+model CreditCardStatementLine {
+  id              String   @id @default(cuid())
+  statementId     String
+  statement       CreditCardStatement @relation(fields: [statementId], references: [id], onDelete: Cascade)
+
+  transactionDate DateTime
+  postingDate     DateTime?
+  merchantName    String
+  merchantCategory String?
+  amount          Decimal  @db.Decimal(15,2)
+  currency        String   @default("ILS")
+  originalAmount  Decimal? @db.Decimal(15,2)      // foreign-currency original
+  originalCurrency String?
+  reference       String?
+  authCode        String?
+  installments    Int?                              // תשלומים
+  installmentNumber Int?
+  notes           String?
+
+  status          LineReconciliationStatus @default(UNMATCHED)
+  reconId         String?
+  reconciliation  CreditCardReconciliation? @relation(fields: [reconId], references: [id])
+
+  @@map("credit_card_statement_lines")
+}
+
+model CreditCardReconciliation {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  statementId     String
+  statement       CreditCardStatement @relation(fields: [statementId], references: [id])
+
+  // Credit card side
+  statementLines  CreditCardStatementLine[]
+
+  // Bank side
+  bankLineId      String?
+  bankLine        BankStatementLine? @relation(fields: [bankLineId], references: [id])
+
+  // Accounting (references Transaction — the double-entry model in this schema)
+  transactionId   String?
+  transaction     Transaction? @relation(fields: [transactionId], references: [id])
+
+  matchType       ReconciliationMatchType           // AUTO | MANUAL
+  matchScore      Float?                            // 0-1 confidence for auto-match
+  differenceAmount Decimal? @db.Decimal(15,2)       // tolerance difference
+  notes           String?
+  status          ReconStatus @default(MATCHED)
+
+  reconciledBy    String?
+  reconciledAt    DateTime @default(now())
+  approvedBy      String?
+  approvedAt      DateTime?
+
+  @@map("credit_card_reconciliations")
+}
+
+enum CreditCardProcessor {
+  CAL
+  LEUMI_CARD
+  ISRACARD
+  POALIM_EXPRESS
+  AMEX
+  OTHER
+}
+
+enum StatementReconciliationStatus {
+  PENDING
+  IN_PROGRESS
+  FULLY_RECONCILED
+  PARTIALLY_RECONCILED
+  DISPUTED
+}
+
+enum LineReconciliationStatus {
+  UNMATCHED
+  MATCHED
+  DISPUTED
+  EXCLUDED
+}
+
+enum ReconciliationMatchType {
+  AUTO
+  MANUAL
+}
+
+enum ReconStatus {
+  MATCHED
+  APPROVED
+  DISPUTED
+  REVERSED
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Phase 6 — Receipts (קבלות)
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Receipt {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  receiptNumber   String                            // auto-generated sequential number
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id])
+
+  receiptDate     DateTime @default(now())
+  totalAmount     Decimal  @db.Decimal(15,2)
+  currency        String   @default("ILS")
+
+  paymentMethods  Json                              // [{method, amount, reference, last4}]
+  notes           String?
+
+  // Links to what this receipt covers
+  invoiceIds      Json?                             // [invoiceId, ...]
+  paymentIds      Json?                             // [paymentId, ...]
+
+  // Terminal payment reference
+  terminalTxId    String?
+  cardTransaction CardPaymentTransaction? @relation(fields: [terminalTxId], references: [id])
+
+  // Output
+  pdfPath         String?
+  printJobId      String?
+  printJob        PrintJob? @relation(fields: [printJobId], references: [id])
+
+  status          ReceiptStatus @default(ISSUED)
+  cancelledAt     DateTime?
+  cancelledBy     String?
+  cancelReason    String?
+
+  branchId        String?
+  branch          Branch?   @relation(fields: [branchId], references: [id])
+
+  createdBy       String
+  createdAt       DateTime @default(now())
+
+  @@map("receipts")
+}
+
+enum ReceiptStatus {
+  ISSUED
+  PRINTED
+  EMAILED
+  CANCELLED
+  VOIDED
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Phase 6 — Payment Terminals (מסופני אשראי)
+// ──────────────────────────────────────────────────────────────────────────────
+
+model PaymentTerminal {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  name            String                            // display name
+  terminalId      String                            // terminal serial / ID from provider
+  provider        TerminalProvider                  // PELE_CARD | CARDCOM | TRANZILA | MESHULAM | PAYPLUS | EMV_DIRECT
+  apiUrl          String?
+  apiKey          String?                           // stored encrypted / env reference
+  apiSecret       String?
+  merchantId      String?
+  currency        String   @default("ILS")
+  isActive        Boolean  @default(true)
+
+  branchId        String?
+  branch          Branch?   @relation(fields: [branchId], references: [id])
+
+  transactions    CardPaymentTransaction[]
+  createdAt       DateTime @default(now())
+
+  @@map("payment_terminals")
+}
+
+model CardPaymentTransaction {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  terminalId      String
+  terminal        PaymentTerminal @relation(fields: [terminalId], references: [id])
+
+  transactionDate DateTime @default(now())
+  amount          Decimal  @db.Decimal(15,2)
+  currency        String   @default("ILS")
+  cardType        String?                           // VISA | MASTERCARD | AMEX | DINERS | ISRACARD
+  last4           String?
+  approvalCode    String?
+  referenceNumber String?
+  installments    Int      @default(1)
+
+  paymentType     CardPaymentType @default(REGULAR)
+  status          CardTxStatus    @default(PENDING)
+
+  providerTxId    String?                           // external transaction ID
+  providerResponse Json?
+
+  customerId      String?
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  invoiceId       String?
+  invoiceAmount   Decimal? @db.Decimal(15,2)
+
+  receipts        Receipt[]
+  journalEntryId  String?
+
+  createdBy       String?
+  createdAt       DateTime @default(now())
+
+  @@map("card_payment_transactions")
+}
+
+enum TerminalProvider {
+  PELE_CARD
+  CARDCOM
+  TRANZILA
+  MESHULAM
+  PAYPLUS
+  EMV_DIRECT
+  OTHER
+}
+
+enum CardPaymentType {
+  REGULAR
+  INSTALLMENTS
+  CREDIT
+  DEBIT
+  CONTACTLESS
+  PHONE
+  INTERNET
+}
+
+enum CardTxStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  CANCELLED
+  REFUNDED
+  ERROR
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Phase 6 — Printers (מדפסות)
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Printer {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  name            String
+  printerType     PrinterType                       // POS | BARCODE | DOCUMENT | LASER
+  connectionType  PrinterConnectionType             // NETWORK | USB | BLUETOOTH | CLOUD
+  ipAddress       String?
+  port            Int?
+  usbPath         String?
+  paperWidth      Int      @default(80)             // mm (58 or 80 for thermal)
+  isDefault       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+
+  // Supported document types
+  canPrintReceipts   Boolean @default(true)
+  canPrintInvoices   Boolean @default(false)
+  canPrintDelivery   Boolean @default(false)
+  canPrintBarcodes   Boolean @default(false)
+  canPrintLabels     Boolean @default(false)
+
+  branchId        String?
+  branch          Branch?   @relation(fields: [branchId], references: [id])
+
+  printJobs       PrintJob[]
+  createdAt       DateTime @default(now())
+
+  @@map("printers")
+}
+
+model PrintJob {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  printerId       String?
+  printer         Printer?  @relation(fields: [printerId], references: [id])
+
+  documentType    PrintDocumentType                 // RECEIPT | INVOICE | DELIVERY_NOTE | QUOTE | BARCODE | LABEL
+  documentId      String?                           // ID of the document being printed
+  copies          Int      @default(1)
+  priority        Int      @default(5)              // 1=urgent, 10=low
+  status          PrintJobStatus @default(QUEUED)
+
+  payload         Json?                             // structured print data or ESC/POS commands
+  errorMessage    String?
+  printedAt       DateTime?
+  attempts        Int      @default(0)
+
+  receipts        Receipt[]
+  createdBy       String?
+  createdAt       DateTime @default(now())
+
+  @@map("print_jobs")
+}
+
+enum PrinterType {
+  POS_THERMAL
+  BARCODE
+  DOCUMENT
+  LASER
+  INKJET
+}
+
+enum PrinterConnectionType {
+  NETWORK
+  USB
+  BLUETOOTH
+  CLOUD
+  VIRTUAL
+}
+
+enum PrintDocumentType {
+  RECEIPT
+  INVOICE
+  TAX_INVOICE
+  DELIVERY_NOTE
+  QUOTE
+  BARCODE
+  LABEL
+  PAYSLIP
+  REPORT
+}
+
+enum PrintJobStatus {
+  QUEUED
+  PRINTING
+  COMPLETED
+  FAILED
+  CANCELLED
 }

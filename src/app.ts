@@ -45,6 +45,7 @@ import customerPortalRouter from './modules/customer-portal/customer-portal.rout
 import salesOrdersRouter  from './modules/sales-orders/sales-orders.routes';
 import quotesRouter        from './modules/quotes/quotes.routes';
 import bulkImportRouter    from './modules/bulk-import/bulk-import.routes';
+import smartImportRouter   from './modules/smart-import/smart-import.routes';
 import paymentLinksRouter  from './modules/payment-links/payment-links.routes';
 
 // Routes — Phase 3 (Advanced Modules)
@@ -87,11 +88,26 @@ import whatsAppRouter from './modules/whatsapp/whatsapp.routes';
 // Routes — Phase 5 (Multi-Branch)
 import branchesRouter from './modules/branches/branches.routes';
 
+// Routes — Payment Terminals (מסופני אשראי)
+import paymentTerminalRouter from './modules/payment-terminal/payment-terminal.routes';
+
+// Routes — Barcode Scanner & Fast Search
+import scanRouter from './modules/scan/scan.routes';
+
+// Routes — Phase 6 (Printers — מדפסות + תור הדפסה)
+import printersRouter from './modules/printers/printers.routes';
+
 // Routes — Cash Flow Forecast
 import cashFlowForecastRouter from './modules/accounting/cash-flow-forecast.routes';
 
+// Routes — Ledger Cards (כרטסות)
+import ledgerRouter from './modules/ledger/ledger.routes';
+
 // Routes — Multi-Currency / Exchange Rates
 import currencyRouter from './modules/currency/currency.routes';
+
+// Routes — Receipts (קבלות)
+import receiptsRouter from './modules/receipts/receipts.routes';
 
 // Routes — Notifications
 import notificationsRouter from './modules/notifications/notifications.routes';
@@ -100,8 +116,9 @@ import notificationsRouter from './modules/notifications/notifications.routes';
 import batchPaymentsRouter from './modules/batch-payments/batch-payments.routes';
 import goodsReceiptRouter  from './modules/purchasing/goods-receipt.routes';
 import pettyCashRouter     from './modules/petty-cash/petty-cash.routes';
-import creditCardsRouter   from './modules/credit-cards/credit-cards.routes';
-import trainingRouter      from './modules/hr/training.routes';
+import creditCardsRouter      from './modules/credit-cards/credit-cards.routes';
+import creditCardReconRouter  from './modules/credit-card-recon/credit-card-recon.routes';
+import trainingRouter         from './modules/hr/training.routes';
 import onboardingRouter    from './modules/hr/onboarding.routes';
 
 // Swagger
@@ -223,17 +240,20 @@ app.use('/api/aging',               agingRouter);
 app.use('/api/recurring-invoices',  recurringInvoicesRouter);
 app.use('/api/price-lists',         priceListsRouter);
 app.use('/api/cash-flow',           cashFlowForecastRouter);
+app.use('/api/ledger',              ledgerRouter);
 app.use('/api/currency',            currencyRouter);
 
 // ─── API Routes ─── Phase 2 ───────────────────────────────────────
 app.use('/api/batch-payments',  batchPaymentsRouter);
 app.use('/api/goods-receipts',  goodsReceiptRouter);
 app.use('/api/petty-cash',      pettyCashRouter);
-app.use('/api/credit-cards',    creditCardsRouter);
-app.use('/api/hr/training',     trainingRouter);
+app.use('/api/credit-cards',       creditCardsRouter);
+app.use('/api/credit-card-recon',  creditCardReconRouter);
+app.use('/api/hr/training',        trainingRouter);
 app.use('/api/hr/onboarding',   onboardingRouter);
 app.use('/api/notifications',   notificationsRouter);
 app.use('/api/bulk-import',     bulkImportRouter);
+app.use('/api/smart-import',    smartImportRouter);
 app.use('/api/contracts',       contractsRouter);
 app.use('/api/analytics',       analyticsRouter);
 app.use('/api/pension',         pensionRouter);
@@ -241,6 +261,12 @@ app.use('/api/branches',        branchesRouter);
 app.use('/api/green-invoice',   greenInvoiceRouter);
 app.use('/api/whatsapp',        whatsAppRouter);
 app.use('/api/form161',         form161Router);
+
+// ─── API Routes ─── Phase 6 ───────────────────────────────────────
+app.use('/api/receipts',         receiptsRouter);
+app.use('/api/payment-terminal', paymentTerminalRouter);
+app.use('/api/printers',        printersRouter);
+app.use('/api/scan',            scanRouter);
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
