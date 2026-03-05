@@ -10,10 +10,15 @@ import { prisma } from '../../config/database';
 import * as InvoiceService from './invoices.service';
 import { generateInvoicePDF } from './invoice.pdf.service';
 import { sendInvoiceEmail } from '../../services/email.service';
+import paymentAllocationRouter from './payment-allocation.routes';
 
 const router = Router();
 router.use(authenticate as any);
 router.use(enforceTenantIsolation as any);
+
+// Mount payment allocation sub-router at /invoices/allocations
+// Routes: POST /, GET /payment/:id, GET /invoice/:id, GET /unallocated, DELETE /:id
+router.use('/allocations', paymentAllocationRouter);
 
 const InvoiceLineSchema = z.object({
   description:     z.string().min(1),

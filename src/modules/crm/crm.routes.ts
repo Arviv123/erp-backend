@@ -2,9 +2,17 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation, withTenant } from '../../middleware/tenant';
+import { requireMinRole } from '../../middleware/rbac';
 import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
+import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { prisma } from '../../config/database';
+import {
+  getCustomerCreditUsage,
+  checkCreditLimit,
+  setCustomerCreditLimit,
+  getCustomerCreditReport,
+} from './credit-limit.service';
 
 const router = Router();
 router.use(authenticate as any);
@@ -110,5 +118,102 @@ router.delete('/customers/:id', async (req: AuthenticatedRequest, res: Response)
   });
   sendSuccess(res, { message: 'Customer deactivated' });
 });
+
+// ─── Credit Limit Routes ──────────────────────────────────────────
+
+// GET /crm/credit-report — דו"ח אשראי לכלל הלקוחות (ACCOUNTANT+)
+router.get(
+  '/credit-report',
+  requireMinRole('ACCOUNTANT') as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const report = await getCustomerCreditReport(req.user.tenantId);
+    sendSuccess(res, report);
+  })
+);
+
+// GET /crm/customers/:id/credit — קבלת מצב אשראי לקוח
+router.get(
+  '/customers/:id/credit',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const usage = await getCustomerCreditUsage(req.params.id, req.user.tenantId);
+      sendSuccess(res, usage);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg === 'Customer not found') {
+        sendError(res, 'Customer not found', 404);
+        return;
+      }
+      throw err;
+    }
+  })
+);
+
+// PATCH /crm/customers/:id/credit — עדכון תקרת אשראי (ADMIN+)
+const CreditLimitSchema = z.object({
+  creditLimit:      z.number().min(0).nullable(),
+  paymentTermsDays: z.number().int().min(0).optional(),
+});
+
+router.patch(
+  '/customers/:id/credit',
+  requireMinRole('ADMIN') as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = CreditLimitSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, parsed.error.message);
+      return;
+    }
+
+    try {
+      const updated = await setCustomerCreditLimit(
+        req.params.id,
+        req.user.tenantId,
+        parsed.data.creditLimit,
+        parsed.data.paymentTermsDays
+      );
+      sendSuccess(res, updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg === 'Customer not found') {
+        sendError(res, 'Customer not found', 404);
+        return;
+      }
+      throw err;
+    }
+  })
+);
+
+// POST /crm/customers/:id/check-credit — בדיקה האם סכום מסוים חורג מתקרת האשראי
+const CheckCreditSchema = z.object({
+  amount: z.number().positive(),
+});
+
+router.post(
+  '/customers/:id/check-credit',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = CheckCreditSchema.safeParse(req.body);
+    if (!parsed.success) {
+      sendError(res, parsed.error.message);
+      return;
+    }
+
+    try {
+      const result = await checkCreditLimit(
+        req.params.id,
+        req.user.tenantId,
+        parsed.data.amount
+      );
+      sendSuccess(res, result);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      if (msg === 'Customer not found') {
+        sendError(res, 'Customer not found', 404);
+        return;
+      }
+      throw err;
+    }
+  })
+);
 
 export default router;

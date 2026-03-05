@@ -50,6 +50,15 @@ import dashboardRouter  from './modules/dashboard/dashboard.routes';
 import posRouter        from './modules/pos/pos.routes';
 import settingsRouter   from './modules/settings/settings.routes';
 import documentsRouter  from './modules/documents/documents.routes';
+import bankImportRouter    from './modules/bank/bank-import.routes';
+
+// Routes — Phase 2 (Financial Operations & HR)
+import batchPaymentsRouter from './modules/batch-payments/batch-payments.routes';
+import goodsReceiptRouter  from './modules/purchasing/goods-receipt.routes';
+import pettyCashRouter     from './modules/petty-cash/petty-cash.routes';
+import creditCardsRouter   from './modules/credit-cards/credit-cards.routes';
+import trainingRouter      from './modules/hr/training.routes';
+import onboardingRouter    from './modules/hr/onboarding.routes';
 
 // Swagger
 import { swaggerSpec } from './config/swagger';
@@ -157,6 +166,15 @@ app.use('/api/pos',        posRouter);
 app.use('/api/settings',   settingsRouter);
 app.use('/api/documents',  documentsRouter);
 app.use('/api/sales-orders', salesOrdersRouter);
+app.use('/api/bank',         bankImportRouter);
+
+// ─── API Routes ─── Phase 2 ───────────────────────────────────────
+app.use('/api/batch-payments',  batchPaymentsRouter);
+app.use('/api/goods-receipts',  goodsReceiptRouter);
+app.use('/api/petty-cash',      pettyCashRouter);
+app.use('/api/credit-cards',    creditCardsRouter);
+app.use('/api/hr/training',     trainingRouter);
+app.use('/api/hr/onboarding',   onboardingRouter);
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
