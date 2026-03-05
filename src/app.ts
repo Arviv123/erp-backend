@@ -97,6 +97,9 @@ import scanRouter from './modules/scan/scan.routes';
 // Routes — Phase 6 (Printers — מדפסות + תור הדפסה)
 import printersRouter from './modules/printers/printers.routes';
 
+// Routes — Holiday Calendar
+import calendarRouter from './modules/calendar/calendar.routes';
+
 // Routes — Cash Flow Forecast
 import cashFlowForecastRouter from './modules/accounting/cash-flow-forecast.routes';
 
@@ -267,6 +270,7 @@ app.use('/api/receipts',         receiptsRouter);
 app.use('/api/payment-terminal', paymentTerminalRouter);
 app.use('/api/printers',        printersRouter);
 app.use('/api/scan',            scanRouter);
+app.use('/api/calendar',        calendarRouter);
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
