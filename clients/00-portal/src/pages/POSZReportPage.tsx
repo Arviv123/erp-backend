@@ -108,47 +108,88 @@ export default function POSZReportPage() {
   const [closeError, setCloseError] = useState('');
   const [selectedZReport, setSelectedZReport] = useState<string | null>(null);
 
-  // X-Report (current session)
+  // X-Report — use today's daily report endpoint
+  const todayStr = new Date().toISOString().split('T')[0];
   const {
     data: xReport,
     isLoading: xLoading,
     refetch: refetchX,
     isFetching: xFetching,
   } = useQuery<XReportData>({
-    queryKey: ['pos-xreport'],
+    queryKey: ['pos-xreport', todayStr],
     queryFn: async () => {
-      const res = await api.get('/pos/z-report/current');
-      return res.data;
+      const res = await api.get(`/pos/reports/daily?date=${todayStr}`);
+      const d = res.data?.data ?? res.data ?? {};
+      const byPM = d.byPaymentMethod ?? {};
+      // byPaymentMethod from backend is Record<string,number>, convert to array
+      const byPaymentMethodArr: PaymentMethodData[] = Object.entries(byPM).map(([method, amount]) => ({
+        method,
+        amount: amount as number,
+        count: 0,
+      }));
+      return {
+        salesTotal:       d.totalSales    ?? 0,
+        cashTotal:        byPM['CASH']    ?? 0,
+        creditTotal:      byPM['CREDIT_CARD'] ?? 0,
+        transactionCount: d.salesCount   ?? 0,
+        refundTotal:      d.totalReturns ?? 0,
+        netTotal:        (d.totalSales ?? 0) - (d.totalReturns ?? 0),
+        byHour:           [],
+        byPaymentMethod:  byPaymentMethodArr,
+      } as XReportData;
     },
     enabled: tab === 'x',
     refetchInterval: false,
   });
 
-  // Past Z-reports
+  // Past Z-reports — closed POS sessions
   const { data: zReports = [], isLoading: zLoading } = useQuery<ZReportSummary[]>({
     queryKey: ['pos-zreports'],
     queryFn: async () => {
-      const res = await api.get('/pos/z-reports');
+      const res = await api.get('/pos/sessions?status=CLOSED&pageSize=100');
+      const items = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+      return items.map((s: any) => ({
+        id:               s.id,
+        date:             s.closedAt ?? s.openedAt,
+        salesTotal:       Number(s.totalSales   ?? 0),
+        cashTotal:        Number(s.openingFloat ?? 0),
+        creditTotal:      Math.max(0, Number(s.totalSales ?? 0) - Number(s.openingFloat ?? 0)),
+        transactionCount: s._count?.transactions ?? 0,
+        netTotal:         Number(s.totalSales ?? 0) - Number(s.totalReturns ?? 0),
+        closedBy:         s.closedBy ?? '',
+      }));
+    },
+    enabled: tab === 'z',
+  });
+
+  // Session transactions for Z-report detail
+  const { data: zDetail, isLoading: zDetailLoading } = useQuery({
+    queryKey: ['pos-zreport-detail', selectedZReport],
+    queryFn: async () => {
+      const res = await api.get(`/pos/transactions?sessionId=${selectedZReport}&pageSize=100`);
+      const items = Array.isArray(res.data) ? res.data : res.data?.data ?? [];
+      return items;
+    },
+    enabled: !!selectedZReport,
+  });
+
+  // Open sessions (to pick which one to close)
+  const { data: openSessions = [] } = useQuery<any[]>({
+    queryKey: ['pos-open-sessions'],
+    queryFn: async () => {
+      const res = await api.get('/pos/sessions?status=OPEN&pageSize=10');
       return Array.isArray(res.data) ? res.data : res.data?.data ?? [];
     },
     enabled: tab === 'z',
   });
 
-  // Single Z-report detail
-  const { data: zDetail, isLoading: zDetailLoading } = useQuery({
-    queryKey: ['pos-zreport-detail', selectedZReport],
-    queryFn: async () => {
-      const res = await api.get(`/pos/z-reports/${selectedZReport}`);
-      return res.data;
-    },
-    enabled: !!selectedZReport,
-  });
-
   const closeMutation = useMutation({
-    mutationFn: (sessionId: string) => api.post('/pos/z-report/close', { sessionId }),
+    mutationFn: (sessionId: string) =>
+      api.post(`/pos/sessions/${sessionId}/close`, { closingFloat: 0 }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-xreport'] });
       queryClient.invalidateQueries({ queryKey: ['pos-zreports'] });
+      queryClient.invalidateQueries({ queryKey: ['pos-open-sessions'] });
       setCloseConfirm(false);
       setCloseSessionId('');
       setCloseError('');
@@ -303,13 +344,22 @@ export default function POSZReportPage() {
             <p className="text-sm text-gray-500 mb-4">
               סגירת קופה תסיים את הסשן הנוכחי ותפיק דוח Z. פעולה זו אינה ניתנת לביטול.
             </p>
-            <button
-              onClick={() => { setCloseConfirm(true); setCloseError(''); }}
-              className="bg-red-600 text-white px-5 py-2.5 rounded-lg hover:bg-red-700 text-sm font-semibold flex items-center gap-2"
-            >
-              <XCircle size={16} />
-              סגור קופה (Z)
-            </button>
+            {openSessions.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">אין סשנים פתוחים כרגע</p>
+            ) : (
+              <div className="flex flex-wrap gap-3">
+                {openSessions.map((s: any) => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setCloseConfirm(true); setCloseSessionId(s.id); setCloseError(''); }}
+                    className="bg-red-600 text-white px-5 py-2.5 rounded-lg hover:bg-red-700 text-sm font-semibold flex items-center gap-2"
+                  >
+                    <XCircle size={16} />
+                    סגור: {s.terminal?.name ?? s.id.slice(-6)}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Past Z-reports */}
@@ -374,25 +424,32 @@ export default function POSZReportPage() {
               </div>
               {zDetailLoading ? (
                 <div className="text-center py-6 text-gray-500">טוען...</div>
-              ) : !zDetail ? (
-                <div className="text-center py-6 text-gray-400 text-sm">לא נמצאו פרטים</div>
+              ) : !zDetail || (Array.isArray(zDetail) && zDetail.length === 0) ? (
+                <div className="text-center py-6 text-gray-400 text-sm">לא נמצאו עסקאות בסשן זה</div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                  {[
-                    { label: 'תאריך', value: fmtDate(zDetail.date) },
-                    { label: 'סה"כ מכירות', value: fmtCurrency(zDetail.salesTotal ?? 0) },
-                    { label: 'מזומן', value: fmtCurrency(zDetail.cashTotal ?? 0) },
-                    { label: 'אשראי', value: fmtCurrency(zDetail.creditTotal ?? 0) },
-                    { label: 'מספר עסקאות', value: String(zDetail.transactionCount ?? 0) },
-                    { label: 'החזרות', value: fmtCurrency(zDetail.refundTotal ?? 0) },
-                    { label: 'נטו', value: fmtCurrency(zDetail.netTotal ?? 0) },
-                    { label: 'נסגר ע"י', value: zDetail.closedBy || '—' },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="bg-gray-50 rounded-lg px-4 py-3">
-                      <p className="text-xs text-gray-500 mb-0.5">{label}</p>
-                      <p className="font-semibold text-gray-900 text-sm">{value}</p>
-                    </div>
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-right px-3 py-2 text-gray-600">קבלה</th>
+                        <th className="text-right px-3 py-2 text-gray-600">סוג</th>
+                        <th className="text-right px-3 py-2 text-gray-600">תשלום</th>
+                        <th className="text-right px-3 py-2 text-gray-600">סה"כ</th>
+                        <th className="text-right px-3 py-2 text-gray-600">שעה</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(Array.isArray(zDetail) ? zDetail : []).map((t: any) => (
+                        <tr key={t.id} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-mono text-xs text-gray-700">{t.receiptNumber}</td>
+                          <td className="px-3 py-2">{t.type === 'SALE' ? 'מכירה' : 'החזר'}</td>
+                          <td className="px-3 py-2 text-gray-600">{METHOD_LABELS[t.paymentMethod] ?? t.paymentMethod}</td>
+                          <td className="px-3 py-2 font-semibold">{fmtCurrency(Number(t.total))}</td>
+                          <td className="px-3 py-2 text-gray-500 text-xs">{fmtDate(t.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -413,17 +470,11 @@ export default function POSZReportPage() {
             <p className="text-gray-600 text-sm mb-4">
               האם לסגור את הקופה ולהפיק דוח Z? פעולה זו תסיים את כל העסקאות של הסשן הנוכחי ולא ניתנת לביטול.
             </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">מזהה סשן (Session ID)</label>
-              <input
-                type="text"
-                value={closeSessionId}
-                onChange={e => setCloseSessionId(e.target.value)}
-                placeholder="הזן מזהה סשן לסגירה..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
-              />
-              <p className="text-xs text-gray-400 mt-1">ניתן להשתמש ב-Session ID מדוח ה-X שלמעלה</p>
-            </div>
+            {closeSessionId && (
+              <div className="mb-4 bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 text-sm text-orange-800">
+                סשן לסגירה: <strong className="font-mono">{closeSessionId.slice(-8)}</strong>
+              </div>
+            )}
             {closeError && (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 mb-4 text-sm">
                 {closeError}
@@ -432,7 +483,7 @@ export default function POSZReportPage() {
             <div className="flex gap-3">
               <button
                 onClick={handleClose}
-                disabled={closeMutation.isPending || !closeSessionId.trim()}
+                disabled={closeMutation.isPending || !closeSessionId}
                 className="flex-1 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 text-sm font-semibold disabled:opacity-60 flex items-center justify-center gap-2"
               >
                 <XCircle size={15} />

@@ -372,7 +372,7 @@ export default function POSTablesPage() {
               <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
                 אין קומות מוגדרות — הוסף קומה ושולחנות
               </div>
-            ) : activeFloor.tables.length === 0 ? (
+            ) : (activeFloor.tables ?? []).length === 0 ? (
               <div className="flex items-center justify-center h-48 text-gray-400 text-sm">
                 אין שולחנות בקומה זו — לחץ "הוסף שולחן"
               </div>
