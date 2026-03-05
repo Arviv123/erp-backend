@@ -291,6 +291,11 @@ model Tenant {
   priceLists              PriceList[]
   exchangeRates           ExchangeRate[]
   notifications           Notification[]
+  // Phase 4 modules
+  quotes                  Quote[]
+  contracts               Contract[]
+  paymentLinks            PaymentLink[]
+  bulkImportJobs          BulkImportJob[]
 
   @@map("tenants")
 }
@@ -632,6 +637,8 @@ model Customer {
   recurringInvoices RecurringInvoice[]
   priceList         PriceList?         @relation("CustomerPriceList", fields: [priceListId], references: [id])
   priceListId       String?
+  quotes            Quote[]
+  contracts         Contract[]
 
   @@index([tenantId, status])
   @@index([tenantId, type])
@@ -714,6 +721,7 @@ model Invoice {
   creditNoteFor Invoice?            @relation("CreditNotes", fields: [creditNoteForId], references: [id])
   creditNotes   Invoice[]           @relation("CreditNotes")
   paymentAllocs PaymentAllocation[]
+  paymentLinks  PaymentLink[]
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
@@ -1087,6 +1095,8 @@ model Product {
   billLines      BillLine[]
   recurringLines RecurringInvoiceLine[]
   priceListItems PriceListItem[]
+  quoteLines     QuoteLine[]
+  contractLines  ContractLine[]
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -2081,4 +2091,177 @@ model Notification {
 
   @@index([tenantId, userId, isRead])
   @@index([tenantId, type, createdAt])
+}
+
+// ─── Phase 4: Quotes (הצעות מחיר) ────────────────────────────────
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+model Quote {
+  id              String      @id @default(cuid())
+  tenantId        String
+  tenant          Tenant      @relation(fields: [tenantId], references: [id])
+  customerId      String
+  customer        Customer    @relation(fields: [customerId], references: [id])
+  number          String      // QT-2026-0001
+  title           String?
+  status          QuoteStatus @default(DRAFT)
+  issueDate       DateTime    @default(now())
+  expiryDate      DateTime
+  vatRate         Decimal     @default(17)
+  subtotal        Decimal     @default(0)
+  vatAmount       Decimal     @default(0)
+  total           Decimal     @default(0)
+  notes           String?
+  termsConditions String?
+  convertedToId   String?     // SalesOrder or Invoice ID
+  lines           QuoteLine[]
+  createdBy       String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, expiryDate])
+}
+
+model QuoteLine {
+  id          String   @id @default(cuid())
+  quoteId     String
+  quote       Quote    @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal
+  unitPrice   Decimal
+  discount    Decimal  @default(0) // percentage
+  lineTotal   Decimal
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+  sortOrder   Int      @default(0)
+
+  @@index([quoteId])
+}
+
+// ─── Phase 4: Contracts (חוזי שירות) ─────────────────────────────
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  EXPIRED
+  TERMINATED
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Contract {
+  id              String         @id @default(cuid())
+  tenantId        String
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  number          String         // CT-2026-0001
+  title           String
+  status          ContractStatus @default(DRAFT)
+  startDate       DateTime
+  endDate         DateTime?
+  billingCycle    BillingCycle   @default(MONTHLY)
+  nextBillingDate DateTime
+  vatRate         Decimal        @default(17)
+  totalValue      Decimal?       // total contract value
+  notes           String?
+  lines           ContractLine[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, nextBillingDate])
+}
+
+model ContractLine {
+  id          String   @id @default(cuid())
+  contractId  String
+  contract    Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal
+  unitPrice   Decimal
+  lineTotal   Decimal
+  productId   String?
+  product     Product? @relation(fields: [productId], references: [id])
+
+  @@index([contractId])
+}
+
+// ─── Phase 4: Payment Links ───────────────────────────────────────
+
+enum PaymentLinkStatus {
+  ACTIVE
+  PAID
+  EXPIRED
+  CANCELLED
+}
+
+model PaymentLink {
+  id          String            @id @default(cuid())
+  tenantId    String
+  tenant      Tenant            @relation(fields: [tenantId], references: [id])
+  invoiceId   String
+  invoice     Invoice           @relation(fields: [invoiceId], references: [id])
+  token       String            @unique @default(cuid())
+  amount      Decimal
+  status      PaymentLinkStatus @default(ACTIVE)
+  expiresAt   DateTime
+  paidAt      DateTime?
+  payerEmail  String?
+  payerName   String?
+  notes       String?
+  createdAt   DateTime          @default(now())
+
+  @@index([tenantId, status])
+  @@index([token])
+}
+
+// ─── Phase 4: Bulk Import Jobs ────────────────────────────────────
+
+enum ImportJobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ImportEntityType {
+  CUSTOMERS
+  PRODUCTS
+  EMPLOYEES
+  GL_TRANSACTIONS
+  VENDORS
+}
+
+model BulkImportJob {
+  id            String           @id @default(cuid())
+  tenantId      String
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  entityType    ImportEntityType
+  status        ImportJobStatus  @default(PENDING)
+  fileName      String?
+  totalRows     Int              @default(0)
+  processedRows Int              @default(0)
+  successRows   Int              @default(0)
+  errorRows     Int              @default(0)
+  errors        Json?            // array of { row, field, message }
+  createdBy     String?
+  completedAt   DateTime?
+  createdAt     DateTime         @default(now())
+
+  @@index([tenantId, status, createdAt])
 }

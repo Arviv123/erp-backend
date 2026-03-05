@@ -35,8 +35,14 @@ import auditRouter      from './modules/audit/audit.routes';
 // Routes — Platform (SaaS owner layer)
 import platformRouter   from './modules/platform/platform.routes';
 
+// Routes — Employee Self-Service Portal
+import employeePortalRouter from './modules/employee-portal/employee-portal.routes';
+
 // Routes — Phase 4 (Sales & Documents)
-import salesOrdersRouter from './modules/sales-orders/sales-orders.routes';
+import salesOrdersRouter  from './modules/sales-orders/sales-orders.routes';
+import quotesRouter        from './modules/quotes/quotes.routes';
+import bulkImportRouter    from './modules/bulk-import/bulk-import.routes';
+import paymentLinksRouter  from './modules/payment-links/payment-links.routes';
 
 // Routes — Phase 3 (Advanced Modules)
 import inventoryRouter  from './modules/inventory/inventory.routes';
@@ -56,6 +62,12 @@ import priceListsRouter    from './modules/price-lists/price-lists.routes';
 
 // Routes — Recurring Invoices
 import recurringInvoicesRouter from './modules/recurring-invoices/recurring-invoices.routes';
+
+// Routes — Contracts (חוזי שירות)
+import contractsRouter from './modules/contracts/contracts.routes';
+
+// Routes — Analytics KPI
+import analyticsRouter from './modules/analytics/analytics.routes';
 
 // Routes — Cash Flow Forecast
 import cashFlowForecastRouter from './modules/accounting/cash-flow-forecast.routes';
@@ -155,6 +167,9 @@ app.get('/api/docs.json', (_req, res) => res.json(swaggerSpec));
 // ─── Platform Routes (SaaS owner — no tenant isolation) ───────────
 app.use('/api/platform', platformRouter);
 
+// ─── Employee Self-Service Portal ─────────────────────────────────
+app.use('/api/employee-portal', employeePortalRouter);
+
 // ─── API Routes ─── Core ──────────────────────────────────────────
 app.use('/api/tenants',    tenantsRouter);
 app.use('/api/users',      usersRouter);
@@ -179,7 +194,9 @@ app.use('/api/dashboard',  dashboardRouter);
 app.use('/api/pos',        posRouter);
 app.use('/api/settings',   settingsRouter);
 app.use('/api/documents',  documentsRouter);
-app.use('/api/sales-orders', salesOrdersRouter);
+app.use('/api/sales-orders',   salesOrdersRouter);
+app.use('/api/quotes',         quotesRouter);
+app.use('/api/payment-links',  paymentLinksRouter);
 app.use('/api/bank',         bankImportRouter);
 app.use('/api/aging',               agingRouter);
 app.use('/api/recurring-invoices',  recurringInvoicesRouter);
@@ -195,6 +212,9 @@ app.use('/api/credit-cards',    creditCardsRouter);
 app.use('/api/hr/training',     trainingRouter);
 app.use('/api/hr/onboarding',   onboardingRouter);
 app.use('/api/notifications',   notificationsRouter);
+app.use('/api/bulk-import',     bulkImportRouter);
+app.use('/api/contracts',       contractsRouter);
+app.use('/api/analytics',       analyticsRouter);
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
