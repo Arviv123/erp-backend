@@ -8,6 +8,7 @@ import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { prisma } from '../../config/database';
 import * as InventoryService from '../inventory/inventory.service';
+import { createTransaction } from '../accounting/accounting.service';
 
 const router = Router();
 router.use(authenticate as any);
@@ -220,6 +221,55 @@ router.post('/transactions', asyncHandler(async (req: AuthenticatedRequest, res:
 
     return created;
   });
+
+  // ── GL journal entry (best-effort) ──────────────────────────────
+  try {
+    const isCash = parsed.data.paymentMethod === 'CASH';
+    const [cashAcc, bankAcc, revenueAcc, vatAcc] = await Promise.all([
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '1100', isActive: true } }),
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '1200', isActive: true } }),
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '6100', isActive: true } }),
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '3200', isActive: true } }),
+    ]);
+
+    const debitAcc       = isCash ? cashAcc : bankAcc;
+    const rSubtotal      = Math.round(subtotal  * 100) / 100;
+    const rVat           = Math.round(vatAmount * 100) / 100;
+    const isSale         = parsed.data.type === 'SALE';
+
+    if (debitAcc && revenueAcc && rSubtotal > 0) {
+      const glLines: { debitAccountId: string; creditAccountId: string; amount: number; description: string }[] = [
+        {
+          debitAccountId:  isSale ? debitAcc.id   : revenueAcc.id,
+          creditAccountId: isSale ? revenueAcc.id : debitAcc.id,
+          amount:          rSubtotal,
+          description:     `קופה ${transaction.receiptNumber} — הכנסות`,
+        },
+      ];
+
+      if (vatAcc && rVat > 0.001) {
+        glLines.push({
+          debitAccountId:  isSale ? debitAcc.id : vatAcc.id,
+          creditAccountId: isSale ? vatAcc.id   : debitAcc.id,
+          amount:          rVat,
+          description:     `קופה ${transaction.receiptNumber} — מע"מ`,
+        });
+      }
+
+      await createTransaction({
+        tenantId:    req.user.tenantId,
+        date:        new Date(),
+        reference:   transaction.receiptNumber!,
+        description: `${isSale ? 'מכירה' : 'החזר'} קופה — ${transaction.receiptNumber}`,
+        sourceType:  'POS',
+        sourceId:    transaction.id,
+        createdBy:   req.user.userId,
+        lines:       glLines,
+      });
+    }
+  } catch (glErr) {
+    console.error('[POS] GL journal entry failed:', glErr);
+  }
 
   // Update inventory (non-blocking — best effort)
   if (defaultWarehouse) {

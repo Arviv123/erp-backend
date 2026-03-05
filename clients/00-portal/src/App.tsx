@@ -133,6 +133,9 @@ import BranchesPage from './pages/BranchesPage';
 // Petty Cash
 import PettyCashPage from './pages/PettyCashPage';
 
+// Integration Health
+import IntegrationHealthPage from './pages/IntegrationHealthPage';
+
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
@@ -332,6 +335,9 @@ export default function App() {
 
               {/* Petty Cash */}
               <Route path="/petty-cash" element={<ProtectedRoute module="ACCOUNTING"><PettyCashPage /></ProtectedRoute>} />
+
+              {/* Integration Health */}
+              <Route path="/integration-health" element={<ProtectedRoute module="ACCOUNTING"><IntegrationHealthPage /></ProtectedRoute>} />
 
               {/* Employee Self-Service Portal (ESS) — accessible to all logged-in users */}
               <Route path="/employee" element={<ProtectedRoute module="DASHBOARD"><EmployeePortalPage /></ProtectedRoute>} />

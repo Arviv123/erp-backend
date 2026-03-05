@@ -89,6 +89,7 @@ const NAV: NavItem[] = [
       { label: 'התאמת בנק', to: '/accounting/bank-recon' },
       { label: 'מחירונים', to: '/price-lists', divider: 'מחירים' },
       { label: 'קופה קטנה', to: '/petty-cash' },
+      { label: 'בריאות אינטגרציות', to: '/integration-health', divider: 'כלים' },
     ],
   },
   {

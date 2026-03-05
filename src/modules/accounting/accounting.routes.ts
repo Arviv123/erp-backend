@@ -400,4 +400,77 @@ router.get(
   })
 );
 
+// ─── Integration Health Check ────────────────────────────────────
+// GET /accounting/integration-health
+// Returns per-module sync stats: how many source records have GL entries vs total
+
+router.get(
+  '/integration-health',
+  requireMinRole('ACCOUNTANT') as any,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const tenantId = req.user.tenantId;
+
+    const [
+      totalInvoices,     glInvoices,
+      totalPayments,     glPayments,
+      totalBills,        glBills,
+      totalBillPayments, glBillPayments,
+      totalPayroll,      glPayroll,
+      totalPos,          glPos,
+      totalGR,           glGR,
+    ] = await Promise.all([
+      // Invoices
+      prisma.invoice.count({ where: { tenantId } }),
+      prisma.transaction.count({ where: { tenantId, sourceType: 'INVOICE' } }),
+      // Invoice payments
+      prisma.invoicePayment.count({ where: { tenantId } }),
+      prisma.transaction.count({ where: { tenantId, sourceType: 'PAYMENT' } }),
+      // Bills (vendor invoices)
+      prisma.bill.count({ where: { tenantId } }),
+      prisma.transaction.count({ where: { tenantId, sourceType: 'BILL' } }),
+      // Bill payments
+      prisma.billPayment.count({ where: { tenantId } }),
+      prisma.transaction.count({ where: { tenantId, sourceType: 'BILL_PAYMENT' } }),
+      // Payroll
+      prisma.payrollRun.count({ where: { tenantId } }),
+      prisma.transaction.count({ where: { tenantId, sourceType: 'PAYROLL' } }),
+      // POS transactions (only SALE type)
+      prisma.posTransaction.count({ where: { tenantId, type: 'SALE' } }),
+      prisma.transaction.count({ where: { tenantId, sourceType: 'POS' } }),
+      // Goods receipts
+      prisma.goodsReceipt.count({ where: { tenantId } }),
+      prisma.transaction.count({ where: { tenantId, sourceType: 'GR' } }),
+    ]);
+
+    const makeRow = (module: string, total: number, synced: number, description: string) => ({
+      module,
+      description,
+      total,
+      synced,
+      unsynced:   Math.max(0, total - synced),
+      syncRate:   total > 0 ? Math.round((Math.min(synced, total) / total) * 100) : 100,
+      status:     total === 0 ? 'OK'
+                : synced >= total ? 'OK'
+                : synced === 0    ? 'ERROR'
+                :                   'WARNING',
+    });
+
+    const rows = [
+      makeRow('invoices',     totalInvoices,     glInvoices,     'חשבוניות → הנה"ח'),
+      makeRow('payments',     totalPayments,     glPayments,     'תשלומים → הנה"ח'),
+      makeRow('bills',        totalBills,        glBills,        'חשבוניות ספק → הנה"ח'),
+      makeRow('bill-payments',totalBillPayments, glBillPayments, 'תשלומים לספקים → הנה"ח'),
+      makeRow('payroll',      totalPayroll,      glPayroll,      'שכר → הנה"ח'),
+      makeRow('pos',          totalPos,          glPos,          'קופה → הנה"ח'),
+      makeRow('goods-receipt',totalGR,           glGR,           'קבלת סחורה → הנה"ח'),
+    ];
+
+    const overallStatus = rows.some(r => r.status === 'ERROR')   ? 'ERROR'
+                        : rows.some(r => r.status === 'WARNING') ? 'WARNING'
+                        :                                          'OK';
+
+    sendSuccess(res, { overallStatus, modules: rows });
+  })
+);
+
 export default router;

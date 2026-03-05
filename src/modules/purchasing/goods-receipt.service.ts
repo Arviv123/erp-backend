@@ -1,4 +1,5 @@
 import { prisma } from '../../config/database';
+import { createTransaction } from '../accounting/accounting.service';
 
 // ─── Auto-Numbering ───────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ export async function createGoodsReceipt(
   const number       = await generateGRNumber(tenantId);
   const receivedDate = data.receivedDate ? new Date(data.receivedDate) : new Date();
 
-  return prisma.$transaction(async (tx) => {
+  const gr = await prisma.$transaction(async (tx) => {
     // Create the GR record with its lines
     const gr = await tx.goodsReceipt.create({
       data: {
@@ -199,6 +200,43 @@ export async function createGoodsReceipt(
 
     return gr;
   });
+
+  // ── GL accrual entry: Debit Inventory / Credit AP (best-effort) ──
+  try {
+    const grTotal = data.lines.reduce(
+      (sum, l) => sum + Math.round(l.receivedQty * l.unitPrice * 100) / 100,
+      0
+    );
+
+    if (grTotal > 0) {
+      const [inventoryAcc, apAcc] = await Promise.all([
+        prisma.account.findFirst({ where: { tenantId, code: '1400', isActive: true } }), // מלאי
+        prisma.account.findFirst({ where: { tenantId, code: '3100', isActive: true } }), // ספקים
+      ]);
+
+      if (inventoryAcc && apAcc) {
+        await createTransaction({
+          tenantId,
+          date:        receivedDate,
+          reference:   gr.number,
+          description: `קבלת סחורה ${gr.number}`,
+          sourceType:  'GR',
+          sourceId:    gr.id,
+          createdBy:   userId,
+          lines: [{
+            debitAccountId:  inventoryAcc.id,
+            creditAccountId: apAcc.id,
+            amount:          Math.round(grTotal * 100) / 100,
+            description:     `קבלת סחורה ${gr.number}`,
+          }],
+        });
+      }
+    }
+  } catch (glErr) {
+    console.error('[GR] GL accrual entry failed:', glErr);
+  }
+
+  return gr;
 }
 
 // ─── Approve / Inspect Goods Receipt (RECEIVED → INSPECTED) ───────
