@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { PermissionsProvider, usePermissions } from './contexts/PermissionsContext';
+import ToastProvider from './contexts/ToastContext';
 import { type ModuleKey } from './lib/modules';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
@@ -114,6 +115,24 @@ import POSAnalyticsPage from './pages/POSAnalyticsPage';
 // Payment Terminals
 import PaymentTerminalsPage from './pages/PaymentTerminalsPage';
 
+// Quotes
+import QuotesPage from './pages/QuotesPage';
+import NewQuotePage from './pages/NewQuotePage';
+import QuoteDetailPage from './pages/QuoteDetailPage';
+
+// Sales Orders
+import SalesOrdersPage from './pages/SalesOrdersPage';
+
+// Recurring Invoices
+import RecurringInvoicesPage from './pages/RecurringInvoicesPage';
+
+// Price Lists + Branches
+import PriceListsPage from './pages/PriceListsPage';
+import BranchesPage from './pages/BranchesPage';
+
+// Petty Cash
+import PettyCashPage from './pages/PettyCashPage';
+
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
@@ -168,6 +187,7 @@ function PlatformRoute({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <ToastProvider>
       <PlatformAuthProvider>
       <MobileAuthProvider>
       <AuthProvider>
@@ -293,6 +313,26 @@ export default function App() {
               <Route path="/pos/z-report" element={<ProtectedRoute module="POS"><POSZReportPage /></ProtectedRoute>} />
               <Route path="/pos/payment-terminals" element={<ProtectedRoute module="POS"><PaymentTerminalsPage /></ProtectedRoute>} />
 
+              {/* Quotes */}
+              <Route path="/quotes" element={<ProtectedRoute module="INVOICES"><QuotesPage /></ProtectedRoute>} />
+              <Route path="/quotes/new" element={<ProtectedRoute module="INVOICES"><NewQuotePage /></ProtectedRoute>} />
+              <Route path="/quotes/:id" element={<ProtectedRoute module="INVOICES"><QuoteDetailPage /></ProtectedRoute>} />
+
+              {/* Sales Orders */}
+              <Route path="/sales-orders" element={<ProtectedRoute module="INVOICES"><SalesOrdersPage /></ProtectedRoute>} />
+
+              {/* Recurring Invoices */}
+              <Route path="/recurring-invoices" element={<ProtectedRoute module="INVOICES"><RecurringInvoicesPage /></ProtectedRoute>} />
+
+              {/* Price Lists */}
+              <Route path="/price-lists" element={<ProtectedRoute module="ACCOUNTING"><PriceListsPage /></ProtectedRoute>} />
+
+              {/* Branches */}
+              <Route path="/branches" element={<ProtectedRoute module="ACCOUNTING"><BranchesPage /></ProtectedRoute>} />
+
+              {/* Petty Cash */}
+              <Route path="/petty-cash" element={<ProtectedRoute module="ACCOUNTING"><PettyCashPage /></ProtectedRoute>} />
+
               {/* Employee Self-Service Portal (ESS) — accessible to all logged-in users */}
               <Route path="/employee" element={<ProtectedRoute module="DASHBOARD"><EmployeePortalPage /></ProtectedRoute>} />
               <Route path="/employee/payslips" element={<ProtectedRoute module="DASHBOARD"><PayslipsListPage /></ProtectedRoute>} />
@@ -309,6 +349,7 @@ export default function App() {
       </AuthProvider>
       </MobileAuthProvider>
       </PlatformAuthProvider>
+      </ToastProvider>
     </QueryClientProvider>
   );
 }

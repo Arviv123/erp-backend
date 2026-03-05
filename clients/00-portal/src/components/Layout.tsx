@@ -1,21 +1,36 @@
-import { ReactNode, useState } from 'react';
+import React, { ReactNode, useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../contexts/PermissionsContext';
 import type { ModuleKey } from '../lib/modules';
+import api from '../lib/api';
+import GlobalSearch from './GlobalSearch';
 import {
   LayoutDashboard, Users, DollarSign, FileText, BookOpen, UserCheck,
   Umbrella, Clock, Package, ShoppingCart, ChevronDown, ChevronLeft,
-  LogOut, Building2, Menu, X, Shield, Briefcase, Upload, CreditCard, Receipt
+  LogOut, Building2, Menu, X, Shield, Briefcase, Upload, Bell,
+  CheckCircle, AlertTriangle, Info, CreditCard, Search, RefreshCw,
+  ClipboardList, Tag,
 } from 'lucide-react';
+
+// ─── Nav types ────────────────────────────────────────────────────────────────
+
+interface NavChild {
+  label: string;
+  to: string;
+  divider?: string; // optional section label rendered above this child
+}
 
 interface NavItem {
   label: string;
   module: ModuleKey | 'ADMIN';
   to?: string;
-  icon: any;
-  children?: { label: string; to: string }[];
+  icon: React.ElementType;
+  children?: NavChild[];
 }
+
+// ─── Navigation config ───────────────────────────────────────────────────────
 
 const NAV: NavItem[] = [
   { label: 'לוח בקרה', to: '/dashboard', icon: LayoutDashboard, module: 'DASHBOARD' },
@@ -29,25 +44,29 @@ const NAV: NavItem[] = [
   {
     label: 'שכר', icon: DollarSign, module: 'PAYROLL',
     children: [
-      { label: 'גיליון שכר ★', to: '/payroll/worksheet' },
+      { label: 'גיליון שכר', to: '/payroll/worksheet' },
       { label: 'לוח בקרה שכר', to: '/payroll' },
       { label: 'כלל התלושים', to: '/payroll/payslips' },
       { label: 'מחשבון שכר', to: '/payroll/preview' },
       { label: 'דוח 102', to: '/payroll/report102' },
       { label: 'טופס 106', to: '/payroll/form106' },
       { label: 'טופס 126 — שנתי', to: '/payroll/form126' },
-      { label: 'מחולל דוחות ★', to: '/payroll/reports' },
+      { label: 'מחולל דוחות', to: '/payroll/reports' },
     ],
   },
   {
-    label: 'חשבוניות', icon: FileText, module: 'INVOICES',
+    label: 'מכירות', icon: FileText, module: 'INVOICES',
     children: [
-      { label: 'כל החשבוניות', to: '/invoices' },
+      { label: 'חשבוניות', to: '/invoices' },
       { label: 'חשבונית חדשה', to: '/invoices/new' },
-      { label: 'קבלות ★', to: '/receipts' },
-      { label: 'מסמכים עסקיים ★', to: '/documents' },
+      { label: 'הצעות מחיר', to: '/quotes', divider: 'הצעות' },
+      { label: 'הצעה חדשה', to: '/quotes/new' },
+      { label: 'הזמנות מכירה', to: '/sales-orders', divider: 'הזמנות' },
+      { label: 'חשבוניות חוזרות', to: '/recurring-invoices' },
+      { label: 'קבלות', to: '/receipts', divider: 'תשלומים' },
+      { label: 'מסמכים עסקיים', to: '/documents' },
       { label: 'דוח גיל חוב', to: '/invoices/aging' },
-      { label: 'הגדרות חברה ★', to: '/settings/company' },
+      { label: 'הגדרות חברה', to: '/settings/company' },
     ],
   },
   {
@@ -61,13 +80,15 @@ const NAV: NavItem[] = [
       { label: 'מאזן', to: '/accounting/reports/balance-sheet' },
       { label: 'מע"מ — טופס 83', to: '/accounting/reports/vat' },
       { label: 'תזרים מזומנים', to: '/accounting/reports/cash-flow' },
-      { label: 'כרטסות ★', to: '/accounting/ledger-cards' },
+      { label: 'כרטסות', to: '/accounting/ledger-cards' },
       { label: 'כרטסת חשבון', to: '/accounting/ledger' },
-      { label: 'התאמת כ.אשראי ★', to: '/accounting/credit-card-recon' },
-      { label: 'רכוש קבוע ★', to: '/accounting/fixed-assets' },
-      { label: 'דוחות הוצאות ★', to: '/accounting/expenses' },
-      { label: 'תקציב וביצוע ★', to: '/accounting/budget' },
-      { label: 'התאמת בנק ★', to: '/accounting/bank-recon' },
+      { label: 'התאמת כ.אשראי', to: '/accounting/credit-card-recon' },
+      { label: 'רכוש קבוע', to: '/accounting/fixed-assets' },
+      { label: 'דוחות הוצאות', to: '/accounting/expenses' },
+      { label: 'תקציב וביצוע', to: '/accounting/budget' },
+      { label: 'התאמת בנק', to: '/accounting/bank-recon' },
+      { label: 'מחירונים', to: '/price-lists', divider: 'מחירים' },
+      { label: 'קופה קטנה', to: '/petty-cash' },
     ],
   },
   {
@@ -118,17 +139,21 @@ const NAV: NavItem[] = [
     label: 'קופה', icon: ShoppingCart, module: 'POS',
     children: [
       { label: 'קופה רושמת', to: '/pos' },
-      { label: 'ניהול שולחנות ★', to: '/pos/tables' },
-      { label: 'ניהול קופה ★', to: '/pos/cash' },
-      { label: 'מבצעים ★', to: '/pos/promotions' },
-      { label: 'נאמנות לקוחות ★', to: '/pos/loyalty' },
-      { label: 'כרטיסי מתנה ★', to: '/pos/gift-cards' },
-      { label: 'דוח Z/X ★', to: '/pos/z-report' },
-      { label: 'אנליטיקס קופה ★', to: '/pos/analytics' },
-      { label: 'מסופי תשלום ★', to: '/pos/payment-terminals' },
-      { label: 'היסטוריית מכירות', to: '/pos/sales' },
-      { label: 'סיכום מכירות', to: '/pos/summary' },
+      { label: 'ניהול שולחנות', to: '/pos/tables', divider: 'מסעדה' },
+      { label: 'ניהול קופה', to: '/pos/cash', divider: 'ניהול' },
+      { label: 'מבצעים', to: '/pos/promotions', divider: 'מועדון' },
+      { label: 'נאמנות', to: '/pos/loyalty' },
+      { label: 'כרטיסי מתנה', to: '/pos/gift-cards' },
+      { label: 'דוח Z/X', to: '/pos/z-report', divider: 'דוחות' },
+      { label: 'אנליטיקס', to: '/pos/analytics' },
+      { label: 'מסופי תשלום', to: '/pos/payment-terminals' },
+      { label: 'היסטוריה', to: '/pos/sales' },
+      { label: 'סיכום', to: '/pos/summary' },
     ],
+  },
+  {
+    label: 'ענפים', icon: Building2, module: 'ACCOUNTING',
+    to: '/branches',
   },
   {
     label: 'ייבוא חכם', icon: Upload, module: 'ACCOUNTING',
@@ -143,19 +168,198 @@ const NAV: NavItem[] = [
       { label: 'בקשות חופשה', to: '/employee/leave' },
     ],
   },
-  // Admin-only
   { label: 'הרשאות', to: '/admin/permissions', icon: Shield, module: 'ADMIN' },
 ];
+
+// ─── Notification types ───────────────────────────────────────────────────────
+
+const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
+  INVOICE_DUE: 'חשבונית לתשלום',
+  PAYMENT_RECEIVED: 'תשלום התקבל',
+  LOW_STOCK: 'מלאי נמוך',
+  LEAVE_REQUEST: 'בקשת חופשה',
+  PAYROLL_READY: 'שכר מוכן',
+  SYSTEM: 'מערכת',
+};
+
+const NOTIFICATION_TYPE_ICONS: Record<string, React.ElementType> = {
+  INVOICE_DUE: FileText,
+  PAYMENT_RECEIVED: CheckCircle,
+  LOW_STOCK: Package,
+  LEAVE_REQUEST: Umbrella,
+  PAYROLL_READY: DollarSign,
+  SYSTEM: Info,
+};
+
+function timeAgo(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+  const diffSecs = Math.floor(diffMs / 1000);
+  if (diffSecs < 60) return 'כרגע';
+  const diffMins = Math.floor(diffSecs / 60);
+  if (diffMins < 60) return `לפני ${diffMins} דק'`;
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `לפני ${diffHours} שעות`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `לפני ${diffDays} ימים`;
+}
+
+// ─── NotificationBell ─────────────────────────────────────────────────────────
+
+interface Notification {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  isRead: boolean;
+  createdAt: string;
+  data?: { link?: string };
+}
+
+function NotificationBell() {
+  const [panelOpen, setPanelOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const { data: notificationsData, isLoading } = useQuery<Notification[]>({
+    queryKey: ['notifications-unread'],
+    queryFn: async () => {
+      const res = await api.get('/notifications', {
+        params: { isRead: false, limit: 20 },
+      });
+      return res.data?.data ?? res.data ?? [];
+    },
+    refetchInterval: 60_000,
+  });
+
+  const notifications: Notification[] = notificationsData ?? [];
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const markAllRead = useMutation({
+    mutationFn: () => api.post('/notifications/mark-all-read'),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications-unread'] }),
+  });
+
+  const markOneRead = useMutation({
+    mutationFn: (id: string) => api.patch(`/notifications/${id}/read`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications-unread'] }),
+  });
+
+  // Close panel on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setPanelOpen(false);
+      }
+    }
+    if (panelOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [panelOpen]);
+
+  function handleNotificationClick(n: Notification) {
+    markOneRead.mutate(n.id);
+    if (n.data?.link) navigate(n.data.link);
+    setPanelOpen(false);
+  }
+
+  return (
+    <div className="relative" ref={panelRef}>
+      <button
+        onClick={() => setPanelOpen(p => !p)}
+        className="relative p-2 text-slate-300 hover:text-white transition rounded-lg hover:bg-slate-700"
+        aria-label="התראות"
+      >
+        <Bell className="w-5 h-5" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center leading-none">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {panelOpen && (
+        <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
+          {/* Panel header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
+            <span className="font-semibold text-sm text-slate-800">התראות</span>
+            {unreadCount > 0 && (
+              <button
+                onClick={() => markAllRead.mutate()}
+                disabled={markAllRead.isPending}
+                className="text-xs text-blue-600 hover:text-blue-800 transition disabled:opacity-50"
+              >
+                סמן הכל כנקרא
+              </button>
+            )}
+          </div>
+
+          {/* Notifications list */}
+          <div className="max-h-80 overflow-y-auto">
+            {isLoading && (
+              <div className="py-8 text-center text-sm text-slate-400">טוען...</div>
+            )}
+
+            {!isLoading && notifications.length === 0 && (
+              <div className="py-8 text-center text-sm text-slate-400">אין התראות</div>
+            )}
+
+            {!isLoading &&
+              notifications.map(n => {
+                const IconComp = NOTIFICATION_TYPE_ICONS[n.type] ?? Info;
+                const typeLabel = NOTIFICATION_TYPE_LABELS[n.type] ?? n.type;
+                return (
+                  <button
+                    key={n.id}
+                    onClick={() => handleNotificationClick(n)}
+                    className={`w-full flex items-start gap-3 px-4 py-3 text-right hover:bg-slate-50 transition border-b border-slate-50 last:border-0 ${
+                      !n.isRead ? 'bg-blue-50/40' : ''
+                    }`}
+                  >
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <IconComp className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0 text-right">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-slate-400">{typeLabel}</span>
+                        <span className="text-[11px] text-slate-400 flex-shrink-0">
+                          {timeAgo(n.createdAt)}
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium text-slate-800 truncate">{n.title}</p>
+                      <p className="text-xs text-slate-500 truncate">{n.body}</p>
+                    </div>
+                    {!n.isRead && (
+                      <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0 mt-1.5" />
+                    )}
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── NavSection ───────────────────────────────────────────────────────────────
 
 function NavSection({ item, onClose }: { item: NavItem; onClose?: () => void }) {
   const [open, setOpen] = useState(false);
 
   if (item.to) {
     return (
-      <NavLink to={item.to} onClick={onClose}
+      <NavLink
+        to={item.to}
+        onClick={onClose}
         className={({ isActive }) =>
           `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${
-            isActive ? 'bg-blue-600 text-white font-medium' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}`}>
+            isActive
+              ? 'bg-blue-600 text-white font-medium'
+              : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+          }`}
+      >
         <item.icon className="w-4 h-4 flex-shrink-0" />
         {item.label}
       </NavLink>
@@ -164,23 +368,43 @@ function NavSection({ item, onClose }: { item: NavItem; onClose?: () => void }) 
 
   return (
     <div>
-      <button onClick={() => setOpen(p => !p)}
-        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition">
+      <button
+        onClick={() => setOpen(p => !p)}
+        className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-700 hover:text-white transition"
+      >
         <span className="flex items-center gap-3">
           <item.icon className="w-4 h-4 flex-shrink-0" />
           {item.label}
         </span>
-        {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
+        {open ? (
+          <ChevronDown className="w-3.5 h-3.5" />
+        ) : (
+          <ChevronLeft className="w-3.5 h-3.5" />
+        )}
       </button>
+
       {open && (
         <div className="mr-7 mt-0.5 space-y-0.5 border-r border-slate-700 pr-2">
           {item.children!.map(child => (
-            <NavLink key={child.to} to={child.to} onClick={onClose}
-              className={({ isActive }) =>
-                `block px-3 py-1.5 rounded-lg text-xs transition ${
-                  isActive ? 'bg-blue-600 text-white font-medium' : 'text-slate-400 hover:bg-slate-700 hover:text-white'}`}>
-              {child.label}
-            </NavLink>
+            <React.Fragment key={child.to}>
+              {child.divider && (
+                <div className="px-3 pt-2 pb-0.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  {child.divider}
+                </div>
+              )}
+              <NavLink
+                to={child.to}
+                onClick={onClose}
+                className={({ isActive }) =>
+                  `block px-3 py-1.5 rounded-lg text-xs transition ${
+                    isActive
+                      ? 'bg-blue-600 text-white font-medium'
+                      : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+                  }`}
+              >
+                {child.label}
+              </NavLink>
+            </React.Fragment>
           ))}
         </div>
       )}
@@ -188,13 +412,22 @@ function NavSection({ item, onClose }: { item: NavItem; onClose?: () => void }) 
   );
 }
 
+// ─── Layout ───────────────────────────────────────────────────────────────────
+
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth();
   const { hasModule } = usePermissions();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const handleLogout = () => { logout(); navigate('/'); };
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
+
+  function openGlobalSearch() {
+    window.dispatchEvent(new Event('global-search-open'));
+  }
 
   const isAdmin = user?.role === 'ADMIN';
   const visibleNav = NAV.filter(item => {
@@ -204,29 +437,54 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <div className="flex flex-col h-full bg-slate-800">
+      {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-slate-700">
         <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center flex-shrink-0">
           <Building2 className="w-5 h-5 text-white" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <p className="font-bold text-white text-sm leading-tight">מערכת ERP</p>
           <p className="text-xs text-slate-400 leading-tight">חשבשבת</p>
         </div>
       </div>
 
+      {/* Search hint */}
+      <div className="px-3 py-2 border-b border-slate-700">
+        <button
+          onClick={openGlobalSearch}
+          className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-700 transition text-slate-400 hover:text-white text-xs"
+        >
+          <Search className="w-3.5 h-3.5 flex-shrink-0" />
+          <span className="flex-1 text-right">חיפוש...</span>
+          <kbd className="text-[10px] bg-slate-600 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+        </button>
+      </div>
+
+      {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
         {visibleNav.map(item => (
-          <NavSection key={item.label} item={item} onClose={() => setMobileOpen(false)} />
+          <NavSection
+            key={item.label}
+            item={item}
+            onClose={() => setMobileOpen(false)}
+          />
         ))}
       </nav>
 
+      {/* Footer */}
       <div className="border-t border-slate-700 px-3 py-3">
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-medium text-white truncate">{user?.name || user?.email || ''}</p>
+            <p className="text-xs font-medium text-white truncate">
+              {user?.name || user?.email || ''}
+            </p>
             <p className="text-xs text-slate-400">{user?.role ?? ''}</p>
           </div>
-          <button onClick={handleLogout} className="text-slate-400 hover:text-white transition p-1 rounded">
+          <button
+            onClick={handleLogout}
+            className="text-slate-400 hover:text-white transition p-1 rounded"
+            aria-label="התנתק"
+          >
             <LogOut className="w-4 h-4" />
           </button>
         </div>
@@ -236,31 +494,57 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen flex" dir="rtl">
+      {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-56 flex-shrink-0 h-screen sticky top-0 overflow-hidden">
         {sidebar}
       </aside>
 
+      {/* Mobile sidebar overlay */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div className="w-56 h-full">{sidebar}</div>
-          <button className="flex-1 bg-black/50" onClick={() => setMobileOpen(false)} />
+          <button
+            className="flex-1 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+            aria-label="סגור תפריט"
+          />
         </div>
       )}
 
+      {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Mobile top bar */}
         <header className="md:hidden flex items-center justify-between bg-slate-800 px-4 py-3">
-          <button onClick={() => setMobileOpen(true)} className="text-white">
+          <button
+            onClick={() => setMobileOpen(true)}
+            className="text-white"
+            aria-label="פתח תפריט"
+          >
             <Menu className="w-5 h-5" />
           </button>
           <span className="text-white font-bold text-sm">מערכת ERP</span>
-          <button onClick={() => setMobileOpen(false)} className="text-white opacity-0">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button
+              onClick={openGlobalSearch}
+              className="text-slate-300 hover:text-white p-1"
+              aria-label="חיפוש"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+          </div>
         </header>
-        <main className="flex-1 p-4 md:p-6 overflow-auto">
-          {children}
-        </main>
+
+        {/* Desktop top bar — notification bell only, sidebar has search */}
+        <header className="hidden md:flex items-center justify-end bg-white border-b border-slate-200 px-6 py-2.5 gap-2">
+          <NotificationBell />
+        </header>
+
+        <main className="flex-1 p-4 md:p-6 overflow-auto">{children}</main>
       </div>
+
+      {/* Global search modal — always mounted, manages open/close internally */}
+      <GlobalSearch />
     </div>
   );
 }
