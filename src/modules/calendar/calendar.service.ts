@@ -1,8 +1,54 @@
 // ============================================================
 // Holiday Calendar Service
 // Supports: Jewish, Israeli National, Gregorian, Muslim holidays
-// No external API required — algorithmic + pre-calculated dates
+// Libraries: @hebcal/core (Jewish/Israeli) + date-holidays (Gregorian/Muslim)
 // ============================================================
+
+import Holidays, { HolidaysTypes } from 'date-holidays';
+
+// ─── @hebcal/core types (ESM-only package, loaded via dynamic import) ─────────
+
+interface HebcalEvent {
+  getDate(): { greg(): Date };
+  getDesc(): string;
+  render(lang: string): string;
+  getFlags(): number;
+}
+
+interface HebcalModule {
+  HebrewCalendar: {
+    calendar(opts: {
+      year: number;
+      isHebrewYear: boolean;
+      il: boolean;
+      sedrot: boolean;
+      omer: boolean;
+    }): HebcalEvent[];
+  };
+  HDate: new (date: Date) => {
+    render(lang: string): string;
+  };
+  flags: {
+    CHAG: number;
+    MINOR_HOLIDAY: number;
+    YOM_TOV_ENDS: number;
+    ROSH_CHODESH: number;
+    CHANUKAH_CANDLES: number;
+    SPECIAL_SHABBAT: number;
+    LIGHT_CANDLES: number;
+    LIGHT_CANDLES_TZEIS: number;
+  };
+}
+
+// Cache the dynamic ESM import so we only load it once
+let _hebcalPromise: Promise<HebcalModule> | null = null;
+
+function getHebcal(): Promise<HebcalModule> {
+  if (!_hebcalPromise) {
+    _hebcalPromise = import('@hebcal/core') as Promise<HebcalModule>;
+  }
+  return _hebcalPromise;
+}
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
 
@@ -37,11 +83,11 @@ export interface Holiday {
 }
 
 export interface CalendarDay {
-  date:        string;
-  dayOfWeek:   number; // 0=Sunday
-  isShabbat:   boolean;
-  isHoliday:   boolean;
-  holiday?:    Holiday;
+  date:         string;
+  dayOfWeek:    number; // 0=Sunday
+  isShabbat:    boolean;
+  isHoliday:    boolean;
+  holiday?:     Holiday;
   isWorkingDay: boolean;
 }
 
@@ -71,357 +117,15 @@ const DEFAULT_SETTINGS: CalendarSettings = {
   locale:               'he',
 };
 
-// ─── Pre-calculated Jewish holiday dates (Gregorian) ────────────────────────
-// Key: Gregorian year in which the Jewish year STARTS (Tishrei falls in that year)
-// Note: holidays that cross year boundary (Chanukah, Tu BiShvat, Purim, Passover, etc.)
-//       are stored under the year of Tishrei (the Jewish year start)
+// ─── Helper utilities ────────────────────────────────────────────────────────
 
-const JEWISH_HOLIDAY_DATES: Record<number, Record<string, string>> = {
-  2024: {
-    'rosh-hashana':    '2024-10-02',
-    'yom-kippur':      '2024-10-11',
-    'sukkot':          '2024-10-16',
-    'hoshana-rabah':   '2024-10-22',
-    'simchat-torah':   '2024-10-24',
-    'chanukah-start':  '2024-12-25',
-    'tu-bishvat':      '2025-01-13',
-    'purim':           '2025-03-13',
-    'passover':        '2025-04-12',
-    'yom-hashoah':     '2025-04-24',
-    'yom-hazikaron':   '2025-04-30',
-    'yom-haatzmaut':   '2025-05-01',
-    'lag-baomer':      '2025-05-16',
-    'yom-yerushalayim':'2025-05-26',
-    'shavuot':         '2025-06-01',
-    'tisha-bav':       '2025-08-12',
-  },
-  2025: {
-    'rosh-hashana':    '2025-09-22',
-    'yom-kippur':      '2025-10-01',
-    'sukkot':          '2025-10-06',
-    'hoshana-rabah':   '2025-10-12',
-    'simchat-torah':   '2025-10-14',
-    'chanukah-start':  '2025-12-14',
-    'tu-bishvat':      '2026-02-01',
-    'purim':           '2026-03-03',
-    'passover':        '2026-04-01',
-    'yom-hashoah':     '2026-04-14',
-    'yom-hazikaron':   '2026-04-21',
-    'yom-haatzmaut':   '2026-04-22',
-    'lag-baomer':      '2026-05-07',
-    'yom-yerushalayim':'2026-05-17',
-    'shavuot':         '2026-05-21',
-    'tisha-bav':       '2026-08-02',
-  },
-  2026: {
-    'rosh-hashana':    '2026-09-11',
-    'yom-kippur':      '2026-09-20',
-    'sukkot':          '2026-09-25',
-    'hoshana-rabah':   '2026-10-01',
-    'simchat-torah':   '2026-10-03',
-    'chanukah-start':  '2026-12-04',
-    'tu-bishvat':      '2027-01-22',
-    'purim':           '2027-03-22',
-    'passover':        '2027-04-21',
-    'yom-hashoah':     '2027-05-04',
-    'yom-hazikaron':   '2027-05-10',
-    'yom-haatzmaut':   '2027-05-11',
-    'lag-baomer':      '2027-05-26',
-    'yom-yerushalayim':'2027-06-05',
-    'shavuot':         '2027-06-11',
-    'tisha-bav':       '2027-07-22',
-  },
-  2027: {
-    'rosh-hashana':    '2027-10-01',
-    'yom-kippur':      '2027-10-10',
-    'sukkot':          '2027-10-15',
-    'hoshana-rabah':   '2027-10-21',
-    'simchat-torah':   '2027-10-23',
-    'chanukah-start':  '2027-12-24',
-    'tu-bishvat':      '2028-02-12',
-    'purim':           '2028-03-12',
-    'passover':        '2028-04-11',
-    'yom-hashoah':     '2028-04-25',
-    'yom-hazikaron':   '2028-04-30',
-    'yom-haatzmaut':   '2028-05-01',
-    'lag-baomer':      '2028-05-16',
-    'yom-yerushalayim':'2028-05-26',
-    'shavuot':         '2028-05-31',
-    'tisha-bav':       '2028-08-12',
-  },
-  2028: {
-    'rosh-hashana':    '2028-09-20',
-    'yom-kippur':      '2028-09-29',
-    'sukkot':          '2028-10-04',
-    'hoshana-rabah':   '2028-10-10',
-    'simchat-torah':   '2028-10-12',
-    'chanukah-start':  '2028-12-12',
-    'tu-bishvat':      '2029-02-01',
-    'purim':           '2029-03-01',
-    'passover':        '2029-03-31',
-    'yom-hashoah':     '2029-04-12',
-    'yom-hazikaron':   '2029-04-18',
-    'yom-haatzmaut':   '2029-04-19',
-    'lag-baomer':      '2029-05-04',
-    'yom-yerushalayim':'2029-05-14',
-    'shavuot':         '2029-05-19',
-    'tisha-bav':       '2029-07-31',
-  },
-  2029: {
-    'rosh-hashana':    '2029-09-09',
-    'yom-kippur':      '2029-09-18',
-    'sukkot':          '2029-09-23',
-    'hoshana-rabah':   '2029-09-29',
-    'simchat-torah':   '2029-10-01',
-    'chanukah-start':  '2029-12-01',
-    'tu-bishvat':      '2030-01-21',
-    'purim':           '2030-03-20',
-    'passover':        '2030-04-18',
-    'yom-hashoah':     '2030-05-02',
-    'yom-hazikaron':   '2030-05-06',
-    'yom-haatzmaut':   '2030-05-07',
-    'lag-baomer':      '2030-05-22',
-    'yom-yerushalayim':'2030-06-01',
-    'shavuot':         '2030-06-07',
-    'tisha-bav':       '2030-07-20',
-  },
-};
-
-// ─── Jewish holiday definitions ──────────────────────────────────────────────
-
-interface JewishHolidayDef {
-  id:              string;
-  name:            string;
-  nameEn:          string;
-  isWorkingDay:    boolean;
-  isPublicHoliday: boolean;
-  category:        'major' | 'minor' | 'memorial';
-  isMinor:         boolean;
-  durationDays?:   number; // for multi-day holidays
-  hebrewDateLabel: string;
+function dateToIso(d: Date): string {
+  // Use UTC to avoid timezone shifts
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
-
-const JEWISH_HOLIDAY_DEFS: JewishHolidayDef[] = [
-  {
-    id: 'rosh-hashana', name: 'ראש השנה', nameEn: 'Rosh Hashana',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', isMinor: false,
-    durationDays: 2, hebrewDateLabel: "א'-ב' תשרי",
-  },
-  {
-    id: 'yom-kippur', name: 'יום כיפור', nameEn: 'Yom Kippur',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', isMinor: false,
-    hebrewDateLabel: "י' תשרי",
-  },
-  {
-    id: 'sukkot', name: 'סוכות', nameEn: 'Sukkot',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', isMinor: false,
-    durationDays: 7, hebrewDateLabel: "ט\"ו-כ\"א תשרי",
-  },
-  {
-    id: 'hoshana-rabah', name: 'הושענא רבה', nameEn: 'Hoshana Raba',
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor', isMinor: true,
-    hebrewDateLabel: "כ\"א תשרי",
-  },
-  {
-    id: 'simchat-torah', name: 'שמיני עצרת / שמחת תורה', nameEn: 'Shemini Atzeret / Simchat Torah',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', isMinor: false,
-    hebrewDateLabel: "כ\"ב-כ\"ג תשרי",
-  },
-  {
-    id: 'chanukah-start', name: 'חנוכה', nameEn: 'Chanukah',
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor', isMinor: true,
-    durationDays: 8, hebrewDateLabel: "כ\"ה כסלו",
-  },
-  {
-    id: 'tu-bishvat', name: "ט\"ו בשבט", nameEn: "Tu BiShvat",
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor', isMinor: true,
-    hebrewDateLabel: "ט\"ו שבט",
-  },
-  {
-    id: 'purim', name: 'פורים', nameEn: 'Purim',
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor', isMinor: false,
-    hebrewDateLabel: "י\"ד אדר",
-  },
-  {
-    id: 'passover', name: 'פסח', nameEn: 'Passover',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', isMinor: false,
-    durationDays: 7, hebrewDateLabel: "ט\"ו-כ\"א ניסן",
-  },
-  {
-    id: 'yom-hashoah', name: 'יום השואה', nameEn: 'Holocaust Remembrance Day',
-    isWorkingDay: true, isPublicHoliday: true, category: 'memorial', isMinor: false,
-    hebrewDateLabel: "כ\"ז ניסן",
-  },
-  {
-    id: 'yom-hazikaron', name: 'יום הזיכרון', nameEn: 'Yom HaZikaron',
-    isWorkingDay: true, isPublicHoliday: true, category: 'memorial', isMinor: false,
-    hebrewDateLabel: "ד' אייר",
-  },
-  {
-    id: 'yom-haatzmaut', name: 'יום העצמאות', nameEn: "Yom HaAtzma'ut (Independence Day)",
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', isMinor: false,
-    hebrewDateLabel: "ה' אייר",
-  },
-  {
-    id: 'lag-baomer', name: "ל\"ג בעומר", nameEn: 'Lag BaOmer',
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor', isMinor: true,
-    hebrewDateLabel: "י\"ח אייר",
-  },
-  {
-    id: 'yom-yerushalayim', name: 'יום ירושלים', nameEn: 'Jerusalem Day',
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor', isMinor: true,
-    hebrewDateLabel: "כ\"ח אייר",
-  },
-  {
-    id: 'shavuot', name: 'שבועות', nameEn: 'Shavuot',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', isMinor: false,
-    durationDays: 1, hebrewDateLabel: "ו' סיון",
-  },
-  {
-    id: 'tisha-bav', name: "תשעה באב", nameEn: "Tisha B'Av",
-    isWorkingDay: true, isPublicHoliday: false, category: 'memorial', isMinor: false,
-    hebrewDateLabel: "ט' אב",
-  },
-];
-
-// ─── Gregorian fixed holidays ────────────────────────────────────────────────
-
-interface GregorianFixedHoliday {
-  id:      string;
-  name:    string;
-  nameHe:  string;
-  month:   number;
-  day:     number;
-  isWorkingDay:    boolean;
-  isPublicHoliday: boolean;
-  category:        'major' | 'minor' | 'memorial';
-}
-
-const GREGORIAN_FIXED: GregorianFixedHoliday[] = [
-  {
-    id: 'new-year', name: "New Year's Day", nameHe: 'ראש שנה לועזי',
-    month: 1, day: 1,
-    isWorkingDay: false, isPublicHoliday: true, category: 'major',
-  },
-  {
-    id: 'labor-day-eu', name: 'Labor Day (EU)', nameHe: 'יום העבודה',
-    month: 5, day: 1,
-    isWorkingDay: false, isPublicHoliday: false, category: 'minor',
-  },
-  {
-    id: 'halloween', name: 'Halloween', nameHe: 'הלואין',
-    month: 10, day: 31,
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor',
-  },
-  {
-    id: 'christmas', name: 'Christmas', nameHe: 'חג המולד',
-    month: 12, day: 25,
-    isWorkingDay: false, isPublicHoliday: false, category: 'major',
-  },
-];
-
-// ─── Muslim holiday pre-calculated dates ─────────────────────────────────────
-// Hijri calendar is lunar; dates shift ~11 days earlier each Gregorian year.
-
-const MUSLIM_HOLIDAY_DATES: Record<number, Record<string, string>> = {
-  2024: {
-    'ramadan-start': '2024-03-10',
-    'eid-al-fitr':   '2024-04-10',
-    'eid-al-adha':   '2024-06-16',
-    'al-hijra':      '2024-07-07',
-    'mawlid':        '2024-09-15',
-  },
-  2025: {
-    'ramadan-start': '2025-03-01',
-    'eid-al-fitr':   '2025-03-30',
-    'eid-al-adha':   '2025-06-06',
-    'al-hijra':      '2025-06-26',
-    'mawlid':        '2025-09-04',
-  },
-  2026: {
-    'ramadan-start': '2026-02-17',
-    'eid-al-fitr':   '2026-03-20',
-    'eid-al-adha':   '2026-05-27',
-    'al-hijra':      '2026-06-16',
-    'mawlid':        '2026-08-25',
-  },
-  2027: {
-    'ramadan-start': '2027-02-06',
-    'eid-al-fitr':   '2027-03-08',
-    'eid-al-adha':   '2027-05-16',
-    'al-hijra':      '2027-06-05',
-    'mawlid':        '2027-08-14',
-  },
-  2028: {
-    'ramadan-start': '2028-01-26',
-    'eid-al-fitr':   '2028-02-25',
-    'eid-al-adha':   '2028-05-04',
-    'al-hijra':      '2028-05-24',
-    'mawlid':        '2028-08-02',
-  },
-  2029: {
-    'ramadan-start': '2029-01-14',
-    'eid-al-fitr':   '2029-02-13',
-    'eid-al-adha':   '2029-04-23',
-    'al-hijra':      '2029-05-14',
-    'mawlid':        '2029-07-23',
-  },
-};
-
-interface MuslimHolidayDef {
-  id:              string;
-  name:            string;
-  nameEn:          string;
-  isWorkingDay:    boolean;
-  isPublicHoliday: boolean;
-  category:        'major' | 'minor' | 'memorial';
-  durationDays?:   number;
-}
-
-const MUSLIM_HOLIDAY_DEFS: MuslimHolidayDef[] = [
-  {
-    id: 'ramadan-start', name: 'רמדאן', nameEn: 'Ramadan',
-    isWorkingDay: true, isPublicHoliday: false, category: 'major', durationDays: 30,
-  },
-  {
-    id: 'eid-al-fitr', name: 'עיד אל-פיטר (חג הפסקת הצום)', nameEn: 'Eid al-Fitr',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', durationDays: 3,
-  },
-  {
-    id: 'eid-al-adha', name: 'עיד אל-אדחא (חג הקורבן)', nameEn: 'Eid al-Adha',
-    isWorkingDay: false, isPublicHoliday: true, category: 'major', durationDays: 4,
-  },
-  {
-    id: 'al-hijra', name: "ראש השנה המוסלמי (אל-הג'רה)", nameEn: 'Al-Hijra (Islamic New Year)',
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor',
-  },
-  {
-    id: 'mawlid', name: "מולד הנביא (מאוולד אל-נביא)", nameEn: "Mawlid al-Nabi (Prophet's Birthday)",
-    isWorkingDay: true, isPublicHoliday: false, category: 'minor',
-  },
-];
-
-// ─── Easter calculation (Meeus/Jones/Butcher algorithm) ──────────────────────
-
-function calculateEaster(year: number): Date {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day   = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month - 1, day);
-}
-
-// ─── Helper: add days to ISO date string ─────────────────────────────────────
 
 function addDaysToDateStr(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T00:00:00Z');
@@ -429,139 +133,385 @@ function addDaysToDateStr(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function dateToIso(d: Date): string {
-  return d.toISOString().slice(0, 10);
+function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
-// ─── Build holiday list for a given Gregorian year ───────────────────────────
+// ─── Hebrew date string via HDate ────────────────────────────────────────────
 
-function buildJewishHolidaysForYear(
+async function getHebrewDateString(date: Date): Promise<string> {
+  try {
+    const { HDate } = await getHebcal();
+    const hdate = new HDate(date);
+    return hdate.render('he');
+  } catch {
+    return '';
+  }
+}
+
+// ─── Jewish Holidays via @hebcal/core ────────────────────────────────────────
+
+/**
+ * Descriptions that indicate a memorial day (working day in Israel)
+ */
+const MEMORIAL_DESCS = ['Yom HaShoah', 'Yom HaZikaron'];
+
+/**
+ * Descriptions that are national (non-working) holidays but flagged in hebcal
+ * as MINOR_HOLIDAY or have no CHAG flag.
+ */
+const NATIONAL_NONWORKING_DESCS = ["Yom HaAtzma'ut"];
+
+/**
+ * Descriptions to skip entirely (Erev / candle lighting / havdalah versions
+ * of holidays, Shabbat-related events, Rosh Chodesh, special Shabbatot, etc.)
+ */
+const SKIP_PATTERNS = [
+  'Erev ',
+  'Shabbat',
+  'Rosh Chodesh',
+  'Candles',
+  'Havdalah',
+  'Daf Yomi',
+  'Selichot',
+  'Molad',
+  'Tachanun',
+  'Yom HaAliyah School',
+  'Chag HaBanot',
+  'Rosh Hashana LaBehemot',
+  'Leil Selichot',
+  'Yom HaNikud',
+  'Yom HaZikaron - ',
+  'Hebrew Language Day',
+  'Family Day',
+  "Yom HaAliyah",
+  "Yom HaAliyah School Observance",
+  "Yom HaHerut",
+  "Yom HaRabbi",
+];
+
+/**
+ * Chanukah — we group all 8 candle-lighting events into a single holiday entry.
+ */
+function isChanukahEvent(desc: string): boolean {
+  return desc.startsWith('Chanukah');
+}
+
+/**
+ * Map a @hebcal/core event description to a stable slug ID.
+ */
+function descToId(desc: string): string {
+  if (desc.startsWith('Rosh Hashana')) return 'rosh-hashana';
+  if (desc === 'Rosh Hashana II') return 'rosh-hashana-2';
+  if (desc === 'Yom Kippur') return 'yom-kippur';
+  if (desc.startsWith('Sukkot')) return 'sukkot';
+  if (desc === 'Hoshana Raba') return 'hoshana-raba';
+  if (desc === 'Shmini Atzeret') return 'shmini-atzeret';
+  if (isChanukahEvent(desc)) return 'chanukah';
+  if (desc === "Tu BiShvat") return 'tu-bishvat';
+  if (desc === 'Purim') return 'purim';
+  if (desc === 'Shushan Purim') return 'shushan-purim';
+  if (desc.startsWith('Pesach')) return 'pesach';
+  if (desc === 'Pesach Sheni') return 'pesach-sheni';
+  if (desc === 'Yom HaShoah') return 'yom-hashoah';
+  if (desc === 'Yom HaZikaron') return 'yom-hazikaron';
+  if (desc === "Yom HaAtzma'ut") return 'yom-haatzmaut';
+  if (desc === "Lag BaOmer") return 'lag-baomer';
+  if (desc === "Yom Yerushalayim") return 'yom-yerushalayim';
+  if (desc === 'Shavuot') return 'shavuot';
+  if (desc === "Tisha B'Av") return 'tisha-bav';
+  if (desc === "Tu B'Av") return 'tu-bav';
+  return slugify(desc);
+}
+
+/**
+ * Determine if an event is a working day in Israel.
+ */
+function hebcalEventIsWorkingDay(desc: string, eventFlags: number, flags: HebcalModule['flags']): boolean {
+  // Full holidays (CHAG) = not working
+  if (eventFlags & flags.CHAG) return false;
+  // National non-working day
+  if (NATIONAL_NONWORKING_DESCS.some(p => desc.includes(p))) return false;
+  // Memorial days and minor holidays = working
+  if (MEMORIAL_DESCS.some(p => desc.includes(p))) return true;
+  // Minor holidays = working day
+  if (eventFlags & flags.MINOR_HOLIDAY) return true;
+  // Default: working
+  return true;
+}
+
+/**
+ * Determine category of a holiday.
+ */
+function hebcalEventCategory(desc: string, eventFlags: number, flags: HebcalModule['flags']): 'major' | 'minor' | 'memorial' {
+  if (MEMORIAL_DESCS.some(p => desc.includes(p))) return 'memorial';
+  if (eventFlags & flags.CHAG) return 'major';
+  if (NATIONAL_NONWORKING_DESCS.some(p => desc.includes(p))) return 'major';
+  return 'minor';
+}
+
+export async function getJewishHolidays(
   year: number,
   includeMinor: boolean,
-): Holiday[] {
+): Promise<Holiday[]> {
+  const { HebrewCalendar, flags } = await getHebcal();
+
+  const events = HebrewCalendar.calendar({
+    year,
+    isHebrewYear: false,
+    il: true,
+    sedrot: false,
+    omer: false,
+  });
+
   const results: Holiday[] = [];
+  // Track grouped Chanukah
+  let chanukahStart: string | null = null;
+  let chanukahEnd: string | null = null;
 
-  // Find which "Jewish year block" to use for a given Gregorian year.
-  // Jewish holidays span two Gregorian years (e.g. Rosh Hashana 2025 is in block 2025,
-  // but Passover 2026 is also in block 2025). We check both year-1 and year blocks.
-  const blocks = [year - 1, year];
+  // Track seen IDs for deduplication (e.g. Pesach spans many days)
+  const seenIds = new Set<string>();
 
-  const seen = new Set<string>();
+  for (const event of events) {
+    const gregDate = event.getDate().greg();
+    const dateStr = dateToIso(gregDate);
 
-  for (const block of blocks) {
-    const dates = JEWISH_HOLIDAY_DATES[block];
-    if (!dates) continue;
+    // Only events in the requested Gregorian year
+    if (!dateStr.startsWith(String(year))) continue;
 
-    for (const def of JEWISH_HOLIDAY_DEFS) {
-      const dateStr = dates[def.id];
-      if (!dateStr) continue;
+    const desc = event.getDesc();
+    const eventFlags = event.getFlags();
 
-      // Only include holidays that fall in the requested Gregorian year
-      if (!dateStr.startsWith(String(year))) continue;
+    // Skip Shabbat-related and other noise events
+    if (SKIP_PATTERNS.some(p => desc.startsWith(p) || desc === p)) continue;
+    // Skip Rosh Chodesh
+    if (eventFlags & flags.ROSH_CHODESH) continue;
 
-      // Skip minor holidays if not requested
-      if (def.isMinor && !includeMinor) continue;
-
-      const key = `${def.id}-${dateStr}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const holiday: Holiday = {
-        id:              def.id,
-        date:            dateStr,
-        name:            def.name,
-        nameEn:          def.nameEn,
-        type:            HolidayType.JEWISH,
-        isWorkingDay:    def.isWorkingDay,
-        isPublicHoliday: def.isPublicHoliday,
-        category:        def.category,
-        hebrewDate:      def.hebrewDateLabel,
-      };
-
-      if (def.durationDays && def.durationDays > 1) {
-        holiday.endDate = addDaysToDateStr(dateStr, def.durationDays - 1);
-      }
-
-      results.push(holiday);
+    // Group Chanukah candles into one holiday
+    if (isChanukahEvent(desc)) {
+      if (!chanukahStart) chanukahStart = dateStr;
+      chanukahEnd = dateStr;
+      continue; // We'll emit one entry after the loop
     }
+
+    const id = descToId(desc);
+
+    // For multi-day holidays like Pesach, Sukkot — emit the first occurrence only
+    if (seenIds.has(id)) continue;
+
+    const isMinorFlag = Boolean(eventFlags & flags.MINOR_HOLIDAY);
+    const isWorking = hebcalEventIsWorkingDay(desc, eventFlags, flags);
+
+    // Filter minor holidays if not requested
+    if (isMinorFlag && !includeMinor) continue;
+
+    // Also skip "8th day" type events that were already captured
+    if (id === 'pesach' && seenIds.has('pesach')) continue;
+    if (id === 'sukkot' && seenIds.has('sukkot')) continue;
+
+    seenIds.add(id);
+
+    const hebrewName = event.render('he');
+    const category = hebcalEventCategory(desc, eventFlags, flags);
+    const isPublic = !isWorking || category === 'memorial';
+
+    const hebrewDate = await getHebrewDateString(gregDate);
+
+    const holiday: Holiday = {
+      id,
+      date:            dateStr,
+      name:            hebrewName,
+      nameEn:          desc,
+      type:            HolidayType.JEWISH,
+      isWorkingDay:    isWorking,
+      isPublicHoliday: isPublic,
+      category,
+      hebrewDate,
+    };
+
+    results.push(holiday);
   }
 
-  return results;
-}
-
-function buildGregorianHolidaysForYear(year: number): Holiday[] {
-  const results: Holiday[] = [];
-
-  // Fixed holidays
-  for (const h of GREGORIAN_FIXED) {
-    const dateStr = `${year}-${String(h.month).padStart(2, '0')}-${String(h.day).padStart(2, '0')}`;
+  // Emit Chanukah as a single multi-day holiday
+  if (chanukahStart) {
+    const hebrewDate = await getHebrewDateString(new Date(chanukahStart + 'T12:00:00Z'));
     results.push({
-      id:              h.id,
-      date:            dateStr,
-      name:            h.nameHe,
-      nameEn:          h.name,
-      type:            HolidayType.GREGORIAN,
-      isWorkingDay:    h.isWorkingDay,
-      isPublicHoliday: h.isPublicHoliday,
-      category:        h.category,
+      id:              'chanukah',
+      date:            chanukahStart,
+      endDate:         chanukahEnd ?? chanukahStart,
+      name:            'חֲנוּכָּה',
+      nameEn:          'Chanukah',
+      type:            HolidayType.JEWISH,
+      isWorkingDay:    true,
+      isPublicHoliday: false,
+      category:        'minor',
+      hebrewDate,
     });
   }
 
-  // Easter (variable)
-  const easterDate = calculateEaster(year);
-  results.push({
-    id:              'easter',
-    date:            dateToIso(easterDate),
-    name:            'פסחא',
-    nameEn:          'Easter',
-    type:            HolidayType.GREGORIAN,
-    isWorkingDay:    false,
-    isPublicHoliday: false,
-    category:        'major',
-  });
-
+  // Sort by date
+  results.sort((a, b) => a.date.localeCompare(b.date));
   return results;
 }
 
-function buildMuslimHolidaysForYear(year: number): Holiday[] {
+// ─── Gregorian Holidays via date-holidays ────────────────────────────────────
+
+/**
+ * Map date-holidays type to our isWorkingDay / isPublicHoliday fields.
+ */
+function dhTypeToWorkingDay(type: HolidaysTypes.HolidayType): boolean {
+  return type !== 'public' && type !== 'bank';
+}
+
+function dhTypeToIsPublic(type: HolidaysTypes.HolidayType): boolean {
+  return type === 'public' || type === 'bank';
+}
+
+function dhTypeToCategory(type: HolidaysTypes.HolidayType): 'major' | 'minor' | 'memorial' {
+  if (type === 'public' || type === 'bank') return 'major';
+  if (type === 'observance') return 'memorial';
+  return 'minor';
+}
+
+/**
+ * Extract a stable YYYY-MM-DD from a date-holidays date string.
+ * The date field format is "YYYY-MM-DD hh:mm:ss [-hh:ss]".
+ * We use the .start Date object converted to local ISO for accuracy.
+ */
+function dhDateStr(dh: HolidaysTypes.Holiday): string {
+  // date-holidays returns start as a Date in UTC
+  // Use the date string field (first 10 chars) as canonical date
+  return dh.date.slice(0, 10);
+}
+
+export function getGregorianHolidays(year: number): Holiday[] {
+  const hd = new Holidays('IL');
+  const dhHolidays = hd.getHolidays(year);
+
+  // Also add a few internationally recognized Gregorian holidays not in IL data
+  const hdUS = new Holidays('US');
+  const usHolidays = hdUS.getHolidays(year).filter(
+    h => h.type === 'public' && (
+      h.name === "New Year's Day" ||
+      h.name === 'Christmas Day'
+    ),
+  );
+
   const results: Holiday[] = [];
+  const seenDates = new Set<string>();
 
-  // Check both year and year-1 blocks (Muslim calendar shifts earlier)
-  const blocks = [year - 1, year];
-  const seen = new Set<string>();
+  for (const dh of [...dhHolidays, ...usHolidays]) {
+    const dateStr = dhDateStr(dh);
+    // Only include events in the requested year
+    if (!dateStr.startsWith(String(year))) continue;
 
-  for (const block of blocks) {
-    const dates = MUSLIM_HOLIDAY_DATES[block];
-    if (!dates) continue;
+    const key = `${dateStr}-${dh.name}`;
+    if (seenDates.has(key)) continue;
+    seenDates.add(key);
 
-    for (const def of MUSLIM_HOLIDAY_DEFS) {
-      const dateStr = dates[def.id];
-      if (!dateStr) continue;
-      if (!dateStr.startsWith(String(year))) continue;
-
-      const key = `${def.id}-${dateStr}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-
-      const holiday: Holiday = {
-        id:              def.id,
-        date:            dateStr,
-        name:            def.name,
-        nameEn:          def.nameEn,
-        type:            HolidayType.MUSLIM,
-        isWorkingDay:    def.isWorkingDay,
-        isPublicHoliday: def.isPublicHoliday,
-        category:        def.category,
-      };
-
-      if (def.durationDays && def.durationDays > 1) {
-        holiday.endDate = addDaysToDateStr(dateStr, def.durationDays - 1);
-      }
-
-      results.push(holiday);
+    // Calculate end date from dh.start / dh.end if multi-day
+    const startDateStr = dateStr;
+    let endDateStr: string | undefined;
+    const startMs = dh.start.getTime();
+    const endMs   = dh.end.getTime();
+    const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+    if (diffDays > 1) {
+      endDateStr = addDaysToDateStr(startDateStr, diffDays - 1);
     }
+
+    results.push({
+      id:              slugify(dh.name),
+      date:            startDateStr,
+      endDate:         endDateStr,
+      name:            dh.name,
+      nameEn:          dh.name,
+      type:            HolidayType.GREGORIAN,
+      isWorkingDay:    dhTypeToWorkingDay(dh.type),
+      isPublicHoliday: dhTypeToIsPublic(dh.type),
+      category:        dhTypeToCategory(dh.type),
+    });
   }
 
+  // Sort by date
+  results.sort((a, b) => a.date.localeCompare(b.date));
+  return results;
+}
+
+// ─── Muslim Holidays via date-holidays (UAE = comprehensive Muslim calendar) ─
+
+/**
+ * Known Muslim holiday name mappings to Hebrew.
+ */
+const MUSLIM_NAME_HE: Record<string, string> = {
+  // Arabic names from AE/EG datasets
+  'اليوم الأول من رمضان': 'ראשית רמדאן',
+  'عيد الفطر':            'עיד אל-פיטר (חג הפסקת הצום)',
+  'عيد الأضحى':           'עיד אל-אדחא (חג הקורבן)',
+  'رأس السنة الهجرية':   "ראש השנה המוסלמי (אל-הג'רה)",
+  'المولد النبويّ':       "מולד הנביא (מאוולד אל-נביא)",
+  'المولد النبوي':        "מולד הנביא (מאוולד אל-נביא)",
+  // Turkish names
+  'Ramazan Bayramı':      'עיד אל-פיטר (חג הפסקת הצום)',
+  'Kurban Bayramı':       'עיד אל-אדחא (חג הקורבן)',
+  // English fallbacks
+  'Eid al-Fitr':          'עיד אל-פיטר (חג הפסקת הצום)',
+  'Eid al-Adha':          'עיד אל-אדחא (חג הקורבן)',
+  'Ramadan':              'רמדאן',
+};
+
+/**
+ * Which AE holiday names to include as Muslim holidays.
+ */
+const MUSLIM_INCLUDE_NAMES_AE = [
+  'اليوم الأول من رمضان',  // Ramadan start
+  'عيد الفطر',              // Eid al-Fitr
+  'عيد الأضحى',             // Eid al-Adha
+  'رأس السنة الهجرية',     // Islamic New Year
+  'المولد النبويّ',         // Mawlid
+  'المولد النبوي',
+];
+
+export function getMuslimHolidays(year: number): Holiday[] {
+  // Use UAE (AE) which has the most complete Muslim holiday set
+  const hd = new Holidays('AE');
+  const dhHolidays = hd.getHolidays(year);
+
+  const results: Holiday[] = [];
+
+  for (const dh of dhHolidays) {
+    if (!MUSLIM_INCLUDE_NAMES_AE.includes(dh.name)) continue;
+
+    const dateStr = dhDateStr(dh);
+    if (!dateStr.startsWith(String(year))) continue;
+
+    const nameHe = MUSLIM_NAME_HE[dh.name] ?? dh.name;
+    const isRamadan = dh.name.includes('رمضان');
+    const isEid = dh.name.includes('عيد');
+
+    // Calculate end date
+    let endDateStr: string | undefined;
+    const diffDays = Math.round((dh.end.getTime() - dh.start.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > 1) {
+      endDateStr = addDaysToDateStr(dateStr, diffDays - 1);
+    }
+
+    results.push({
+      id:              slugify(dh.name || 'muslim-holiday'),
+      date:            dateStr,
+      endDate:         endDateStr,
+      name:            nameHe,
+      nameEn:          dh.name,
+      type:            HolidayType.MUSLIM,
+      isWorkingDay:    isRamadan ? true : !isEid,
+      isPublicHoliday: isEid,
+      category:        isEid ? 'major' : 'minor',
+    });
+  }
+
+  results.sort((a, b) => a.date.localeCompare(b.date));
   return results;
 }
 
@@ -601,18 +551,17 @@ export async function getHolidays(
   const results: Holiday[] = [];
 
   if (jewish) {
-    results.push(...buildJewishHolidaysForYear(year, includeMinorHolidays));
+    results.push(...await getJewishHolidays(year, includeMinorHolidays));
   }
   if (gregorian) {
-    results.push(...buildGregorianHolidaysForYear(year));
+    results.push(...getGregorianHolidays(year));
   }
   if (muslim) {
-    results.push(...buildMuslimHolidaysForYear(year));
+    results.push(...getMuslimHolidays(year));
   }
 
   // Sort by date
   results.sort((a, b) => a.date.localeCompare(b.date));
-
   return results;
 }
 
@@ -819,20 +768,20 @@ export async function getCalendarForMonth(
   const days: CalendarDay[] = [];
 
   for (let d = 1; d <= daysInMonth; d++) {
-    const dateStr  = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const dateObj  = new Date(year, month - 1, d);
-    const dow      = dateObj.getDay(); // 0=Sun, 6=Sat
+    const dateStr   = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const dateObj   = new Date(year, month - 1, d);
+    const dow       = dateObj.getDay(); // 0=Sun, 6=Sat
     const isShabbat = dow === 6;
     const holiday   = holidayMap.get(dateStr);
     const isHol     = !!holiday;
     const isWorking = !isShabbat && !nonWorkingDates.has(dateStr);
 
     days.push({
-      date:        dateStr,
-      dayOfWeek:   dow,
+      date:         dateStr,
+      dayOfWeek:    dow,
       isShabbat,
-      isHoliday:   isHol,
-      holiday:     holiday ?? undefined,
+      isHoliday:    isHol,
+      holiday:      holiday ?? undefined,
       isWorkingDay: isWorking,
     });
   }
