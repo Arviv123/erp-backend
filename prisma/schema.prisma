@@ -313,6 +313,13 @@ model Tenant {
   cardPaymentTxs        CardPaymentTransaction[]
   printers              Printer[]
   printJobs             PrintJob[]
+  // POS Phase 2 modules
+  promotions            Promotion[]
+  loyaltyProgram        LoyaltyProgram?
+  loyaltyAccounts       LoyaltyAccount[]
+  giftCards             GiftCard[]
+  posHeldTransactions   PosHeldTransaction[]
+  posZReports           PosZReport[]
 
   @@map("tenants")
 }
@@ -668,6 +675,7 @@ model Customer {
   portalSessions    CustomerPortalSession[]
   receipts              Receipt[]
   cardPaymentTxs        CardPaymentTransaction[]
+  loyaltyAccount        LoyaltyAccount?
 
   @@index([tenantId, status])
   @@index([tenantId, type])
@@ -1588,9 +1596,11 @@ model PosSession {
   openedAt     DateTime         @default(now())
   closedAt     DateTime?
 
-  tenant       Tenant           @relation(fields: [tenantId], references: [id])
-  terminal     PosTerminal      @relation(fields: [terminalId], references: [id])
-  transactions PosTransaction[]
+  tenant           Tenant              @relation(fields: [tenantId], references: [id])
+  terminal         PosTerminal         @relation(fields: [terminalId], references: [id])
+  transactions     PosTransaction[]
+  heldTransactions PosHeldTransaction[]
+  zReports         PosZReport[]
 
   @@index([tenantId])
   @@map("pos_sessions")
@@ -2927,4 +2937,219 @@ enum PrintJobStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// POS Phase 2 — Promotions, Loyalty, Gift Cards, Split Payment
+// ──────────────────────────────────────────────────────────────────────────────
+
+model Promotion {
+  id           String         @id @default(cuid())
+  tenantId     String
+  tenant       Tenant         @relation(fields: [tenantId], references: [id])
+
+  name         String
+  code         String?                    // coupon code (optional)
+  type         PromotionType              // PERCENT_OFF | AMOUNT_OFF | BUY_X_GET_Y | FREE_ITEM | PRICE_OVERRIDE
+  value        Decimal        @db.Decimal(10, 2) // percent or amount
+  minPurchase  Decimal?       @db.Decimal(10, 2)
+  maxDiscount  Decimal?       @db.Decimal(10, 2)
+  applicableTo PromotionScope @default(ALL) // ALL | CATEGORY | PRODUCT | CUSTOMER_GROUP
+  productIds   Json?                      // [productId, ...]
+  categoryIds  Json?                      // [categoryId, ...]
+  customerIds  Json?                      // [customerId, ...] or null for all
+
+  startDate              DateTime
+  endDate                DateTime?
+  usageLimit             Int?              // max total uses
+  usageCount             Int      @default(0)
+  usageLimitPerCustomer  Int?
+
+  isActive    Boolean @default(true)
+  isStackable Boolean @default(false)    // can combine with other promos
+
+  createdBy String
+  createdAt DateTime @default(now())
+
+  @@index([tenantId, isActive])
+  @@index([tenantId, code])
+  @@map("promotions")
+}
+
+enum PromotionType {
+  PERCENT_OFF
+  AMOUNT_OFF
+  BUY_X_GET_Y
+  FREE_ITEM
+  PRICE_OVERRIDE
+}
+
+enum PromotionScope {
+  ALL
+  CATEGORY
+  PRODUCT
+  CUSTOMER_GROUP
+}
+
+model LoyaltyProgram {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  tenant          Tenant   @relation(fields: [tenantId], references: [id])
+
+  name            String   @default("מועדון לקוחות")
+  pointsPerShekel Decimal  @db.Decimal(8, 4) @default(1)    // points earned per ILS spent
+  shekelPerPoint  Decimal  @db.Decimal(8, 4) @default(0.01) // ILS value per point
+  minRedeemPoints Int      @default(100)                    // minimum to redeem
+  expiryMonths    Int?                                      // null = never expire
+  isActive        Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@map("loyalty_programs")
+}
+
+model LoyaltyAccount {
+  id             String      @id @default(cuid())
+  tenantId       String
+  tenant         Tenant      @relation(fields: [tenantId], references: [id])
+  customerId     String      @unique
+  customer       Customer    @relation(fields: [customerId], references: [id])
+
+  points         Int         @default(0)
+  lifetimePoints Int         @default(0)
+  lifetimeSpend  Decimal     @db.Decimal(15, 2) @default(0)
+  tier           LoyaltyTier @default(STANDARD)
+
+  transactions LoyaltyTransaction[]
+  createdAt    DateTime             @default(now())
+
+  @@index([tenantId])
+  @@map("loyalty_accounts")
+}
+
+model LoyaltyTransaction {
+  id               String         @id @default(cuid())
+  accountId        String
+  account          LoyaltyAccount @relation(fields: [accountId], references: [id])
+
+  type             LoyaltyTxType  // EARN | REDEEM | EXPIRE | ADJUST | BONUS
+  points           Int
+  description      String?
+  posTransactionId String?
+  expiresAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@map("loyalty_transactions")
+}
+
+enum LoyaltyTier {
+  STANDARD
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+enum LoyaltyTxType {
+  EARN
+  REDEEM
+  EXPIRE
+  ADJUST
+  BONUS
+}
+
+model GiftCard {
+  id            String  @id @default(cuid())
+  tenantId      String
+  tenant        Tenant  @relation(fields: [tenantId], references: [id])
+
+  code          String           // unique gift card code
+  initialAmount Decimal @db.Decimal(10, 2)
+  balance       Decimal @db.Decimal(10, 2)
+  currency      String  @default("ILS")
+
+  isActive     Boolean   @default(true)
+  purchasedBy  String?              // customerId who bought it
+  assignedTo   String?              // customerId it was given to
+
+  expiresAt   DateTime?
+  activatedAt DateTime?
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  usages GiftCardUsage[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, isActive])
+  @@map("gift_cards")
+}
+
+model GiftCardUsage {
+  id           String   @id @default(cuid())
+  giftCardId   String
+  giftCard     GiftCard @relation(fields: [giftCardId], references: [id])
+
+  amount           Decimal @db.Decimal(10, 2)
+  posTransactionId String?
+  balanceBefore    Decimal @db.Decimal(10, 2)
+  balanceAfter     Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+
+  @@map("gift_card_usages")
+}
+
+model PosHeldTransaction {
+  id         String     @id @default(cuid())
+  tenantId   String
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+
+  sessionId  String
+  session    PosSession @relation(fields: [sessionId], references: [id])
+  name       String?              // "Table 5", "Customer John"
+  customerId String?
+  data       Json                 // full transaction data to resume
+
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  resumedAt  DateTime?
+
+  @@index([tenantId, sessionId])
+  @@map("pos_held_transactions")
+}
+
+model PosZReport {
+  id         String     @id @default(cuid())
+  tenantId   String
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+
+  sessionId    String?
+  session      PosSession? @relation(fields: [sessionId], references: [id])
+  reportDate   DateTime
+  generatedBy  String
+
+  // Sales summary
+  totalSales       Decimal @db.Decimal(15, 2)
+  totalReturns     Decimal @db.Decimal(15, 2)
+  netSales         Decimal @db.Decimal(15, 2)
+  totalVat         Decimal @db.Decimal(15, 2)
+  transactionCount Int
+
+  // By payment method
+  cashTotal       Decimal @db.Decimal(15, 2) @default(0)
+  creditCardTotal Decimal @db.Decimal(15, 2) @default(0)
+  checkTotal      Decimal @db.Decimal(15, 2) @default(0)
+  giftCardTotal   Decimal @db.Decimal(15, 2) @default(0)
+  otherTotal      Decimal @db.Decimal(15, 2) @default(0)
+
+  // Cash management
+  openingFloat Decimal @db.Decimal(10, 2) @default(0)
+  closingFloat Decimal @db.Decimal(10, 2) @default(0)
+  cashVariance Decimal @db.Decimal(10, 2) @default(0)
+
+  reportData Json                        // full breakdown
+
+  createdAt DateTime @default(now())
+
+  @@map("pos_z_reports")
 }

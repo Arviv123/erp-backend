@@ -97,6 +97,9 @@ import scanRouter from './modules/scan/scan.routes';
 // Routes — Phase 6 (Printers — מדפסות + תור הדפסה)
 import printersRouter from './modules/printers/printers.routes';
 
+// Routes — POS Phase 2 (Promotions, Loyalty, Gift Cards, Z-Report)
+import posPhase2Router from './modules/pos/pos-phase2.routes';
+
 // Routes — Holiday Calendar
 import calendarRouter from './modules/calendar/calendar.routes';
 
@@ -271,6 +274,9 @@ app.use('/api/payment-terminal', paymentTerminalRouter);
 app.use('/api/printers',        printersRouter);
 app.use('/api/scan',            scanRouter);
 app.use('/api/calendar',        calendarRouter);
+
+// ─── API Routes ─── POS Phase 2 ───────────────────────────────────
+app.use('/api/pos', posPhase2Router);  // extends existing /api/pos prefix
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {
