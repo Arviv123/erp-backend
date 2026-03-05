@@ -16,11 +16,12 @@ function validateDoubleEntry(lines: JournalEntry[]): void {
     throw new Error('Transaction must have at least one journal line');
   }
 
-  const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
-
   // Each line already carries one debit and one credit of equal amount.
-  // We just ensure all amounts are positive.
+  // Validate accounts are valid/distinct and amounts are positive.
   for (const line of lines) {
+    if (!line.debitAccountId || !line.creditAccountId) {
+      throw new Error('Debit and credit account IDs are required on every journal line');
+    }
     if (line.amount <= 0) {
       throw new Error(`Amount must be positive: ${line.amount}`);
     }
@@ -29,6 +30,10 @@ function validateDoubleEntry(lines: JournalEntry[]): void {
     }
   }
 
+  // Total of all line amounts must be positive.
+  // Since every line has equal debit+credit, sum(all debits) === sum(all credits)
+  // is guaranteed by construction — double-entry integrity maintained.
+  const totalAmount = lines.reduce((sum, line) => sum + line.amount, 0);
   if (totalAmount <= 0) {
     throw new Error('Total transaction amount must be positive');
   }
@@ -226,7 +231,7 @@ export async function getTrialBalance(tenantId: string, asOfDate?: Date) {
 
   const totalDebits  = rows.reduce((s, r) => s + r.totalDebits,  0);
   const totalCredits = rows.reduce((s, r) => s + r.totalCredits, 0);
-  const isBalanced   = Math.abs(totalDebits - totalCredits) < 0.01;
+  const isBalanced   = Math.abs(totalDebits - totalCredits) < 0.001;
 
   return { rows, totalDebits, totalCredits, isBalanced };
 }

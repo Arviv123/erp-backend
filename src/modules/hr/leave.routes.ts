@@ -145,6 +145,43 @@ router.patch(
     if (!req_ || req_.tenantId !== req.user.tenantId) { sendError(res, 'Request not found', 404); return; }
     if (req_.status !== 'PENDING') { sendError(res, 'Can only approve PENDING requests'); return; }
 
+    // ── בדיקת מאזן חופשה לפני אישור (חוק חופשה שנתית, תשי"א-1951) ──
+    const leaveYear = new Date(req_.startDate).getFullYear();
+    const [existingUsage, leaveType] = await Promise.all([
+      prisma.leaveRequest.aggregate({
+        where: {
+          employeeId:  req_.employeeId,
+          leaveTypeId: req_.leaveTypeId,
+          status:      'APPROVED',
+          startDate:   { gte: new Date(leaveYear, 0, 1), lte: new Date(leaveYear, 11, 31) },
+          id:          { not: req_.id },
+        },
+        _sum: { totalDays: true },
+      }),
+      prisma.leaveType.findUnique({ where: { id: req_.leaveTypeId } }),
+    ]);
+
+    if (leaveType?.maxDaysPerYear) {
+      const CARRY_FORWARD_MAX = 14; // max carry-forward per Israeli law
+      const totalAvailable = leaveType.maxDaysPerYear + CARRY_FORWARD_MAX;
+      const usedDays       = Number(existingUsage._sum.totalDays ?? 0);
+      if (usedDays + req_.totalDays > totalAvailable) {
+        sendError(res, `Insufficient leave balance. Used: ${usedDays}, Requesting: ${req_.totalDays}, Available: ${totalAvailable - usedDays}`, 400);
+        return;
+      }
+    }
+
+    // ── אזהרה: עובד לא לקח 7 ימים רצופים השנה (חוק חופשה שנתית) ──
+    if (leaveType?.name?.includes('שנתי') || leaveType?.name?.toLowerCase().includes('annual')) {
+      const blocks = await prisma.leaveRequest.findMany({
+        where: { employeeId: req_.employeeId, leaveTypeId: req_.leaveTypeId, status: 'APPROVED',
+                 startDate: { gte: new Date(new Date().getFullYear(), 0, 1) }, totalDays: { gte: 7 } },
+      });
+      if (blocks.length === 0) {
+        res.setHeader('X-Leave-Warning', 'Employee has not taken 7 consecutive annual leave days this year as required by law');
+      }
+    }
+
     const updated = await prisma.leaveRequest.update({
       where: { id: req.params.id },
       data:  { status: 'APPROVED', approvedBy: req.user.userId, approvedAt: new Date() },

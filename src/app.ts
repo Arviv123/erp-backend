@@ -46,9 +46,24 @@ const PORT = process.env.PORT ?? 3000;
 // ─── Security ─────────────────────────────────────────────────────
 app.use(helmet({ contentSecurityPolicy: false })); // disable CSP for Swagger UI
 const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? '').split(',').map(o => o.trim()).filter(Boolean);
+
+// Security: wildcard + credentials is forbidden by browsers and is a CORS vulnerability.
+// If wildcard is configured, disable credentials so the policy remains valid.
+const isWildcard = allowedOrigins.includes('*');
+if (isWildcard && process.env.NODE_ENV === 'production') {
+  logger.warn('WARNING: ALLOWED_ORIGINS=* in production disables credentials. Set explicit origins for security.');
+}
+
 app.use(cors({
-  origin:      allowedOrigins.includes('*') ? '*' : allowedOrigins,
-  credentials: true,
+  origin: isWildcard ? true : (origin, callback) => {
+    if (!origin) return callback(null, true); // allow server-to-server / mobile
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Origin ${origin} not allowed by CORS`), false);
+  },
+  credentials: !isWildcard, // never send credentials with wildcard
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key'],
+  maxAge: 86400,
 }));
 
 // ─── Rate Limiting ────────────────────────────────────────────────
@@ -130,13 +145,21 @@ app.use('/api/documents',  documentsRouter);
 
 // ─── Global Error Handler ─────────────────────────────────────────
 app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  const correlationId = Math.random().toString(36).substring(2, 15);
+  const isDev = process.env.NODE_ENV !== 'production';
+
   logger.error('Unhandled error', {
+    correlationId,
     message: err.message,
-    stack:   err.stack,
+    stack:   isDev ? err.stack : '[hidden in production]',
     method:  req.method,
     path:    req.path,
   });
-  res.status(500).json({ success: false, error: 'Internal server error' });
+  res.status(500).json({
+    success: false,
+    error:   isDev ? err.message : 'Internal server error',
+    correlationId,
+  });
 });
 
 // ─── 404 Handler ──────────────────────────────────────────────────

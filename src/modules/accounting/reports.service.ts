@@ -119,7 +119,16 @@ export async function getBalanceSheet(tenantId: string, asOf: Date) {
   const totalAssets      = assets.reduce((s, a) => s + a.balance, 0);
   const totalLiabilities = liabilities.reduce((s, a) => s + a.balance, 0);
   const totalEquity      = equity.reduce((s, a) => s + a.balance, 0);
-  const isBalanced       = Math.abs(totalAssets - (totalLiabilities + totalEquity)) < 0.01;
+  const balanceDifference = Math.abs(totalAssets - (totalLiabilities + totalEquity));
+  const isBalanced        = balanceDifference < 0.01;
+
+  if (!isBalanced) {
+    console.error(
+      `BALANCE SHEET UNBALANCED: Assets=${round2(totalAssets)}, ` +
+      `Liab+Equity=${round2(totalLiabilities + totalEquity)}, ` +
+      `Diff=${round2(balanceDifference)}`
+    );
+  }
 
   return {
     asOf,
@@ -127,6 +136,7 @@ export async function getBalanceSheet(tenantId: string, asOf: Date) {
     liabilities, totalLiabilities: round2(totalLiabilities),
     equity,      totalEquity:      round2(totalEquity),
     isBalanced,
+    balanceDifference: round2(balanceDifference),
     checksum:     round2(totalAssets - totalLiabilities - totalEquity),
   };
 }

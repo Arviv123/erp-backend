@@ -45,7 +45,7 @@ export async function createPurchaseOrder(input: CreatePOInput) {
   });
 
   const subtotal  = processedLines.reduce((s, l) => s + l.lineTotal, 0);
-  const vatAmount = Math.round(subtotal * 0.18 * 100) / 100;
+  const vatAmount = Math.round(processedLines.reduce((s, l) => s + l.lineTotal * l.vatRate, 0) * 100) / 100;
   const total     = Math.round((subtotal + vatAmount) * 100) / 100;
   const number    = await generatePONumber(input.tenantId);
 
@@ -162,7 +162,7 @@ export async function createBill(input: CreateBillInput) {
   }));
 
   const subtotal  = processedLines.reduce((s, l) => s + l.lineTotal, 0);
-  const vatAmount = Math.round(subtotal * 0.18 * 100) / 100;
+  const vatAmount = Math.round(processedLines.reduce((s, l) => s + l.lineTotal * l.vatRate, 0) * 100) / 100;
   const total     = Math.round((subtotal + vatAmount) * 100) / 100;
   const number    = await generateBillNumber(input.tenantId);
 

@@ -105,30 +105,30 @@
 
 <!-- ─── Product Screenshots ────────────────────────────── -->
 <section id="screenshots" class="py-20 px-4 bg-white overflow-hidden">
-  <div class="max-w-6xl mx-auto">
-    <div class="text-center mb-14">
+  <div class="max-w-5xl mx-auto">
+    <div class="text-center mb-10">
       <h2 class="text-3xl md:text-4xl font-black text-gray-900 mb-4">המערכת בפעולה</h2>
       <p class="text-gray-500 text-lg">ממשק נקי, בעברית, מותאם לדסקטופ ולמובייל</p>
     </div>
 
     <!-- Tab nav -->
     <div class="flex gap-2 justify-center flex-wrap mb-8">
-      <button onclick="showScreen('dash')" id="tab-dash" class="screen-tab active-tab px-5 py-2 rounded-full text-sm font-medium transition-colors">📊 דשבורד</button>
-      <button onclick="showScreen('payroll')" id="tab-payroll" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">👥 שכר</button>
-      <button onclick="showScreen('invoice')" id="tab-invoice" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">🧾 חשבוניות</button>
-      <button onclick="showScreen('accounting')" id="tab-accounting" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">📈 חשבונאות</button>
+      <button onclick="showScreen('dash')" id="tab-dash" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-all">📊 דשבורד</button>
+      <button onclick="showScreen('payroll')" id="tab-payroll" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-all">👥 שכר</button>
+      <button onclick="showScreen('invoice')" id="tab-invoice" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-all">🧾 חשבוניות</button>
+      <button onclick="showScreen('accounting')" id="tab-accounting" class="screen-tab px-5 py-2 rounded-full text-sm font-medium transition-all">📈 חשבונאות</button>
     </div>
 
     <!-- Screen frames -->
-    <div class="relative rounded-2xl shadow-2xl border border-gray-200 overflow-hidden bg-gray-50" style="max-width:900px;margin:0 auto;">
+    <div class="rounded-2xl shadow-2xl border border-gray-200 overflow-hidden" style="max-width:860px;margin:0 auto;">
       <!-- Browser chrome -->
       <div class="bg-gray-200 px-4 py-2.5 flex items-center gap-2 border-b border-gray-300">
         <div class="flex gap-1.5"><div class="w-3 h-3 rounded-full bg-red-400"></div><div class="w-3 h-3 rounded-full bg-yellow-400"></div><div class="w-3 h-3 rounded-full bg-green-400"></div></div>
         <div class="flex-1 bg-white rounded-md px-3 py-1 text-xs text-gray-400 mx-4 text-left">https://app.hashavshevet.co.il</div>
       </div>
 
-      <!-- Dashboard screen -->
-      <div id="screen-dash" class="screen-content">
+      <!-- ── DASH ── -->
+      <div id="screen-dash" class="screen-content" style="display:flex;height:500px;font-size:13px;line-height:1.4">
         <svg viewBox="0 0 900 540" xmlns="http://www.w3.org/2000/svg" width="100%" style="display:block;background:#f8fafc" font-family="Arial,sans-serif" direction="rtl">
           <!-- Sidebar -->
           <rect width="200" height="540" fill="#1e3a8a"/>

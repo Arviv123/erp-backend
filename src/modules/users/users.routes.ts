@@ -10,6 +10,15 @@ import { AuthenticatedRequest } from '../../shared/types/index';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { prisma } from '../../config/database';
+import rateLimit from 'express-rate-limit';
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1_000, // 15 minutes
+  max: 5,
+  message: { success: false, error: 'Too many reset attempts. Please try again later.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const router = Router();
 
@@ -18,7 +27,7 @@ const router = Router();
 router.post('/auth/login', asyncHandler(async (req, res: Response) => {
   const schema = z.object({
     email:    z.string().email(),
-    password: z.string().min(1),
+    password: z.string().min(8),
     tenantId: z.string().optional(), // optional — lookup by email if not provided
   });
 
@@ -149,7 +158,7 @@ router.patch(
 // ─── Password Reset ───────────────────────────────────────────────
 
 // POST /users/auth/forgot-password — request reset token
-router.post('/auth/forgot-password', asyncHandler(async (req: any, res: Response) => {
+router.post('/auth/forgot-password', forgotPasswordLimiter, asyncHandler(async (req: any, res: Response) => {
   const schema = z.object({
     email:    z.string().email(),
     tenantId: z.string().min(1),

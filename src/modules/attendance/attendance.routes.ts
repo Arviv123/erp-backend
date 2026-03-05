@@ -47,6 +47,54 @@ router.post('/clock-in', async (req: AuthenticatedRequest, res: Response) => {
     return;
   }
 
+  // ── חוק שעות עבודה ומנוחה: מקסימום 10 שעות ביום ──────────────────
+  const MAX_DAILY_HOURS = 10;
+  const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+
+  const todayLogs = await prisma.attendanceLog.findMany({
+    where: {
+      employeeId: parsed.data.employeeId,
+      tenantId:   req.user.tenantId,
+      date:       { gte: today, lte: endOfDay },
+      clockOut:   { not: null },
+    },
+  });
+
+  const hoursWorkedToday = todayLogs.reduce((sum, l) => {
+    if (l.clockOut) return sum + (new Date(l.clockOut).getTime() - new Date(l.clockIn).getTime()) / 3_600_000;
+    return sum;
+  }, 0);
+
+  if (hoursWorkedToday >= MAX_DAILY_HOURS) {
+    res.status(400).json({
+      success: false,
+      error: `Daily working hours limit reached (${Math.round(hoursWorkedToday * 10) / 10}h / max ${MAX_DAILY_HOURS}h — חוק שעות עבודה ומנוחה)`,
+      hoursWorkedToday: Math.round(hoursWorkedToday * 10) / 10,
+      maxDailyHours: MAX_DAILY_HOURS,
+    });
+    return;
+  }
+
+  // ── מנוחה מינימלית בין משמרות: 8 שעות ─────────────────────────────
+  const MIN_REST_HOURS = 8;
+  const lastLog = await prisma.attendanceLog.findFirst({
+    where: { employeeId: parsed.data.employeeId, tenantId: req.user.tenantId, clockOut: { not: null } },
+    orderBy: { clockOut: 'desc' },
+  });
+
+  if (lastLog?.clockOut) {
+    const hoursSinceLastOut = (Date.now() - new Date(lastLog.clockOut).getTime()) / 3_600_000;
+    if (hoursSinceLastOut < MIN_REST_HOURS) {
+      res.status(400).json({
+        success: false,
+        error: `Minimum 8-hour rest required between shifts (Israeli Working Hours Law). Last shift ended ${Math.round(hoursSinceLastOut * 10) / 10}h ago.`,
+        hoursSinceLastShift: Math.round(hoursSinceLastOut * 10) / 10,
+        minRestHours: MIN_REST_HOURS,
+      });
+      return;
+    }
+  }
+
   const log = await prisma.attendanceLog.create({
     data: {
       tenantId:    req.user.tenantId,

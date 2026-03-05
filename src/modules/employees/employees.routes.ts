@@ -412,6 +412,17 @@ router.post(
     const parsed = CreateEmployeeSchema.safeParse(req.body);
     if (!parsed.success) { sendError(res, parsed.error.message); return; }
 
+    // חוק שכר מינימום, תשמ"ז-1987 — עודכן 2026-01-01
+    const MINIMUM_WAGE_MONTHLY_2026 = 5_880;
+    if (
+      parsed.data.grossSalary !== undefined &&
+      parsed.data.grossSalary < MINIMUM_WAGE_MONTHLY_2026 &&
+      parsed.data.employmentType !== 'CONTRACTOR'
+    ) {
+      // Non-blocking warning — HR may have legitimate reason (e.g. part-time)
+      res.setHeader('X-Minimum-Wage-Warning', `Salary ${parsed.data.grossSalary} is below 2026 minimum wage of ${MINIMUM_WAGE_MONTHLY_2026} NIS`);
+    }
+
     const { createUser, userEmail, userPassword, userRole, ...empData } = parsed.data;
 
     try {

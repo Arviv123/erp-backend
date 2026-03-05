@@ -1,6 +1,9 @@
 import { InvoiceStatus, PaymentMethod } from '@prisma/client';
 import { prisma } from '../../config/database';
-import { createTransaction } from '../accounting/accounting.service';
+import { createTransaction, voidTransaction } from '../accounting/accounting.service';
+
+// ─── Helpers ──────────────────────────────────────────────────────
+const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // ─── Auto-number generator ────────────────────────────────────────
 
@@ -59,7 +62,12 @@ export async function createInvoice(input: CreateInvoiceInput) {
   const overallDiscPct = input.discountPercent ?? 0;
   const overallDiscAmt = Math.round(subtotal * overallDiscPct / 100 * 100) / 100;
   const subtotalAfterDisc = Math.round((subtotal - overallDiscAmt) * 100) / 100;
-  const vatAmount = Math.round(subtotalAfterDisc * (processedLines[0]?.vatRate ?? 0.18) * 100) / 100;
+  // Calculate VAT per-line (each line may have a different vatRate)
+  const discountRatio = subtotal > 0 ? (subtotal - subtotalAfterDisc) / subtotal : 0;
+  const vatAmount = processedLines.reduce((sum, line) => {
+    const lineAfterDiscount = round2(line.lineTotal * (1 - discountRatio));
+    return sum + round2(lineAfterDiscount * (line.vatRate ?? 0.18));
+  }, 0);
   const total     = Math.round((subtotalAfterDisc + vatAmount) * 100) / 100;
 
   const number = await generateInvoiceNumber(input.tenantId);
@@ -103,7 +111,9 @@ export async function createInvoice(input: CreateInvoiceInput) {
     });
 
     // 2. Auto-create accounting journal entry (if accounts exist)
-    if (arAccount && revenueAccount && vatAccount) {
+    if (!arAccount || !revenueAccount || !vatAccount) {
+      console.error(`[Invoice] Missing required GL accounts for tenant ${input.tenantId}. AR:${!!arAccount} Revenue:${!!revenueAccount} VAT:${!!vatAccount}. Invoice created WITHOUT accounting entry. Run db:seed to fix.`);
+    } else {
       const journalTx = await createTransaction({
         tenantId:    input.tenantId,
         date:        input.date,
@@ -127,6 +137,8 @@ export async function createInvoice(input: CreateInvoiceInput) {
       });
     }
 
+    // TODO: Include tenant.vatNumber on invoice for Israeli VAT compliance
+    // vatNumber is required on all tax invoices per חוק מע"מ ס' 9
     return invoice;
   });
 }
@@ -227,7 +239,7 @@ export async function getInvoiceAging(tenantId: string) {
   const overdue   = await prisma.invoice.findMany({
     where: {
       tenantId,
-      status: { in: ['SENT', 'OVERDUE'] },
+      status: { notIn: ['DRAFT', 'PAID', 'CANCELLED'] },
     },
     include: { customer: { select: { name: true } } },
     orderBy: { dueDate: 'asc' },
@@ -284,6 +296,13 @@ export async function cancelInvoice(
   const invoice = await prisma.invoice.findUnique({ where: { id: invoiceId } });
   if (!invoice || invoice.tenantId !== tenantId) throw new Error('Invoice not found');
   if (invoice.status === 'PAID') throw new Error('Cannot cancel a paid invoice');
+  if (invoice.status === 'CANCELLED') throw new Error('Invoice already cancelled');
+
+  // Reverse the accounting journal entry to keep ledger balanced
+  // Required by Israeli accounting standards — cannot simply delete, must void
+  if ((invoice as any).journalTransactionId) {
+    await voidTransaction((invoice as any).journalTransactionId, tenantId, userId);
+  }
 
   return prisma.invoice.update({
     where: { id: invoiceId },

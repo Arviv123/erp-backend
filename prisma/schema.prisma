@@ -26,11 +26,11 @@ enum UserRole {
 }
 
 enum AccountType {
-  ASSET       // נכסים
-  LIABILITY   // התחייבויות
-  EQUITY      // הון עצמי
-  REVENUE     // הכנסות
-  EXPENSE     // הוצאות
+  ASSET // נכסים
+  LIABILITY // התחייבויות
+  EQUITY // הון עצמי
+  REVENUE // הכנסות
+  EXPENSE // הוצאות
 }
 
 enum TransactionStatus {
@@ -40,10 +40,10 @@ enum TransactionStatus {
 }
 
 enum EmploymentType {
-  FULL_TIME   // משרה מלאה
-  PART_TIME   // משרה חלקית
-  HOURLY      // שעתי
-  CONTRACTOR  // קבלן
+  FULL_TIME // משרה מלאה
+  PART_TIME // משרה חלקית
+  HOURLY // שעתי
+  CONTRACTOR // קבלן
 }
 
 enum CustomerStatus {
@@ -117,12 +117,12 @@ enum AuditAction {
 }
 
 enum StockMovementType {
-  IN          // קניה / קבלת סחורה
-  OUT         // מכירה / הוצאת סחורה
-  TRANSFER    // העברה בין מחסנים
-  ADJUSTMENT  // ספירת מלאי / תיקון
-  RETURN_IN   // החזרה מלקוח
-  RETURN_OUT  // החזרה לספק
+  IN // קניה / קבלת סחורה
+  OUT // מכירה / הוצאת סחורה
+  TRANSFER // העברה בין מחסנים
+  ADJUSTMENT // ספירת מלאי / תיקון
+  RETURN_IN // החזרה מלקוח
+  RETURN_OUT // החזרה לספק
 }
 
 enum PurchaseOrderStatus {
@@ -149,7 +149,7 @@ enum AssetStatus {
 }
 
 enum DepreciationMethod {
-  STRAIGHT_LINE     // קו ישר
+  STRAIGHT_LINE // קו ישר
   DECLINING_BALANCE // יתרה פוחתת
 }
 
@@ -185,11 +185,11 @@ enum PosTransactionType {
 }
 
 enum DocumentType {
-  QUOTE          // הצעת מחיר
-  DELIVERY_NOTE  // תעודת משלוח
-  RECEIPT        // קבלה
-  PROFORMA       // חשבון עסקה (פרופורמה)
-  CREDIT_NOTE    // הודעת זיכוי
+  QUOTE // הצעת מחיר
+  DELIVERY_NOTE // תעודת משלוח
+  RECEIPT // קבלה
+  PROFORMA // חשבון עסקה (פרופורמה)
+  CREDIT_NOTE // הודעת זיכוי
 }
 
 enum DocumentStatus {
@@ -197,7 +197,7 @@ enum DocumentStatus {
   SENT
   ACCEPTED
   REJECTED
-  CONVERTED   // הפך לחשבונית
+  CONVERTED // הפך לחשבונית
   CANCELLED
 }
 
@@ -206,68 +206,72 @@ enum DocumentStatus {
 // ─────────────────────────────────────────────
 
 model Tenant {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   name           String
-  businessNumber String   @unique // ח.פ. / ע.מ.
-  vatNumber      String?           // מע"מ
-  address        Json              // { street, city, zip, country }
+  businessNumber String  @unique // ח.פ. / ע.מ.
+  vatNumber      String? @db.VarChar(20) // עוסק מורשה number / מע"מ
+  address        Json // { street, city, zip, country }
   phone          String?
   email          String?
   logoUrl        String?
 
   // הגדרות מס ישראלי
-  taxSettings    Json     @default("{\"vatRate\": 0.18, \"taxYear\": 2025}")
-  settings       Json     @default("{}")
+  taxSettings Json @default("{\"vatRate\": 0.18, \"taxYear\": 2025}")
+  settings    Json @default("{}")
 
   // ── SaaS Platform Fields ─────────────────────────────────────
-  plan            String   @default("basic")   // basic | pro | enterprise
-  maxUsers        Int      @default(10)
-  maxEmployees    Int      @default(50)
+  plan            String    @default("basic") // basic | pro | enterprise
+  maxUsers        Int       @default(10)
+  maxEmployees    Int       @default(50)
   // which ERP modules are enabled for this tenant
-  modules         Json     @default("{\"payroll\":true,\"accounting\":true,\"hr\":true,\"crm\":true,\"inventory\":true,\"pos\":true,\"attendance\":true,\"purchasing\":true,\"assets\":true,\"budget\":true,\"documents\":true}")
-  contactName     String?  // איש קשר
-  notes           String?  // הערות פנימיות למנהל הפלטפורמה
+  modules         Json      @default("{\"payroll\":true,\"accounting\":true,\"hr\":true,\"crm\":true,\"inventory\":true,\"pos\":true,\"attendance\":true,\"purchasing\":true,\"assets\":true,\"budget\":true,\"documents\":true}")
+  contactName     String? // איש קשר
+  notes           String? // הערות פנימיות למנהל הפלטפורמה
   suspendedAt     DateTime?
   suspendedReason String?
 
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  users              User[]
-  employees          Employee[]
-  accounts           Account[]
-  transactions       Transaction[]
-  customers          Customer[]
-  attendanceLogs     AttendanceLog[]
-  payrollRuns        PayrollRun[]
-  invoices           Invoice[]
-  leaveTypes         LeaveType[]
-  leaveRequests      LeaveRequest[]
-  holidayCalendar    HolidayCalendar[]
-  activities         Activity[]
-  deals              Deal[]
-  auditLogs          AuditLog[]
+  users               User[]
+  employees           Employee[]
+  accounts            Account[]
+  transactions        Transaction[]
+  customers           Customer[]
+  attendanceLogs      AttendanceLog[]
+  payrollRuns         PayrollRun[]
+  invoices            Invoice[]
+  leaveTypes          LeaveType[]
+  leaveRequests       LeaveRequest[]
+  holidayCalendar     HolidayCalendar[]
+  activities          Activity[]
+  deals               Deal[]
+  auditLogs           AuditLog[]
   // New modules
-  productCategories  ProductCategory[]
-  products           Product[]
-  warehouses         Warehouse[]
-  stockLevels        StockLevel[]
-  stockMovements     StockMovement[]
-  vendors            Vendor[]
-  purchaseOrders     PurchaseOrder[]
-  bills              Bill[]
-  fixedAssets        FixedAsset[]
-  expenseReports     ExpenseReport[]
-  budgets            Budget[]
-  webhooks           Webhook[]
-  apiKeys            ApiKey[]
+  productCategories   ProductCategory[]
+  products            Product[]
+  warehouses          Warehouse[]
+  stockLevels         StockLevel[]
+  stockMovements      StockMovement[]
+  vendors             Vendor[]
+  purchaseOrders      PurchaseOrder[]
+  bills               Bill[]
+  fixedAssets         FixedAsset[]
+  expenseReports      ExpenseReport[]
+  budgets             Budget[]
+  webhooks            Webhook[]
+  apiKeys             ApiKey[]
   passwordResetTokens PasswordResetToken[]
-  posTerminals       PosTerminal[]
-  posSessions        PosSession[]
-  bankStatements     BankStatement[]
-  documents          Document[]
+  posTerminals        PosTerminal[]
+  posSessions         PosSession[]
+  bankStatements      BankStatement[]
+  documents           Document[]
+  // HR Extended
+  leaveBalances       LeaveBalance[]
+  maternityLeaves     MaternityLeave[]
+  terminations        Termination[]
 
   @@map("tenants")
 }
@@ -306,8 +310,9 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  tenant       Tenant    @relation(fields: [tenantId], references: [id])
+  tenant       Tenant        @relation(fields: [tenantId], references: [id])
   employee     Employee?
+  terminations Termination[]
 
   @@unique([tenantId, email])
   @@index([tenantId])
@@ -319,71 +324,75 @@ model User {
 // ─────────────────────────────────────────────
 
 model Employee {
-  id             String         @id @default(cuid())
-  tenantId       String
-  userId         String?        @unique
+  id       String  @id @default(cuid())
+  tenantId String
+  userId   String? @unique
 
   // Personal Info
-  firstName      String
-  lastName       String
-  idNumber       String                    // ת.ז.
-  birthDate      DateTime
-  gender         String
-  address        Json                      // { street, city, zip }
-  phone          String
-  personalEmail  String
-  bankAccount    Json?                     // { bank, branch, accountNumber }
+  firstName     String
+  lastName      String
+  idNumber      String // ת.ז.
+  birthDate     DateTime
+  gender        String
+  address       Json // { street, city, zip }
+  phone         String
+  personalEmail String
+  bankAccount   Json? // { bank, branch, accountNumber }
 
   // Employment
-  startDate      DateTime
-  endDate        DateTime?
-  jobTitle       String
-  department     String
-  employmentType EmploymentType @default(FULL_TIME)
+  startDate       DateTime
+  endDate         DateTime?
+  jobTitle        String
+  department      String
+  employmentType  EmploymentType @default(FULL_TIME)
   directManagerId String?
 
   // Salary
-  grossSalary    Decimal        @db.Decimal(12, 2)
-  salaryType     String         @default("MONTHLY") // MONTHLY | HOURLY
-  hourlyRate     Decimal?       @db.Decimal(10, 2)
+  grossSalary Decimal  @db.Decimal(12, 2)
+  salaryType  String   @default("MONTHLY") // MONTHLY | HOURLY
+  hourlyRate  Decimal? @db.Decimal(10, 2)
 
   // Pension (פנסיה ישראלי - %)
   pensionFund     String?
-  pensionEmployee Decimal       @default(6.00)  @db.Decimal(5, 2) // % עובד
-  pensionEmployer Decimal       @default(6.50)  @db.Decimal(5, 2) // % מעסיק
-  severancePay    Decimal       @default(8.33)  @db.Decimal(5, 2) // % פיצויים
-  section14       Boolean       @default(true)                     // סעיף 14 — פיצויים בתוך פנסיה
+  pensionEmployee Decimal @default(6.00) @db.Decimal(5, 2) // % עובד
+  pensionEmployer Decimal @default(6.50) @db.Decimal(5, 2) // % מעסיק
+  severancePay    Decimal @default(8.33) @db.Decimal(5, 2) // % פיצויים
+  section14       Boolean @default(true) // סעיף 14 — פיצויים בתוך פנסיה
 
   // Training Fund — קרן השתלמות (צו הרחבה)
   // 0 = no training fund; standard: employee 2.5%, employer 7.5%
-  trainingFundRate    Decimal   @default(0)     @db.Decimal(5, 2) // % עובד (0 = ללא קרן)
-  trainingFundErRate  Decimal   @default(0)     @db.Decimal(5, 2) // % מעסיק
+  trainingFundRate   Decimal @default(0) @db.Decimal(5, 2) // % עובד (0 = ללא קרן)
+  trainingFundErRate Decimal @default(0) @db.Decimal(5, 2) // % מעסיק
 
   // Company Car — שווי רכב צמוד (2.48% ממחירון, תקנות 2006)
-  carListPrice    Decimal?                      @db.Decimal(12, 2) // מחירון הרכב בשקלים (null = אין רכב)
-  carType         String?                                          // REGULAR|HYBRID|PLUGIN_HYBRID|ELECTRIC
+  carListPrice Decimal? @db.Decimal(12, 2) // מחירון הרכב בשקלים (null = אין רכב)
+  carType      String? // REGULAR|HYBRID|PLUGIN_HYBRID|ELECTRIC
 
   // Tax (מס)
-  taxCredits      Decimal       @default(2.25)  @db.Decimal(5, 2) // נקודות זיכוי כולל
-  taxExemptions   Json          @default("[]")                     // פטורים נוספים
+  taxCredits          Decimal @default(2.25) @db.Decimal(5, 2) // נקודות זיכוי כולל
+  taxExemptions       Json    @default("[]") // פטורים נוספים
   // פירוט נקודות זיכוי: {resident, gender, children:[{age,points}], veteran, disability, newImmigrant}
-  creditPointsDetails Json      @default("{}")
+  creditPointsDetails Json    @default("{}")
 
   // Mobile ESS (Employee Self-Service)
-  mobilePin      String?                              // PIN 6 ספרות, מוצפן bcrypt — לממשק מובייל
+  mobilePin String? // PIN 6 ספרות, מוצפן bcrypt — לממשק מובייל
 
-  isActive       Boolean        @default(true)
-  metadata       Json           @default("{}")   // שדות גמישים
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  isActive  Boolean  @default(true)
+  metadata  Json     @default("{}") // שדות גמישים
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  user           User?          @relation(fields: [userId], references: [id])
-  salaryHistory  SalaryHistory[]
-  attendanceLogs AttendanceLog[]
-  payslips       Payslip[]
-  leaveRequests  LeaveRequest[]
-  expenseReports ExpenseReport[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id])
+  user            User?            @relation(fields: [userId], references: [id])
+  salaryHistory   SalaryHistory[]
+  attendanceLogs  AttendanceLog[]
+  payslips        Payslip[]
+  leaveRequests   LeaveRequest[]
+  expenseReports  ExpenseReport[]
+  // HR Extended
+  leaveBalances   LeaveBalance[]
+  maternityLeaves MaternityLeave[]
+  terminations    Termination[]
 
   @@unique([tenantId, idNumber])
   @@index([tenantId])
@@ -391,14 +400,14 @@ model Employee {
 }
 
 model SalaryHistory {
-  id           String   @id @default(cuid())
-  employeeId   String
-  grossSalary  Decimal  @db.Decimal(12, 2)
-  changedAt    DateTime @default(now())
-  changedBy    String   // userId
-  reason       String?
+  id          String   @id @default(cuid())
+  employeeId  String
+  grossSalary Decimal  @db.Decimal(12, 2)
+  changedAt   DateTime @default(now())
+  changedBy   String // userId
+  reason      String?
 
-  employee     Employee @relation(fields: [employeeId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
 
   @@map("salary_history")
 }
@@ -410,19 +419,19 @@ model SalaryHistory {
 model Account {
   id        String      @id @default(cuid())
   tenantId  String
-  code      String                    // קוד חשבון e.g. "1100"
-  name      String                    // שם בעברית
-  nameEn    String?                   // שם באנגלית
+  code      String // קוד חשבון e.g. "1100"
+  name      String // שם בעברית
+  nameEn    String? // שם באנגלית
   type      AccountType
   parentId  String?
   isActive  Boolean     @default(true)
   createdAt DateTime    @default(now())
 
-  tenant      Tenant    @relation(fields: [tenantId], references: [id])
-  parent      Account?  @relation("AccountHierarchy", fields: [parentId], references: [id])
-  children    Account[] @relation("AccountHierarchy")
-  debitLines  TransactionLine[] @relation("DebitAccount")
-  creditLines TransactionLine[] @relation("CreditAccount")
+  tenant         Tenant            @relation(fields: [tenantId], references: [id])
+  parent         Account?          @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children       Account[]         @relation("AccountHierarchy")
+  debitLines     TransactionLine[] @relation("DebitAccount")
+  creditLines    TransactionLine[] @relation("CreditAccount")
   bankStatements BankStatement[]
 
   @@unique([tenantId, code])
@@ -438,48 +447,50 @@ model Transaction {
   id          String            @id @default(cuid())
   tenantId    String
   date        DateTime
-  reference   String            // מספר מסמך מקור
+  reference   String // מספר מסמך מקור
   description String
   status      TransactionStatus @default(DRAFT)
 
   // מקור הרשומה
-  sourceType  String            // INVOICE | PAYROLL | MANUAL | PAYMENT | EXPENSE
-  sourceId    String?           // FK לאובייקט המקור
+  sourceType String // INVOICE | PAYROLL | MANUAL | PAYMENT | EXPENSE
+  sourceId   String? // FK לאובייקט המקור
 
-  totalAmount Decimal           @db.Decimal(12, 2)
-  currency    String            @default("ILS")
-  createdBy   String            // userId
+  totalAmount Decimal   @db.Decimal(12, 2)
+  currency    String    @default("ILS")
+  createdBy   String // userId
   postedAt    DateTime?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  deletedAt   DateTime? // soft-delete
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  tenant      Tenant            @relation(fields: [tenantId], references: [id])
-  lines       TransactionLine[]
+  tenant Tenant            @relation(fields: [tenantId], references: [id])
+  lines  TransactionLine[]
 
   @@index([tenantId, date])
   @@index([tenantId, sourceType, sourceId])
+  @@index([tenantId, deletedAt])
   @@map("transactions")
 }
 
 // שורות רישום (חובה/זכות)
 model TransactionLine {
-  id              String      @id @default(cuid())
+  id              String  @id @default(cuid())
   transactionId   String
-  debitAccountId  String      // חשבון חובה
-  creditAccountId String      // חשבון זכות
-  amount          Decimal     @db.Decimal(12, 2)
+  debitAccountId  String // חשבון חובה
+  creditAccountId String // חשבון זכות
+  amount          Decimal @db.Decimal(12, 2)
   description     String?
-  sortOrder       Int         @default(0)
+  sortOrder       Int     @default(0)
 
   // Bank reconciliation
-  cleared         Boolean     @default(false)
+  cleared         Boolean   @default(false)
   clearedAt       DateTime?
   bankStatementId String?
 
-  transaction     Transaction   @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  debitAccount    Account       @relation("DebitAccount",  fields: [debitAccountId],  references: [id])
-  creditAccount   Account       @relation("CreditAccount", fields: [creditAccountId], references: [id])
-  bankStatement   BankStatement? @relation(fields: [bankStatementId], references: [id])
+  transaction   Transaction    @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  debitAccount  Account        @relation("DebitAccount", fields: [debitAccountId], references: [id])
+  creditAccount Account        @relation("CreditAccount", fields: [creditAccountId], references: [id])
+  bankStatement BankStatement? @relation(fields: [bankStatementId], references: [id])
 
   @@index([bankStatementId])
   @@map("transaction_lines")
@@ -490,24 +501,25 @@ model TransactionLine {
 // ─────────────────────────────────────────────
 
 model PayrollRun {
-  id           String        @id @default(cuid())
-  tenantId     String
-  period       String        // "2025-01" (YYYY-MM)
-  status       PayrollStatus @default(DRAFT)
+  id       String        @id @default(cuid())
+  tenantId String
+  period   String // "2025-01" (YYYY-MM)
+  status   PayrollStatus @default(DRAFT)
 
-  totalGross   Decimal       @db.Decimal(12, 2)
-  totalNet     Decimal       @db.Decimal(12, 2)
-  totalTax     Decimal       @db.Decimal(12, 2)
-  totalNI      Decimal       @db.Decimal(12, 2)  // ביטוח לאומי
-  totalPension Decimal       @db.Decimal(12, 2)  // סה"כ פנסיה מעסיק
+  totalGross   Decimal @db.Decimal(12, 2)
+  totalNet     Decimal @db.Decimal(12, 2)
+  totalTax     Decimal @db.Decimal(12, 2)
+  totalNI      Decimal @db.Decimal(12, 2) // ביטוח לאומי
+  totalPension Decimal @db.Decimal(12, 2) // סה"כ פנסיה מעסיק
 
-  approvedBy   String?
-  approvedAt   DateTime?
-  paidAt       DateTime?
-  createdAt    DateTime      @default(now())
+  approvedBy String?
+  approvedAt DateTime?
+  paidAt     DateTime?
+  deletedAt  DateTime? // soft-delete
+  createdAt  DateTime  @default(now())
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id])
-  payslips     Payslip[]
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  payslips Payslip[]
 
   @@unique([tenantId, period])
   @@index([tenantId])
@@ -515,48 +527,49 @@ model PayrollRun {
 }
 
 model Payslip {
-  id             String     @id @default(cuid())
-  payrollRunId   String
-  employeeId     String
-  tenantId       String
-  period         String
+  id           String @id @default(cuid())
+  payrollRunId String
+  employeeId   String
+  tenantId     String
+  period       String
 
   // Gross → Net Breakdown
-  grossSalary    Decimal    @db.Decimal(12, 2)
-  taxableIncome  Decimal    @db.Decimal(12, 2)
+  grossSalary   Decimal @db.Decimal(12, 2)
+  taxableIncome Decimal @db.Decimal(12, 2)
 
   // הכנסות נוספות
-  carBenefit        Decimal @default(0) @db.Decimal(12, 2)  // שווי רכב צמוד
+  carBenefit Decimal @default(0) @db.Decimal(12, 2) // שווי רכב צמוד
 
   // ניכויים עובד
-  incomeTax        Decimal  @db.Decimal(12, 2)  // מס הכנסה
-  nationalInsurance Decimal @db.Decimal(12, 2)  // ביטוח לאומי עובד
-  healthInsurance   Decimal @db.Decimal(12, 2)  // ביטוח בריאות
-  pensionEmployee   Decimal @db.Decimal(12, 2)  // פנסיה עובד
+  incomeTax            Decimal @db.Decimal(12, 2) // מס הכנסה
+  nationalInsurance    Decimal @db.Decimal(12, 2) // ביטוח לאומי עובד
+  healthInsurance      Decimal @db.Decimal(12, 2) // ביטוח בריאות
+  pensionEmployee      Decimal @db.Decimal(12, 2) // פנסיה עובד
   trainingFundEmployee Decimal @default(0) @db.Decimal(12, 2) // קרן השתלמות עובד
 
-  netSalary        Decimal  @db.Decimal(12, 2)
+  netSalary Decimal @db.Decimal(12, 2)
 
   // עלות מעסיק
-  pensionEmployer  Decimal  @db.Decimal(12, 2)  // פנסיה מעסיק
-  severancePay     Decimal  @db.Decimal(12, 2)  // פיצויים
-  niEmployer       Decimal  @db.Decimal(12, 2)  // ביטוח לאומי מעסיק
+  pensionEmployer      Decimal @db.Decimal(12, 2) // פנסיה מעסיק
+  severancePay         Decimal @db.Decimal(12, 2) // פיצויים
+  niEmployer           Decimal @db.Decimal(12, 2) // ביטוח לאומי מעסיק
   trainingFundEmployer Decimal @default(0) @db.Decimal(12, 2) // קרן השתלמות מעסיק
 
   totalEmployerCost Decimal @db.Decimal(12, 2)
 
   // שדות מיוחדים לדיווח טופס 126
-  miluimDays       Int      @default(0)  // ימי מילואים — לדיווח טופס 126
-  sickDays         Int      @default(0)  // ימי מחלה — לדיווח
-  unpaidLeaveDays  Int      @default(0)  // ימי חופשה ללא תשלום
+  miluimDays      Int @default(0) // ימי מילואים — לדיווח טופס 126
+  sickDays        Int @default(0) // ימי מחלה — לדיווח
+  unpaidLeaveDays Int @default(0) // ימי חופשה ללא תשלום
 
   // פירוט מלא ב-JSON
-  breakdown        Json     // { taxBrackets: [...], niCalc: {...} }
+  breakdown Json // { taxBrackets: [...], niCalc: {...} }
 
-  createdAt        DateTime @default(now())
+  deletedAt DateTime? // soft-delete
+  createdAt DateTime  @default(now())
 
-  payrollRun       PayrollRun @relation(fields: [payrollRunId], references: [id])
-  employee         Employee   @relation(fields: [employeeId],   references: [id])
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id])
+  employee   Employee   @relation(fields: [employeeId], references: [id])
 
   @@unique([payrollRunId, employeeId])
   @@index([tenantId, period])
@@ -568,28 +581,28 @@ model Payslip {
 // ─────────────────────────────────────────────
 
 model Customer {
-  id           String         @id @default(cuid())
-  tenantId     String
-  name         String
-  businessId   String?        // ח.פ. / ת.ז.
-  email        String?
-  phone        String?
-  address      Json?
-  type         CustomerType   @default(B2B)
-  status       CustomerStatus @default(LEAD)
-  assignedTo   String?        // userId of salesperson
+  id         String         @id @default(cuid())
+  tenantId   String
+  name       String
+  businessId String? // ח.פ. / ת.ז.
+  email      String?
+  phone      String?
+  address    Json?
+  type       CustomerType   @default(B2B)
+  status     CustomerStatus @default(LEAD)
+  assignedTo String? // userId of salesperson
 
   // JSONB - שדות גמישים לפי סוג לקוח
-  metadata     Json           @default("{}")
+  metadata Json @default("{}")
 
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant       Tenant         @relation(fields: [tenantId], references: [id])
-  invoices     Invoice[]
-  activities   Activity[]
-  deals        Deal[]
-  documents    Document[]
+  tenant     Tenant     @relation(fields: [tenantId], references: [id])
+  invoices   Invoice[]
+  activities Activity[]
+  deals      Deal[]
+  documents  Document[]
 
   @@index([tenantId, status])
   @@index([tenantId, type])
@@ -610,18 +623,19 @@ model AttendanceLog {
   breakMinutes Int       @default(0)
 
   // Metadata
-  ipAddress    String?
-  gpsLocation  Json?     // { lat, lng }
-  deviceInfo   String?
-  notes        String?
-  approvedBy   String?   // userId
+  ipAddress   String?
+  gpsLocation Json? // { lat, lng }
+  deviceInfo  String?
+  notes       String?
+  approvedBy  String? // userId
 
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  tenant       Tenant    @relation(fields: [tenantId], references: [id])
-  employee     Employee  @relation(fields: [employeeId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
 
+  @@index([tenantId])
   @@index([tenantId, date])
   @@index([tenantId, employeeId, date])
   @@map("attendance_logs")
@@ -635,7 +649,7 @@ model Invoice {
   id                   String        @id @default(cuid())
   tenantId             String
   customerId           String
-  number               String        // INV-2026-0001 (auto-generated)
+  number               String // INV-2026-0001 (auto-generated)
   date                 DateTime
   dueDate              DateTime
   status               InvoiceStatus @default(DRAFT)
@@ -643,48 +657,60 @@ model Invoice {
   vatAmount            Decimal       @db.Decimal(12, 2)
   total                Decimal       @db.Decimal(12, 2)
   currency             String        @default("ILS")
-  discountPercent      Decimal?      @db.Decimal(5, 2)   // % הנחה כללית
-  discountAmount       Decimal?      @db.Decimal(12, 2)  // סכום הנחה כללית
+  discountPercent      Decimal?      @db.Decimal(5, 2) // % הנחה כללית
+  discountAmount       Decimal?      @db.Decimal(12, 2) // סכום הנחה כללית
   notes                String?
-  paymentTerms         String?       // "30 days", "COD", etc.
-  reference            String?       // מספר הזמנה / אסמכתא
-  journalTransactionId String?       // FK → auto-created accounting entry
-  createdBy            String
-  sentAt               DateTime?
-  paidAt               DateTime?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
+  paymentTerms         String? // "30 days", "COD", etc.
+  reference            String? // מספר הזמנה / אסמכתא
+  journalTransactionId String? // FK → auto-created accounting entry
 
-  tenant    Tenant         @relation(fields: [tenantId], references: [id])
-  customer  Customer       @relation(fields: [customerId], references: [id])
-  lines     InvoiceLine[]
-  payments  InvoicePayment[]
+  // Invoice type support
+  invoiceType     String  @default("TAX_INVOICE") // TAX_INVOICE | CREDIT_NOTE | RECEIPT | COMMERCIAL
+  creditNoteForId String? // Reference to original invoice when this is a credit note
+
+  // Optimistic locking
+  version Int @default(0)
+
+  createdBy String
+  sentAt    DateTime?
+  paidAt    DateTime?
+  deletedAt DateTime? // soft-delete
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  customer      Customer         @relation(fields: [customerId], references: [id])
+  lines         InvoiceLine[]
+  payments      InvoicePayment[]
+  creditNoteFor Invoice?         @relation("CreditNotes", fields: [creditNoteForId], references: [id])
+  creditNotes   Invoice[]        @relation("CreditNotes")
 
   @@unique([tenantId, number])
   @@index([tenantId, status])
   @@index([tenantId, customerId])
+  @@index([tenantId, deletedAt])
   @@map("invoices")
 }
 
 model InvoiceLine {
   id              String  @id @default(cuid())
   invoiceId       String
-  productId       String?   // optional link to product catalog
+  productId       String? // optional link to product catalog
   description     String
-  sku             String?   // מק"ט / קוד פריט
-  barcode         String?   // ברקוד
-  unit            String?   // יחידת מידה (יח', ק"ג, שעה, ...)
+  sku             String? // מק"ט / קוד פריט
+  barcode         String? // ברקוד
+  unit            String? // יחידת מידה (יח', ק"ג, שעה, ...)
   quantity        Decimal @db.Decimal(10, 3)
   unitPrice       Decimal @db.Decimal(12, 2)
-  discountPercent Decimal @db.Decimal(5, 2) @default(0)  // % הנחה לשורה
-  discountAmount  Decimal @db.Decimal(12, 2) @default(0) // סכום הנחה לשורה
-  vatRate         Decimal @db.Decimal(5, 4) @default(0.18) // 18% מע"מ
-  lineTotal       Decimal @db.Decimal(12, 2)  // after discount, before VAT
+  discountPercent Decimal @default(0) @db.Decimal(5, 2) // % הנחה לשורה
+  discountAmount  Decimal @default(0) @db.Decimal(12, 2) // סכום הנחה לשורה
+  vatRate         Decimal @default(0.18) @db.Decimal(5, 4) // 18% מע"מ
+  lineTotal       Decimal @db.Decimal(12, 2) // after discount, before VAT
   sortOrder       Int     @default(0)
-  notes           String?   // הערה לשורה
+  notes           String? // הערה לשורה
 
-  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  product     Product? @relation("ProductInvoiceLines", fields: [productId], references: [id])
+  invoice Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  product Product? @relation("ProductInvoiceLines", fields: [productId], references: [id])
 
   @@map("invoice_lines")
 }
@@ -696,13 +722,13 @@ model InvoicePayment {
   amount               Decimal       @db.Decimal(12, 2)
   method               PaymentMethod
   date                 DateTime
-  reference            String?       // bank reference / check number
+  reference            String? // bank reference / check number
   notes                String?
-  journalTransactionId String?       // FK → accounting entry
+  journalTransactionId String? // FK → accounting entry
   createdBy            String
   createdAt            DateTime      @default(now())
 
-  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+  invoice Invoice @relation(fields: [invoiceId], references: [id])
 
   @@index([tenantId, invoiceId])
   @@map("invoice_payments")
@@ -714,35 +740,35 @@ model InvoicePayment {
 // ─────────────────────────────────────────────
 
 model Document {
-  id           String         @id @default(cuid())
-  tenantId     String
-  customerId   String?
-  type         DocumentType
-  status       DocumentStatus @default(DRAFT)
-  number       String         // QUO-2026-0001, DN-2026-0001, etc.
-  date         DateTime
-  validUntil   DateTime?      // הצעת מחיר — תוקף
-  reference    String?        // מספר הזמנת לקוח / אסמכתא
-  notes        String?
-  internalNotes String?       // הערות פנימיות
-  subtotal     Decimal        @db.Decimal(12, 2)
-  discountPercent Decimal?    @db.Decimal(5, 2)
-  discountAmount  Decimal?    @db.Decimal(12, 2)
-  vatAmount    Decimal        @db.Decimal(12, 2)
-  total        Decimal        @db.Decimal(12, 2)
-  currency     String         @default("ILS")
+  id              String         @id @default(cuid())
+  tenantId        String
+  customerId      String?
+  type            DocumentType
+  status          DocumentStatus @default(DRAFT)
+  number          String // QUO-2026-0001, DN-2026-0001, etc.
+  date            DateTime
+  validUntil      DateTime? // הצעת מחיר — תוקף
+  reference       String? // מספר הזמנת לקוח / אסמכתא
+  notes           String?
+  internalNotes   String? // הערות פנימיות
+  subtotal        Decimal        @db.Decimal(12, 2)
+  discountPercent Decimal?       @db.Decimal(5, 2)
+  discountAmount  Decimal?       @db.Decimal(12, 2)
+  vatAmount       Decimal        @db.Decimal(12, 2)
+  total           Decimal        @db.Decimal(12, 2)
+  currency        String         @default("ILS")
 
   // Conversion tracking
-  convertedToInvoiceId String?  // מסמך שהפך לחשבונית
-  sourceDocumentId     String?  // חשבונית שנוצרה ממסמך זה
+  convertedToInvoiceId String? // מסמך שהפך לחשבונית
+  sourceDocumentId     String? // חשבונית שנוצרה ממסמך זה
 
-  createdBy    String
-  sentAt       DateTime?
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  createdBy String
+  sentAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  tenant   Tenant    @relation(fields: [tenantId], references: [id])
-  customer Customer? @relation(fields: [customerId], references: [id])
+  tenant   Tenant         @relation(fields: [tenantId], references: [id])
+  customer Customer?      @relation(fields: [customerId], references: [id])
   lines    DocumentLine[]
 
   @@unique([tenantId, number])
@@ -752,20 +778,20 @@ model Document {
 }
 
 model DocumentLine {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   documentId      String
   productId       String?
   description     String
   sku             String?
   barcode         String?
   unit            String?
-  quantity        Decimal  @db.Decimal(10, 3)
-  unitPrice       Decimal  @db.Decimal(12, 2)
-  discountPercent Decimal  @db.Decimal(5, 2) @default(0)
-  discountAmount  Decimal  @db.Decimal(12, 2) @default(0)
-  vatRate         Decimal  @db.Decimal(5, 4) @default(0.18)
-  lineTotal       Decimal  @db.Decimal(12, 2)
-  sortOrder       Int      @default(0)
+  quantity        Decimal @db.Decimal(10, 3)
+  unitPrice       Decimal @db.Decimal(12, 2)
+  discountPercent Decimal @default(0) @db.Decimal(5, 2)
+  discountAmount  Decimal @default(0) @db.Decimal(12, 2)
+  vatRate         Decimal @default(0.18) @db.Decimal(5, 4)
+  lineTotal       Decimal @db.Decimal(12, 2)
+  sortOrder       Int     @default(0)
   notes           String?
 
   document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
@@ -778,41 +804,44 @@ model DocumentLine {
 // ─────────────────────────────────────────────
 
 model LeaveType {
-  id                String  @id @default(cuid())
-  tenantId          String
-  name              String  // חופשה שנתית / מחלה / לידה / אבל / מילואים
-  isPaid            Boolean @default(true)
-  maxDaysPerYear    Int?
-  requiresApproval  Boolean @default(true)
-  colorHex          String  @default("#3B82F6")
+  id               String  @id @default(cuid())
+  tenantId         String
+  name             String // חופשה שנתית / מחלה / לידה / אבל / מילואים
+  isPaid           Boolean @default(true)
+  maxDaysPerYear   Int?
+  requiresApproval Boolean @default(true)
+  colorHex         String  @default("#3B82F6")
 
-  tenant         Tenant         @relation(fields: [tenantId], references: [id])
-  leaveRequests  LeaveRequest[]
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  leaveRequests LeaveRequest[]
+  leaveBalances LeaveBalance[]
 
   @@unique([tenantId, name])
+  @@index([tenantId])
   @@map("leave_types")
 }
 
 model LeaveRequest {
-  id           String      @id @default(cuid())
-  tenantId     String
-  employeeId   String
-  leaveTypeId  String
-  startDate    DateTime    @db.Date
-  endDate      DateTime    @db.Date
-  totalDays    Int
-  status       LeaveStatus @default(PENDING)
-  notes        String?
-  approvedBy   String?
-  approvedAt   DateTime?
+  id             String      @id @default(cuid())
+  tenantId       String
+  employeeId     String
+  leaveTypeId    String
+  startDate      DateTime    @db.Date
+  endDate        DateTime    @db.Date
+  totalDays      Int
+  status         LeaveStatus @default(PENDING)
+  notes          String?
+  approvedBy     String?
+  approvedAt     DateTime?
   rejectedReason String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
 
-  tenant      Tenant      @relation(fields: [tenantId], references: [id])
-  employee    Employee    @relation(fields: [employeeId], references: [id])
-  leaveType   LeaveType   @relation(fields: [leaveTypeId], references: [id])
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
 
+  @@index([tenantId])
   @@index([tenantId, employeeId])
   @@index([tenantId, status])
   @@map("leave_requests")
@@ -825,11 +854,87 @@ model HolidayCalendar {
   date       DateTime @db.Date
   isNational Boolean  @default(true)
 
-  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@unique([tenantId, date])
   @@index([tenantId])
   @@map("holiday_calendar")
+}
+
+// ─────────────────────────────────────────────
+// HR EXTENDED — Leave Balances, Maternity, Termination
+// ─────────────────────────────────────────────
+
+model LeaveBalance {
+  id           String   @id @default(cuid())
+  tenantId     String
+  employeeId   String
+  leaveTypeId  String
+  year         Int
+  accrued      Float    @default(0)
+  used         Float    @default(0)
+  carryForward Float    @default(0)
+  expired      Float    @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id])
+  employee  Employee  @relation(fields: [employeeId], references: [id])
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@index([tenantId, year])
+  @@map("leave_balances")
+}
+
+model MaternityLeave {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  employeeId         String
+  leaveType          String    @default("MATERNITY") // MATERNITY | PATERNITY
+  startDate          DateTime
+  expectedEndDate    DateTime
+  actualEndDate      DateTime?
+  niPaidWeeks        Int       @default(15)
+  unpaidWeeks        Int       @default(11)
+  jobProtectionUntil DateTime?
+  status             String    @default("APPROVED") // APPROVED | ACTIVE | COMPLETED | CANCELLED
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  employee Employee @relation(fields: [employeeId], references: [id])
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@map("maternity_leaves")
+}
+
+model Termination {
+  id                String   @id @default(cuid())
+  tenantId          String
+  employeeId        String
+  initiatedById     String
+  terminationReason String // RESIGNATION | DISMISSAL_CAUSE | REDUNDANCY | RETIREMENT | MATERNITY_END
+  initiatedAt       DateTime @default(now())
+  effectiveDate     DateTime
+  noticeRequired    Int // days
+  noticeEndDate     DateTime
+  severanceEligible Boolean  @default(true)
+  severanceAmount   Decimal? @db.Decimal(12, 2)
+  status            String   @default("NOTICE_ACTIVE") // NOTICE_ACTIVE | COMPLETED | CANCELLED
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  employee    Employee @relation(fields: [employeeId], references: [id])
+  initiatedBy User     @relation(fields: [initiatedById], references: [id])
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@map("terminations")
 }
 
 // ─────────────────────────────────────────────
@@ -840,7 +945,7 @@ model Activity {
   id          String       @id @default(cuid())
   tenantId    String
   customerId  String
-  userId      String       // who logged this
+  userId      String // who logged this
   type        ActivityType
   subject     String
   content     String?
@@ -848,8 +953,8 @@ model Activity {
   completedAt DateTime?
   createdAt   DateTime     @default(now())
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id])
-  customer    Customer     @relation(fields: [customerId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
 
   @@index([tenantId, customerId])
   @@map("activities")
@@ -863,9 +968,9 @@ model Deal {
   value             Decimal?  @db.Decimal(12, 2)
   currency          String    @default("ILS")
   stage             DealStage @default(LEAD)
-  probability       Int       @default(0)   // 0-100%
+  probability       Int       @default(0) // 0-100%
   expectedCloseDate DateTime?
-  assignedTo        String?   // userId
+  assignedTo        String? // userId
   notes             String?
   wonAt             DateTime?
   lostAt            DateTime?
@@ -873,8 +978,8 @@ model Deal {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
-  customer  Customer @relation(fields: [customerId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
 
   @@index([tenantId, stage])
   @@index([tenantId, customerId])
@@ -886,19 +991,19 @@ model Deal {
 // ─────────────────────────────────────────────
 
 model AuditLog {
-  id          String      @id @default(cuid())
-  tenantId    String
-  userId      String?
-  action      AuditAction
-  entityType  String      // EMPLOYEE | INVOICE | PAYROLL | USER | CUSTOMER
-  entityId    String?
-  oldValues   Json?
-  newValues   Json?
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime    @default(now())
+  id         String      @id @default(cuid())
+  tenantId   String
+  userId     String?
+  action     AuditAction
+  entityType String // EMPLOYEE | INVOICE | PAYROLL | USER | CUSTOMER
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime    @default(now())
 
-  tenant      Tenant      @relation(fields: [tenantId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId, entityType, entityId])
   @@index([tenantId, createdAt])
@@ -910,10 +1015,10 @@ model AuditLog {
 // ══════════════════════════════════════════════
 
 model ProductCategory {
-  id        String  @id @default(cuid())
-  tenantId  String
-  name      String
-  parentId  String?
+  id       String  @id @default(cuid())
+  tenantId String
+  name     String
+  parentId String?
 
   tenant   Tenant            @relation(fields: [tenantId], references: [id])
   parent   ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
@@ -928,14 +1033,14 @@ model Product {
   id            String   @id @default(cuid())
   tenantId      String
   categoryId    String?
-  sku           String              // מק"ט
+  sku           String // מק"ט
   name          String
   description   String?
   unitOfMeasure String   @default("יחידה") // יחידה / ק"ג / מטר...
   costPrice     Decimal  @db.Decimal(12, 2)
   sellingPrice  Decimal  @db.Decimal(12, 2)
   vatRate       Decimal  @default(0.18) @db.Decimal(5, 4)
-  isService     Boolean  @default(false)  // שירות - אין מלאי
+  isService     Boolean  @default(false) // שירות - אין מלאי
   isActive      Boolean  @default(true)
   barcode       String?
   imageUrl      String?
@@ -943,11 +1048,11 @@ model Product {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  tenant         Tenant          @relation(fields: [tenantId], references: [id])
-  category       ProductCategory? @relation(fields: [categoryId], references: [id])
+  tenant         Tenant              @relation(fields: [tenantId], references: [id])
+  category       ProductCategory?    @relation(fields: [categoryId], references: [id])
   stockLevels    StockLevel[]
   stockMovements StockMovement[]
-  invoiceLines   InvoiceLine[]   @relation("ProductInvoiceLines")
+  invoiceLines   InvoiceLine[]       @relation("ProductInvoiceLines")
   poLines        PurchaseOrderLine[]
   billLines      BillLine[]
 
@@ -973,15 +1078,15 @@ model Warehouse {
 }
 
 model StockLevel {
-  id                String   @id @default(cuid())
-  tenantId          String
-  productId         String
-  warehouseId       String
-  quantity          Decimal  @default(0) @db.Decimal(12, 3)
-  reservedQuantity  Decimal  @default(0) @db.Decimal(12, 3) // locked for orders
-  reorderPoint      Decimal? @db.Decimal(12, 3)
-  reorderQuantity   Decimal? @db.Decimal(12, 3)
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(cuid())
+  tenantId         String
+  productId        String
+  warehouseId      String
+  quantity         Decimal  @default(0) @db.Decimal(12, 3)
+  reservedQuantity Decimal  @default(0) @db.Decimal(12, 3) // locked for orders
+  reorderPoint     Decimal? @db.Decimal(12, 3)
+  reorderQuantity  Decimal? @db.Decimal(12, 3)
+  updatedAt        DateTime @updatedAt
 
   tenant    Tenant    @relation(fields: [tenantId], references: [id])
   product   Product   @relation(fields: [productId], references: [id])
@@ -993,20 +1098,20 @@ model StockLevel {
 }
 
 model StockMovement {
-  id           String            @id @default(cuid())
-  tenantId     String
-  productId    String
-  warehouseId  String
-  type         StockMovementType
-  quantity     Decimal           @db.Decimal(12, 3)
-  unitCost     Decimal?          @db.Decimal(12, 2)
-  totalCost    Decimal?          @db.Decimal(12, 2)
-  reference    String?           // מסמך מקור
-  sourceType   String?           // INVOICE | PO | ADJUSTMENT
-  sourceId     String?
-  notes        String?
-  createdBy    String
-  createdAt    DateTime          @default(now())
+  id          String            @id @default(cuid())
+  tenantId    String
+  productId   String
+  warehouseId String
+  type        StockMovementType
+  quantity    Decimal           @db.Decimal(12, 3)
+  unitCost    Decimal?          @db.Decimal(12, 2)
+  totalCost   Decimal?          @db.Decimal(12, 2)
+  reference   String? // מסמך מקור
+  sourceType  String? // INVOICE | PO | ADJUSTMENT
+  sourceId    String?
+  notes       String?
+  createdBy   String
+  createdAt   DateTime          @default(now())
 
   tenant    Tenant    @relation(fields: [tenantId], references: [id])
   product   Product   @relation(fields: [productId], references: [id])
@@ -1022,19 +1127,19 @@ model StockMovement {
 // ══════════════════════════════════════════════
 
 model Vendor {
-  id           String  @id @default(cuid())
+  id           String   @id @default(cuid())
   tenantId     String
   name         String
-  businessId   String?   // ח.פ.
+  businessId   String? // ח.פ.
   vatNumber    String?
   email        String?
   phone        String?
   address      Json?
-  paymentTerms String?   // "30 days"
-  status       String    @default("ACTIVE") // ACTIVE | INACTIVE
-  metadata     Json      @default("{}")
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  paymentTerms String? // "30 days"
+  status       String   @default("ACTIVE") // ACTIVE | INACTIVE
+  metadata     Json     @default("{}")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   tenant         Tenant          @relation(fields: [tenantId], references: [id])
   purchaseOrders PurchaseOrder[]
@@ -1045,25 +1150,25 @@ model Vendor {
 }
 
 model PurchaseOrder {
-  id             String              @id @default(cuid())
-  tenantId       String
-  vendorId       String
-  number         String              // PO-2026-0001
-  date           DateTime
-  expectedDate   DateTime?
-  status         PurchaseOrderStatus @default(DRAFT)
-  subtotal       Decimal             @db.Decimal(12, 2)
-  vatAmount      Decimal             @db.Decimal(12, 2)
-  total          Decimal             @db.Decimal(12, 2)
-  notes          String?
-  createdBy      String
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
+  id           String              @id @default(cuid())
+  tenantId     String
+  vendorId     String
+  number       String // PO-2026-0001
+  date         DateTime
+  expectedDate DateTime?
+  status       PurchaseOrderStatus @default(DRAFT)
+  subtotal     Decimal             @db.Decimal(12, 2)
+  vatAmount    Decimal             @db.Decimal(12, 2)
+  total        Decimal             @db.Decimal(12, 2)
+  notes        String?
+  createdBy    String
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
 
-  tenant  Tenant              @relation(fields: [tenantId], references: [id])
-  vendor  Vendor              @relation(fields: [vendorId], references: [id])
-  lines   PurchaseOrderLine[]
-  bills   Bill[]
+  tenant Tenant              @relation(fields: [tenantId], references: [id])
+  vendor Vendor              @relation(fields: [vendorId], references: [id])
+  lines  PurchaseOrderLine[]
+  bills  Bill[]
 
   @@unique([tenantId, number])
   @@index([tenantId])
@@ -1071,16 +1176,16 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderLine {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   poId        String
   productId   String?
   description String
-  quantity    Decimal  @db.Decimal(12, 3)
-  unitCost    Decimal  @db.Decimal(12, 2)
-  vatRate     Decimal  @default(0.18) @db.Decimal(5, 4)
-  lineTotal   Decimal  @db.Decimal(12, 2)
-  receivedQty Decimal  @default(0) @db.Decimal(12, 3)
-  sortOrder   Int      @default(0)
+  quantity    Decimal @db.Decimal(12, 3)
+  unitCost    Decimal @db.Decimal(12, 2)
+  vatRate     Decimal @default(0.18) @db.Decimal(5, 4)
+  lineTotal   Decimal @db.Decimal(12, 2)
+  receivedQty Decimal @default(0) @db.Decimal(12, 3)
+  sortOrder   Int     @default(0)
 
   po      PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
   product Product?      @relation(fields: [productId], references: [id])
@@ -1093,8 +1198,8 @@ model Bill {
   tenantId             String
   vendorId             String
   purchaseOrderId      String?
-  number               String              // BILL-2026-0001
-  vendorRef            String?             // ספק מספר חשבונית
+  number               String // BILL-2026-0001
+  vendorRef            String? // ספק מספר חשבונית
   date                 DateTime
   dueDate              DateTime
   status               BillStatus @default(DRAFT)
@@ -1105,11 +1210,12 @@ model Bill {
   journalTransactionId String?
   createdBy            String
   paidAt               DateTime?
+  deletedAt            DateTime? // soft-delete
   createdAt            DateTime   @default(now())
   updatedAt            DateTime   @updatedAt
 
-  tenant        Tenant        @relation(fields: [tenantId], references: [id])
-  vendor        Vendor        @relation(fields: [vendorId], references: [id])
+  tenant        Tenant         @relation(fields: [tenantId], references: [id])
+  vendor        Vendor         @relation(fields: [vendorId], references: [id])
   purchaseOrder PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
   lines         BillLine[]
   payments      BillPayment[]
@@ -1120,16 +1226,16 @@ model Bill {
 }
 
 model BillLine {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   billId      String
   productId   String?
-  accountId   String?  // expense account
+  accountId   String? // expense account
   description String
-  quantity    Decimal  @db.Decimal(12, 3)
-  unitCost    Decimal  @db.Decimal(12, 2)
-  vatRate     Decimal  @default(0.18) @db.Decimal(5, 4)
-  lineTotal   Decimal  @db.Decimal(12, 2)
-  sortOrder   Int      @default(0)
+  quantity    Decimal @db.Decimal(12, 3)
+  unitCost    Decimal @db.Decimal(12, 2)
+  vatRate     Decimal @default(0.18) @db.Decimal(5, 4)
+  lineTotal   Decimal @db.Decimal(12, 2)
+  sortOrder   Int     @default(0)
 
   bill    Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id])
@@ -1160,27 +1266,27 @@ model BillPayment {
 // ══════════════════════════════════════════════
 
 model FixedAsset {
-  id                              String             @id @default(cuid())
-  tenantId                        String
-  code                            String             // FA-001
-  name                            String
-  category                        String             // מחשב / רכב / ציוד
-  purchaseDate                    DateTime
-  purchasePrice                   Decimal            @db.Decimal(12, 2)
-  salvageValue                    Decimal            @default(0) @db.Decimal(12, 2)
-  usefulLifeYears                 Int
-  depreciationMethod              DepreciationMethod @default(STRAIGHT_LINE)
-  assetAccountId                  String?            // חשבון נכס (2100)
-  depreciationExpenseAccountId    String?            // הוצאות פחת (7800)
-  accumulatedDepreciationAccountId String?           // פחת נצבר (2900)
-  status                          AssetStatus        @default(ACTIVE)
-  disposedAt                      DateTime?
-  disposalPrice                   Decimal?           @db.Decimal(12, 2)
-  notes                           String?
-  createdAt                       DateTime           @default(now())
-  updatedAt                       DateTime           @updatedAt
+  id                               String             @id @default(cuid())
+  tenantId                         String
+  code                             String // FA-001
+  name                             String
+  category                         String // מחשב / רכב / ציוד
+  purchaseDate                     DateTime
+  purchasePrice                    Decimal            @db.Decimal(12, 2)
+  salvageValue                     Decimal            @default(0) @db.Decimal(12, 2)
+  usefulLifeYears                  Int
+  depreciationMethod               DepreciationMethod @default(STRAIGHT_LINE)
+  assetAccountId                   String? // חשבון נכס (2100)
+  depreciationExpenseAccountId     String? // הוצאות פחת (7800)
+  accumulatedDepreciationAccountId String? // פחת נצבר (2900)
+  status                           AssetStatus        @default(ACTIVE)
+  disposedAt                       DateTime?
+  disposalPrice                    Decimal?           @db.Decimal(12, 2)
+  notes                            String?
+  createdAt                        DateTime           @default(now())
+  updatedAt                        DateTime           @updatedAt
 
-  tenant             Tenant               @relation(fields: [tenantId], references: [id])
+  tenant             Tenant              @relation(fields: [tenantId], references: [id])
   depreciationLedger AssetDepreciation[]
 
   @@unique([tenantId, code])
@@ -1189,15 +1295,15 @@ model FixedAsset {
 }
 
 model AssetDepreciation {
-  id                   String   @id @default(cuid())
+  id                   String    @id @default(cuid())
   assetId              String
   tenantId             String
-  period               String   // "2026-03"
-  amount               Decimal  @db.Decimal(12, 2)
-  bookValueAfter       Decimal  @db.Decimal(12, 2)
+  period               String // "2026-03"
+  amount               Decimal   @db.Decimal(12, 2)
+  bookValueAfter       Decimal   @db.Decimal(12, 2)
   journalTransactionId String?
   postedAt             DateTime?
-  createdAt            DateTime @default(now())
+  createdAt            DateTime  @default(now())
 
   asset FixedAsset @relation(fields: [assetId], references: [id])
 
@@ -1210,25 +1316,26 @@ model AssetDepreciation {
 // ══════════════════════════════════════════════
 
 model ExpenseReport {
-  id          String        @id @default(cuid())
-  tenantId    String
-  employeeId  String
-  title       String
-  period      String        // "2026-03"
-  status      ExpenseStatus @default(DRAFT)
-  totalAmount Decimal       @db.Decimal(12, 2) @default(0)
-  notes       String?
-  approvedBy  String?
-  approvedAt  DateTime?
-  paidAt      DateTime?
+  id             String        @id @default(cuid())
+  tenantId       String
+  employeeId     String
+  title          String
+  period         String // "2026-03"
+  status         ExpenseStatus @default(DRAFT)
+  totalAmount    Decimal       @default(0) @db.Decimal(12, 2)
+  notes          String?
+  approvedBy     String?
+  approvedAt     DateTime?
+  paidAt         DateTime?
   rejectedReason String?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   tenant   Tenant    @relation(fields: [tenantId], references: [id])
   employee Employee  @relation(fields: [employeeId], references: [id])
   expenses Expense[]
 
+  @@index([tenantId])
   @@index([tenantId, status])
   @@map("expense_reports")
 }
@@ -1238,12 +1345,12 @@ model Expense {
   reportId    String
   tenantId    String
   date        DateTime
-  category    String   // נסיעות / ארוחות / ציוד / אחר
+  category    String // נסיעות / ארוחות / ציוד / אחר
   description String
   amount      Decimal  @db.Decimal(12, 2)
   vatAmount   Decimal  @default(0) @db.Decimal(12, 2)
-  receiptUrl  String?  // Supabase Storage URL
-  accountId   String?  // expense account FK
+  receiptUrl  String? // Supabase Storage URL
+  accountId   String? // expense account FK
   notes       String?
 
   report ExpenseReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
@@ -1262,7 +1369,7 @@ model Budget {
   name        String
   year        Int
   status      BudgetStatus @default(DRAFT)
-  totalBudget Decimal      @db.Decimal(14, 2) @default(0)
+  totalBudget Decimal      @default(0) @db.Decimal(14, 2)
   notes       String?
   createdBy   String
   createdAt   DateTime     @default(now())
@@ -1294,16 +1401,16 @@ model BudgetLine {
 // ══════════════════════════════════════════════
 
 model Webhook {
-  id            String   @id @default(cuid())
-  tenantId      String
-  name          String
-  url           String
-  secret        String   // HMAC secret for signature
-  events        Json     // ["invoice.created", "payroll.approved", ...]
-  isActive      Boolean  @default(true)
-  failureCount  Int      @default(0)
+  id              String    @id @default(cuid())
+  tenantId        String
+  name            String
+  url             String
+  secret          String // HMAC secret for signature
+  events          Json // ["invoice.created", "payroll.approved", ...]
+  isActive        Boolean   @default(true)
+  failureCount    Int       @default(0)
   lastDeliveredAt DateTime?
-  createdAt     DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   tenant     Tenant            @relation(fields: [tenantId], references: [id])
   deliveries WebhookDelivery[]
@@ -1320,7 +1427,7 @@ model WebhookDelivery {
   status       WebhookStatus @default(PENDING)
   responseCode Int?
   responseBody String?
-  duration     Int?          // ms
+  duration     Int? // ms
   createdAt    DateTime      @default(now())
 
   webhook Webhook @relation(fields: [webhookId], references: [id])
@@ -1334,13 +1441,13 @@ model WebhookDelivery {
 // ══════════════════════════════════════════════
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   tenantId  String
   userId    String
-  token     String   @unique
+  token     String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -1349,17 +1456,17 @@ model PasswordResetToken {
 }
 
 model ApiKey {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   tenantId   String
   name       String
-  keyHash    String   @unique   // bcrypt hash of the key
-  keyPrefix  String             // first 8 chars shown in UI (e.g. "erpk_abc")
-  scopes     Json               // ["read:invoices", "write:employees"]
-  isActive   Boolean  @default(true)
+  keyHash    String    @unique // bcrypt hash of the key
+  keyPrefix  String // first 8 chars shown in UI (e.g. "erpk_abc")
+  scopes     Json // ["read:invoices", "write:employees"]
+  isActive   Boolean   @default(true)
   lastUsedAt DateTime?
   expiresAt  DateTime?
   createdBy  String
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
 
@@ -1372,11 +1479,11 @@ model ApiKey {
 // ══════════════════════════════════════════════
 
 model PosTerminal {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   tenantId  String
-  name      String  // "קופה ראשית" / "קופה 2"
+  name      String // "קופה ראשית" / "קופה 2"
   location  String?
-  isActive  Boolean @default(true)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
   tenant   Tenant       @relation(fields: [tenantId], references: [id])
@@ -1390,7 +1497,7 @@ model PosSession {
   id           String           @id @default(cuid())
   tenantId     String
   terminalId   String
-  openedBy     String           // userId
+  openedBy     String // userId
   closedBy     String?
   status       PosSessionStatus @default(OPEN)
   openingFloat Decimal          @db.Decimal(12, 2) // מזומן פתיחה
@@ -1409,25 +1516,25 @@ model PosSession {
 }
 
 model PosTransaction {
-  id           String             @id @default(cuid())
-  tenantId     String
-  sessionId    String
-  customerId   String?
-  type         PosTransactionType @default(SALE)
-  subtotal     Decimal            @db.Decimal(12, 2)
-  vatAmount    Decimal            @db.Decimal(12, 2)
-  total        Decimal            @db.Decimal(12, 2)
-  discount     Decimal            @default(0) @db.Decimal(12, 2)
+  id            String             @id @default(cuid())
+  tenantId      String
+  sessionId     String
+  customerId    String?
+  type          PosTransactionType @default(SALE)
+  subtotal      Decimal            @db.Decimal(12, 2)
+  vatAmount     Decimal            @db.Decimal(12, 2)
+  total         Decimal            @db.Decimal(12, 2)
+  discount      Decimal            @default(0) @db.Decimal(12, 2)
   paymentMethod PaymentMethod
-  amountPaid   Decimal            @db.Decimal(12, 2)
-  change       Decimal            @default(0) @db.Decimal(12, 2)
+  amountPaid    Decimal            @db.Decimal(12, 2)
+  change        Decimal            @default(0) @db.Decimal(12, 2)
   receiptNumber String?
-  invoiceId    String?            // if receipt was converted to invoice
-  notes        String?
-  createdAt    DateTime           @default(now())
+  invoiceId     String? // if receipt was converted to invoice
+  notes         String?
+  createdAt     DateTime           @default(now())
 
-  session  PosSession        @relation(fields: [sessionId], references: [id])
-  lines    PosTransactionLine[]
+  session PosSession           @relation(fields: [sessionId], references: [id])
+  lines   PosTransactionLine[]
 
   @@index([tenantId, sessionId])
   @@map("pos_transactions")
@@ -1454,17 +1561,17 @@ model PosTransactionLine {
 // ─────────────────────────────────────────────
 
 model BankStatement {
-  id              String    @id @default(cuid())
-  tenantId        String
-  accountId       String    // GL bank account (e.g. code 1200)
-  period          String    // YYYY-MM
-  openingBalance  Decimal   @default(0) @db.Decimal(15, 2)
-  closingBalance  Decimal   @default(0) @db.Decimal(15, 2) // balance per bank statement
-  status          String    @default("OPEN") // OPEN | RECONCILED
-  notes           String?
-  createdBy       String
-  createdAt       DateTime  @default(now())
-  reconciledAt    DateTime?
+  id             String    @id @default(cuid())
+  tenantId       String
+  accountId      String // GL bank account (e.g. code 1200)
+  period         String // YYYY-MM
+  openingBalance Decimal   @default(0) @db.Decimal(15, 2)
+  closingBalance Decimal   @default(0) @db.Decimal(15, 2) // balance per bank statement
+  status         String    @default("OPEN") // OPEN | RECONCILED
+  notes          String?
+  createdBy      String
+  createdAt      DateTime  @default(now())
+  reconciledAt   DateTime?
 
   tenant  Tenant            @relation(fields: [tenantId], references: [id])
   account Account           @relation(fields: [accountId], references: [id])
