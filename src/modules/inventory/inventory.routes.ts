@@ -240,4 +240,244 @@ router.get('/movements', asyncHandler(async (req: AuthenticatedRequest, res: Res
   sendSuccess(res, items, 200, { total, page: parseInt(page as string), pageSize: parseInt(pageSize as string) });
 }));
 
+// ─── Barcode lookup ───────────────────────────────────────────────
+
+router.get('/barcode/:code', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { code } = req.params;
+  const tenantId = req.user.tenantId;
+
+  // Try product barcode first
+  const product = await prisma.product.findFirst({
+    where:   { tenantId, barcode: code },
+    include: {
+      stockLevels: { include: { warehouse: { select: { name: true } } } },
+      category:    { select: { name: true } },
+    },
+  });
+
+  if (product) {
+    sendSuccess(res, { type: 'product', product, variant: null });
+    return;
+  }
+
+  // Try product variant barcode
+  const variant = await prisma.productVariant.findFirst({
+    where:   { tenantId, barcode: code },
+    include: {
+      product: {
+        include: {
+          stockLevels: { include: { warehouse: { select: { name: true } } } },
+          category:    { select: { name: true } },
+        },
+      },
+    },
+  });
+
+  if (variant) {
+    sendSuccess(res, { type: 'variant', product: variant.product, variant });
+    return;
+  }
+
+  sendError(res, `No product or variant found for barcode: ${code}`, 404);
+}));
+
+// ─── Receive stock by barcode ─────────────────────────────────────
+
+router.post('/receive', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const schema = z.object({
+    warehouseId: z.string().cuid().optional(),
+    items:       z.array(z.object({
+      barcode:  z.string().min(1),
+      qty:      z.number().positive(),
+      unitCost: z.number().min(0).optional(),
+    })).min(1),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message, 400); return; }
+
+  const tenantId = req.user.tenantId;
+
+  // Resolve warehouse: use provided or fall back to default
+  let warehouseId = parsed.data.warehouseId;
+  if (!warehouseId) {
+    const defaultWh = await prisma.warehouse.findFirst({
+      where: { tenantId, isDefault: true, isActive: true },
+    });
+    if (!defaultWh) { sendError(res, 'No default warehouse configured', 400); return; }
+    warehouseId = defaultWh.id;
+  }
+
+  const summary: {
+    barcode:     string;
+    productName: string;
+    qty:         number;
+    unitCost:    number | undefined;
+    status:      string;
+  }[] = [];
+
+  for (const item of parsed.data.items) {
+    // Resolve product ID from barcode
+    let productId: string | null = null;
+    let productName = 'Unknown';
+
+    const product = await prisma.product.findFirst({ where: { tenantId, barcode: item.barcode } });
+    if (product) {
+      productId   = product.id;
+      productName = product.name;
+    } else {
+      const variant = await prisma.productVariant.findFirst({
+        where:   { tenantId, barcode: item.barcode },
+        include: { product: { select: { id: true, name: true } } },
+      });
+      if (variant) {
+        productId   = variant.product.id;
+        productName = variant.product.name;
+      }
+    }
+
+    if (!productId) {
+      summary.push({ barcode: item.barcode, productName: 'NOT FOUND', qty: item.qty, unitCost: item.unitCost, status: 'barcode_not_found' });
+      continue;
+    }
+
+    // Create stock movement
+    await prisma.stockMovement.create({
+      data: {
+        tenantId,
+        productId,
+        warehouseId: warehouseId!,
+        type:        'IN',
+        quantity:    item.qty,
+        unitCost:    item.unitCost ?? null,
+        reference:   'BARCODE_RECEIVE',
+        createdBy:   req.user.userId,
+      },
+    });
+
+    // Upsert stock level
+    await prisma.stockLevel.upsert({
+      where: { productId_warehouseId: { productId, warehouseId: warehouseId! } },
+      update: { quantity: { increment: item.qty } },
+      create: {
+        tenantId,
+        productId,
+        warehouseId: warehouseId!,
+        quantity:    item.qty,
+      },
+    });
+
+    summary.push({ barcode: item.barcode, productName, qty: item.qty, unitCost: item.unitCost, status: 'received' });
+  }
+
+  sendSuccess(res, { warehouseId, summary }, 201);
+}));
+
+// ─── Stock count by barcode ───────────────────────────────────────
+
+router.post('/count', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const schema = z.object({
+    warehouseId: z.string().cuid().optional(),
+    items:       z.array(z.object({
+      barcode: z.string().min(1),
+      qty:     z.number().min(0),
+    })).min(1),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message, 400); return; }
+
+  const tenantId = req.user.tenantId;
+
+  // Resolve warehouse
+  let warehouseId = parsed.data.warehouseId;
+  if (!warehouseId) {
+    const defaultWh = await prisma.warehouse.findFirst({
+      where: { tenantId, isDefault: true, isActive: true },
+    });
+    if (!defaultWh) { sendError(res, 'No default warehouse configured', 400); return; }
+    warehouseId = defaultWh.id;
+  }
+
+  const results: {
+    barcode:      string;
+    productName:  string;
+    previousQty:  number;
+    countedQty:   number;
+    adjustment:   number;
+    status:       string;
+  }[] = [];
+
+  for (const item of parsed.data.items) {
+    // Resolve product
+    let productId: string | null = null;
+    let productName = 'Unknown';
+
+    const product = await prisma.product.findFirst({ where: { tenantId, barcode: item.barcode } });
+    if (product) {
+      productId   = product.id;
+      productName = product.name;
+    } else {
+      const variant = await prisma.productVariant.findFirst({
+        where:   { tenantId, barcode: item.barcode },
+        include: { product: { select: { id: true, name: true } } },
+      });
+      if (variant) {
+        productId   = variant.product.id;
+        productName = variant.product.name;
+      }
+    }
+
+    if (!productId) {
+      results.push({ barcode: item.barcode, productName: 'NOT FOUND', previousQty: 0, countedQty: item.qty, adjustment: item.qty, status: 'barcode_not_found' });
+      continue;
+    }
+
+    // Get current stock level
+    const stockLevel = await prisma.stockLevel.findUnique({
+      where: { productId_warehouseId: { productId, warehouseId: warehouseId! } },
+    });
+    const previousQty = Number(stockLevel?.quantity ?? 0);
+    const adjustment  = item.qty - previousQty;
+
+    if (adjustment !== 0) {
+      // Create adjustment movement
+      await prisma.stockMovement.create({
+        data: {
+          tenantId,
+          productId,
+          warehouseId: warehouseId!,
+          type:        'ADJUSTMENT',
+          quantity:    Math.abs(adjustment),
+          reference:   'BARCODE_COUNT',
+          notes:       `Count: counted=${item.qty}, previous=${previousQty}`,
+          createdBy:   req.user.userId,
+        },
+      });
+
+      // Update stock level to counted quantity
+      await prisma.stockLevel.upsert({
+        where: { productId_warehouseId: { productId, warehouseId: warehouseId! } },
+        update: { quantity: item.qty },
+        create: {
+          tenantId,
+          productId,
+          warehouseId: warehouseId!,
+          quantity:    item.qty,
+        },
+      });
+    }
+
+    results.push({
+      barcode:     item.barcode,
+      productName,
+      previousQty,
+      countedQty:  item.qty,
+      adjustment,
+      status:      adjustment !== 0 ? 'adjusted' : 'no_change',
+    });
+  }
+
+  sendSuccess(res, { warehouseId, results });
+}));
+
 export default router;
+

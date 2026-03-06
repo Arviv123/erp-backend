@@ -12,7 +12,7 @@ import {
   LogOut, Building2, Menu, X, Shield, Briefcase, Upload, Bell,
   CheckCircle, AlertTriangle, Info, CreditCard, Search, RefreshCw,
   ClipboardList, Tag, Monitor, Truck, DollarSign, Brain,
-  MessageCircle, ShieldCheck,
+  MessageCircle, ShieldCheck, Wifi, ScanLine, Bot,
 } from 'lucide-react';
 
 // ─── Page name map for breadcrumb ─────────────────────────────────────────────
@@ -99,6 +99,14 @@ const PAGE_NAMES: Record<string, string> = {
   '/settings/agents': 'סוכני AI',
   '/notifications': 'הודעות ועדכונים',
   '/audit-log': 'יומן פעולות',
+  '/rfid': 'לוח בקרה RFID',
+  '/rfid/tags': 'תגיות RFID',
+  '/rfid/readers': 'קוראי RFID',
+  '/rfid/assets': 'נכסים',
+  '/rfid/inventory': 'ספירת מלאי RFID',
+  '/inventory/receive': 'קבלת סחורה',
+  '/inventory/count': 'ספירת מלאי',
+  '/agents/team': 'צוות סוכנים',
 };
 
 function getPageTitle(pathname: string): string {
@@ -261,6 +269,21 @@ const NAV: NavItem[] = [
       { label: 'פריטים', to: '/inventory/items' },
       { label: 'פריט חדש', to: '/inventory/items/new' },
       { label: 'תנועות מלאי', to: '/inventory/movements' },
+      { label: 'קבלת סחורה בברקוד', to: '/inventory/receive', divider: 'תהליכים' },
+      { label: 'ספירת מלאי', to: '/inventory/count' },
+    ],
+  },
+  {
+    label: 'RFID',
+    icon: Wifi,
+    module: 'INVENTORY',
+    group: 'תפעול',
+    children: [
+      { label: 'לוח בקרה', to: '/rfid' },
+      { label: 'תגיות RFID', to: '/rfid/tags' },
+      { label: 'קוראים', to: '/rfid/readers' },
+      { label: 'נכסים', to: '/rfid/assets' },
+      { label: 'ספירת מלאי RFID', to: '/rfid/inventory' },
     ],
   },
   {
@@ -318,8 +341,10 @@ const NAV: NavItem[] = [
     label: 'סוכני AI',
     icon: Brain,
     module: 'ACCOUNTING',
-    to: '/settings/agents',
-    group: undefined,
+    children: [
+      { label: 'הגדרות סוכנים', to: '/settings/agents' },
+      { label: 'צוות סוכנים אוטונומי', to: '/agents/team' },
+    ],
   },
   {
     label: 'הודעות ועדכונים',

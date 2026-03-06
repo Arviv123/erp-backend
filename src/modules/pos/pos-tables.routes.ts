@@ -267,9 +267,9 @@ router.post('/orders', asyncHandler(async (req: AuthenticatedRequest, res: Respo
   sendSuccess(res, order, 201);
 }));
 
-// GET /pos/orders — list orders (?type, ?status, ?tableId, ?from, ?to)
+// GET /pos/orders — list orders (?type, ?status, ?tableId, ?from, ?to, ?includeItems)
 router.get('/orders', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { type, status, tableId, from, to } = req.query as Record<string, string>;
+  const { type, status, tableId, from, to, includeItems } = req.query as Record<string, string>;
   const where: Record<string, any> = withTenant(req, {});
   if (type)    where.type    = type;
   if (status)  where.status  = status;
@@ -285,7 +285,15 @@ router.get('/orders', asyncHandler(async (req: AuthenticatedRequest, res: Respon
     include: {
       table:    { select: { id: true, name: true } },
       customer: { select: { id: true, name: true } },
-      _count:   { select: { items: true } },
+      ...(includeItems === '1'
+        ? {
+            items: {
+              where:   { status: { not: 'CANCELLED' } },
+              include: { product: { select: { id: true, name: true } } },
+              orderBy: { sortOrder: 'asc' },
+            },
+          }
+        : { _count: { select: { items: true } } }),
     },
     orderBy: { createdAt: 'desc' },
   });

@@ -39,10 +39,15 @@ function normalizeOrders(data: unknown): KitchenOrder[] {
   if (!data) return [];
   const raw: unknown[] = Array.isArray(data)
     ? data
-    : Array.isArray((data as { data?: unknown }).data)
-    ? ((data as { data: unknown[] }).data)
+    : Array.isArray((data as any)?.data)
+    ? (data as any).data
+    : Array.isArray((data as any)?.items)
+    ? (data as any).items
     : [];
-  return raw as KitchenOrder[];
+  return (raw as any[]).map((o) => ({
+    ...o,
+    items: Array.isArray(o?.items) ? o.items : Array.isArray(o?.orderItems) ? o.orderItems : [],
+  })) as KitchenOrder[];
 }
 
 function elapsedMinutes(createdAt: string): number {
@@ -139,16 +144,17 @@ export default function KitchenDisplayPage() {
   // Data fetching — try IN_PROGRESS first, fall back to OPEN
   // ---------------------------------------------------------------------------
   const { data: inProgressData, dataUpdatedAt: ts1 } = useQuery({
-    queryKey: ['kitchen-orders', 'IN_PROGRESS'],
+    queryKey: ['kitchen-orders', 'SENT_TO_KITCHEN'],
     queryFn: () =>
-      api.get('/pos/orders?status=IN_PROGRESS').then((r) => r.data),
+      api.get('/pos/orders', { params: { status: 'SENT_TO_KITCHEN', includeItems: '1' } }).then((r) => r.data),
     refetchInterval: 10_000,
     staleTime: 5_000,
   });
 
   const { data: openData, dataUpdatedAt: ts2 } = useQuery({
     queryKey: ['kitchen-orders', 'OPEN'],
-    queryFn: () => api.get('/pos/orders?status=OPEN').then((r) => r.data),
+    queryFn: () =>
+      api.get('/pos/orders', { params: { status: 'OPEN', includeItems: '1' } }).then((r) => r.data),
     refetchInterval: 10_000,
     staleTime: 5_000,
   });

@@ -224,8 +224,17 @@ export default function GlobalSearch() {
     setSearchError(null);
   }
 
+  // Fix legacy URLs from older backend versions
+  function normalizeUrl(url: string): string {
+    if (url.startsWith('/customers/')) return url.replace('/customers/', '/crm/customers/');
+    if (url === '/customers') return '/crm/customers';
+    if (url.startsWith('/vendors/') || url === '/vendors') return '/purchasing/vendors';
+    if (url.startsWith('/bills/') || url === '/bills') return '/purchasing/bills';
+    return url;
+  }
+
   function goToResult(item: SearchItem) {
-    navigate(item.url);
+    navigate(normalizeUrl(item.url));
     handleClose();
   }
 

@@ -151,6 +151,19 @@ import UserPermissionsPage from './pages/UserPermissionsPage';
 // AI Agents
 import AgentSettingsPage from './pages/AgentSettingsPage';
 import AgentChatPanel from './components/AgentChatPanel';
+import AgentTeamPage from './pages/AgentTeamPage';
+import AgentTaskDetailPage from './pages/AgentTaskDetailPage';
+
+// RFID
+import RfidDashboardPage from './pages/RfidDashboardPage';
+import RfidTagsPage from './pages/RfidTagsPage';
+import RfidReadersPage from './pages/RfidReadersPage';
+import RfidAssetsPage from './pages/RfidAssetsPage';
+import RfidInventoryPage from './pages/RfidInventoryPage';
+
+// Inventory workflows
+import InventoryReceivePage from './pages/InventoryReceivePage';
+import StockCountPage from './pages/StockCountPage';
 
 // Employee Self-Service Portal (ESS)
 import EmployeePortalPage from './pages/EmployeePortalPage';
@@ -366,6 +379,21 @@ export default function App() {
               {/* Notifications & Audit Log */}
               <Route path="/notifications" element={<ProtectedRoute module="ACCOUNTING"><NotificationsPage /></ProtectedRoute>} />
               <Route path="/audit-log" element={<ProtectedRoute module="ACCOUNTING"><AuditLogPage /></ProtectedRoute>} />
+
+              {/* RFID */}
+              <Route path="/rfid" element={<ProtectedRoute module="INVENTORY"><RfidDashboardPage /></ProtectedRoute>} />
+              <Route path="/rfid/tags" element={<ProtectedRoute module="INVENTORY"><RfidTagsPage /></ProtectedRoute>} />
+              <Route path="/rfid/readers" element={<ProtectedRoute module="INVENTORY"><RfidReadersPage /></ProtectedRoute>} />
+              <Route path="/rfid/assets" element={<ProtectedRoute module="INVENTORY"><RfidAssetsPage /></ProtectedRoute>} />
+              <Route path="/rfid/inventory" element={<ProtectedRoute module="INVENTORY"><RfidInventoryPage /></ProtectedRoute>} />
+
+              {/* Inventory workflows */}
+              <Route path="/inventory/receive" element={<ProtectedRoute module="INVENTORY"><InventoryReceivePage /></ProtectedRoute>} />
+              <Route path="/inventory/count" element={<ProtectedRoute module="INVENTORY"><StockCountPage /></ProtectedRoute>} />
+
+              {/* Agent Team */}
+              <Route path="/agents/team" element={<ProtectedRoute module="DASHBOARD"><AgentTeamPage /></ProtectedRoute>} />
+              <Route path="/agents/team/tasks/:id" element={<ProtectedRoute module="DASHBOARD"><AgentTaskDetailPage /></ProtectedRoute>} />
 
               {/* Admin only */}
               <Route path="/admin/permissions" element={<AdminRoute><UserPermissionsPage /></AdminRoute>} />

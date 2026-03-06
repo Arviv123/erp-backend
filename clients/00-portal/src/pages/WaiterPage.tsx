@@ -323,15 +323,19 @@ export default function WaiterPage() {
     mutationFn: ({
       orderId,
       productId,
+      description,
+      unitPrice,
       quantity,
       notes,
     }: {
       orderId: string;
       productId: string;
+      description: string;
+      unitPrice: number;
       quantity: number;
       notes?: string;
     }) =>
-      api.post(`/pos/orders/${orderId}/items`, { productId, quantity, notes }),
+      api.post(`/pos/orders/${orderId}/items`, { productId, description, unitPrice, quantity, notes }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['waiter-order', selectedTable?.currentOrderId] });
     },
@@ -427,9 +431,11 @@ export default function WaiterPage() {
     setOptimisticItems(newItems);
 
     addItemMutation.mutate({
-      orderId: currentOrder.id,
-      productId: product.id,
-      quantity: 1,
+      orderId:     currentOrder.id,
+      productId:   product.id,
+      description: product.name,
+      unitPrice:   Number(product.sellingPrice ?? 0),
+      quantity:    1,
     });
   };
 
@@ -444,9 +450,11 @@ export default function WaiterPage() {
     );
     setOptimisticItems(newItems);
     addItemMutation.mutate({
-      orderId: currentOrder.id,
-      productId: item.productId,
-      quantity: delta,
+      orderId:     currentOrder.id,
+      productId:   item.productId,
+      description: item.name,
+      unitPrice:   item.unitPrice,
+      quantity:    delta,
     });
   };
 
