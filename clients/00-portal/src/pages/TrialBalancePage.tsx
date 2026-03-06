@@ -43,7 +43,7 @@ export default function TrialBalancePage() {
   const { data: periodData, isLoading: periodLoading } = useQuery({
     queryKey: ['acc-trial-balance-period', from, to],
     queryFn:  () => api.get('/accounting/trial-balance', { params: { from, to } })
-      .then(r => r.data.data as { rows: PeriodRow[]; totals: any; isBalanced: boolean }),
+      .then(r => (r.data.data ?? r.data) as { rows: PeriodRow[]; totals: any; isBalanced: boolean } | null ?? { rows: [], totals: {}, isBalanced: true }),
     enabled: mode === 'period',
   });
 
