@@ -107,6 +107,10 @@ const PAGE_NAMES: Record<string, string> = {
   '/inventory/receive': 'קבלת סחורה',
   '/inventory/count': 'ספירת מלאי',
   '/agents/team': 'צוות סוכנים',
+  '/agents/profiles': 'סוכנים מותאמים אישית',
+  '/agents/conversations': 'היסטוריית שיחות',
+  '/agents/builder': 'בונה סוכנים',
+  '/agents/schedules': 'אוטומציות',
 };
 
 function getPageTitle(pathname: string): string {
@@ -342,8 +346,13 @@ const NAV: NavItem[] = [
     icon: Brain,
     module: 'ACCOUNTING',
     children: [
-      { label: 'הגדרות סוכנים', to: '/settings/agents' },
+      { label: 'צ\'אט AI', to: '/agents' },
+      { label: 'היסטוריית שיחות', to: '/agents/conversations' },
+      { label: 'סוכנים מותאמים', to: '/agents/profiles' },
+      { label: 'בונה סוכנים', to: '/agents/builder' },
+      { label: 'אוטומציות', to: '/agents/schedules' },
       { label: 'צוות סוכנים אוטונומי', to: '/agents/team' },
+      { label: 'הגדרות סוכנים', to: '/settings/agents' },
     ],
   },
   {

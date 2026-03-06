@@ -153,6 +153,10 @@ import AgentSettingsPage from './pages/AgentSettingsPage';
 import AgentChatPanel from './components/AgentChatPanel';
 import AgentTeamPage from './pages/AgentTeamPage';
 import AgentTaskDetailPage from './pages/AgentTaskDetailPage';
+import AgentProfilesPage from './pages/AgentProfilesPage';
+import AgentConversationsPage from './pages/AgentConversationsPage';
+import AgentBuilderPage from './pages/AgentBuilderPage';
+import AgentSchedulePage from './pages/AgentSchedulePage';
 
 // RFID
 import RfidDashboardPage from './pages/RfidDashboardPage';
@@ -394,6 +398,10 @@ export default function App() {
               {/* Agent Team */}
               <Route path="/agents/team" element={<ProtectedRoute module="DASHBOARD"><AgentTeamPage /></ProtectedRoute>} />
               <Route path="/agents/team/tasks/:id" element={<ProtectedRoute module="DASHBOARD"><AgentTaskDetailPage /></ProtectedRoute>} />
+              <Route path="/agents/profiles" element={<ProtectedRoute module="DASHBOARD"><AgentProfilesPage /></ProtectedRoute>} />
+              <Route path="/agents/conversations" element={<ProtectedRoute module="DASHBOARD"><AgentConversationsPage /></ProtectedRoute>} />
+              <Route path="/agents/builder" element={<ProtectedRoute module="DASHBOARD"><AgentBuilderPage /></ProtectedRoute>} />
+              <Route path="/agents/schedules" element={<ProtectedRoute module="DASHBOARD"><AgentSchedulePage /></ProtectedRoute>} />
 
               {/* Admin only */}
               <Route path="/admin/permissions" element={<AdminRoute><UserPermissionsPage /></AdminRoute>} />

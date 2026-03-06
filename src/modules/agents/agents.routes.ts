@@ -108,26 +108,106 @@ router.post(
   })
 );
 
+// ─── Agent Profiles CRUD ─────────────────────────────────────────────────────
+
+// GET /agents/profiles
+router.get('/profiles', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const profiles = await prisma.agentProfile.findMany({
+    where: withTenant(req, {}),
+    orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+  });
+  sendSuccess(res, profiles);
+}));
+
+// POST /agents/profiles
+router.post('/profiles', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const schema = z.object({
+    name:         z.string().min(1).max(80),
+    description:  z.string().optional(),
+    systemPrompt: z.string().min(1),
+    domain:       z.string().default('general'),
+    provider:     z.string().optional(),
+    model:        z.string().optional(),
+    icon:         z.string().optional(),
+    color:        z.string().optional(),
+    isDefault:    z.boolean().default(false),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, parsed.error.message, 400);
+
+  const profile = await prisma.agentProfile.create({
+    data: { tenantId: req.user.tenantId, ...parsed.data },
+  });
+  sendSuccess(res, profile, 201);
+}));
+
+// PATCH /agents/profiles/:id
+router.patch('/profiles/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const schema = z.object({
+    name:         z.string().min(1).max(80).optional(),
+    description:  z.string().optional(),
+    systemPrompt: z.string().min(1).optional(),
+    domain:       z.string().optional(),
+    provider:     z.string().optional(),
+    model:        z.string().optional(),
+    icon:         z.string().optional(),
+    color:        z.string().optional(),
+    isDefault:    z.boolean().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return sendError(res, parsed.error.message, 400);
+
+  const existing = await prisma.agentProfile.findFirst({
+    where: withTenant(req, { id: req.params['id'] }),
+  });
+  if (!existing) return sendError(res, 'Profile not found', 404);
+
+  const updated = await prisma.agentProfile.update({
+    where: { id: req.params['id'] },
+    data: parsed.data,
+  });
+  sendSuccess(res, updated);
+}));
+
+// DELETE /agents/profiles/:id
+router.delete('/profiles/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const existing = await prisma.agentProfile.findFirst({
+    where: withTenant(req, { id: req.params['id'] }),
+  });
+  if (!existing) return sendError(res, 'Profile not found', 404);
+  await prisma.agentProfile.delete({ where: { id: req.params['id'] } });
+  sendSuccess(res, { deleted: true });
+}));
+
 // ── POST /agents/:domain/chat  (SSE streaming) ───────────────────────────────
 router.post(
   '/:domain/chat',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { domain } = req.params as { domain: string };
     const schema = z.object({
-      message: z.string().min(1),
+      message:        z.string().min(1),
       conversationId: z.string().optional(),
-      provider: z.string().optional(),
-      model: z.string().optional(),
+      agentProfileId: z.string().optional(),
+      provider:       z.string().optional(),
+      model:          z.string().optional(),
     });
     const parsed = schema.safeParse(req.body);
     if (!parsed.success) return sendError(res, parsed.error.message, 400);
 
-    const { message, conversationId, provider: reqProvider, model: reqModel } = parsed.data;
+    const { message, conversationId, agentProfileId, provider: reqProvider, model: reqModel } = parsed.data;
 
-    // Find an active API key — prefer requested provider, else first active
-    const keyQuery = reqProvider
-      ? { provider: reqProvider }
-      : {};
+    // Load agent profile if provided
+    let agentProfile: { systemPrompt: string; provider?: string | null; model?: string | null } | null = null;
+    if (agentProfileId) {
+      agentProfile = await prisma.agentProfile.findFirst({
+        where: withTenant(req, { id: agentProfileId }),
+        select: { systemPrompt: true, provider: true, model: true },
+      });
+    }
+
+    // Find an active API key — prefer profile/request provider, else first active
+    const preferredProvider = reqProvider ?? agentProfile?.provider ?? undefined;
+    const keyQuery = preferredProvider ? { provider: preferredProvider } : {};
     const keyRecord = await prisma.agentApiKey.findFirst({
       where: withTenant(req, { ...keyQuery, isActive: true }),
       orderBy: { createdAt: 'desc' },
@@ -137,10 +217,13 @@ router.post(
     }
 
     const provider = keyRecord.provider;
-    const model = reqModel ?? PROVIDERS[provider]?.models[0]?.id ?? 'gpt-4o-mini';
+    const model = reqModel ?? agentProfile?.model ?? PROVIDERS[provider]?.models[0]?.id ?? 'gpt-4o-mini';
     let plainKey: string;
     try { plainKey = decryptKey(keyRecord.keyEncrypted); }
     catch { return sendError(res, 'Failed to decrypt key', 500); }
+
+    // System prompt: profile's custom prompt overrides default
+    const systemPrompt = agentProfile?.systemPrompt ?? getSystemPrompt(domain);
 
     // Load or create conversation
     let conversation = conversationId
@@ -153,12 +236,13 @@ router.post(
     if (!conversation) {
       conversation = await prisma.agentConversation.create({
         data: {
-          tenantId: req.user.tenantId,
-          userId: req.user.userId,
+          tenantId:       req.user.tenantId,
+          userId:         req.user.userId,
           domain,
           provider,
           model,
-          title: message.slice(0, 60),
+          title:          message.slice(0, 60),
+          agentProfileId: agentProfileId ?? null,
         },
         include: { messages: true },
       }) as any;
@@ -194,7 +278,7 @@ router.post(
     let fullResponse = '';
     let tokenCount = 0;
 
-    await streamProvider(provider, plainKey, model, getSystemPrompt(domain), history, {
+    await streamProvider(provider, plainKey, model, systemPrompt, history, {
       onChunk: (text) => {
         fullResponse += text;
         sendEvent({ type: 'chunk', content: text });
@@ -223,10 +307,16 @@ router.post(
 
 // ── GET /agents/conversations ─────────────────────────────────────────────────
 router.get('/conversations', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-  const { domain, page = '1', pageSize = '20' } = req.query;
+  const { domain, page = '1', pageSize = '30', search } = req.query;
   const where = withTenant(req, {
     userId: req.user.userId,
     ...(domain ? { domain: domain as string } : {}),
+    ...(search ? {
+      OR: [
+        { title: { contains: search as string, mode: 'insensitive' } },
+        { messages: { some: { content: { contains: search as string, mode: 'insensitive' } } } },
+      ],
+    } : {}),
   });
   const [items, total] = await Promise.all([
     prisma.agentConversation.findMany({
@@ -236,6 +326,8 @@ router.get('/conversations', asyncHandler(async (req: AuthenticatedRequest, res:
       take: parseInt(pageSize as string),
       select: {
         id: true, domain: true, title: true, provider: true, model: true,
+        agentProfileId: true,
+        agentProfile: { select: { name: true, icon: true, color: true } },
         createdAt: true, updatedAt: true,
         _count: { select: { messages: true } },
       },
@@ -243,6 +335,21 @@ router.get('/conversations', asyncHandler(async (req: AuthenticatedRequest, res:
     prisma.agentConversation.count({ where }),
   ]);
   sendSuccess(res, items, 200, { total });
+}));
+
+// ── PATCH /agents/conversations/:id  (rename) ────────────────────────────────
+router.patch('/conversations/:id', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { title } = req.body;
+  if (typeof title !== 'string' || !title.trim()) return sendError(res, 'title required', 400);
+  const conv = await prisma.agentConversation.findFirst({
+    where: withTenant(req, { id: req.params['id'], userId: req.user.userId }),
+  });
+  if (!conv) return sendError(res, 'Not found', 404);
+  const updated = await prisma.agentConversation.update({
+    where: { id: req.params['id'] },
+    data: { title: title.trim() },
+  });
+  sendSuccess(res, updated);
 }));
 
 // ── GET /agents/conversations/:id ─────────────────────────────────────────────

@@ -118,6 +118,7 @@ import calendarRouter from './modules/calendar/calendar.routes';
 // Routes — AI Agents
 import agentsRouter from './modules/agents/agents.routes';
 import agentTeamRouter from './modules/agents/agent-team.routes';
+import agentSchedulesRouter from './modules/agents/agent-schedules.routes';
 
 // Routes — RFID
 import rfidRouter from './modules/rfid/rfid.routes';
@@ -308,8 +309,9 @@ app.use('/api/pos', posCashRouter);    // extends existing /api/pos prefix
 app.use('/api/pos', posConfigRouter);  // extends existing /api/pos prefix
 
 // ─── API Routes ─── AI Agents ─────────────────────────────────────
-app.use('/api/agents',         agentsRouter);
-app.use('/api/agents/team',    agentTeamRouter);
+app.use('/api/agents',           agentsRouter);
+app.use('/api/agents/team',      agentTeamRouter);
+app.use('/api/agents/schedules', agentSchedulesRouter);
 
 // ─── API Routes ─── RFID ──────────────────────────────────────────
 app.use('/api/rfid',           rfidRouter);

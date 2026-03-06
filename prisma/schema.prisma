@@ -335,6 +335,8 @@ model Tenant {
   // AI Agents
   agentApiKeys          AgentApiKey[]
   agentConversations    AgentConversation[]
+  agentProfiles         AgentProfile[]
+  agentSchedules        AgentSchedule[]
   agentTasks            AgentTask[]
   // RFID
   rfidReaders           RfidReader[]
@@ -3573,18 +3575,41 @@ model AgentApiKey {
   @@map("agent_api_keys")
 }
 
+model AgentProfile {
+  id           String   @id @default(cuid())
+  tenantId     String
+  name         String   // e.g. "סוכן מכירות מומחה"
+  description  String?
+  systemPrompt String   @db.Text
+  domain       String   @default("general")
+  provider     String?
+  model        String?
+  icon         String?  // emoji or lucide icon name
+  color        String?  // tailwind color class
+  isDefault    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  conversations AgentConversation[]
+  schedules     AgentSchedule[]
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  @@index([tenantId])
+  @@map("agent_profiles")
+}
+
 model AgentConversation {
-  id        String   @id @default(cuid())
-  tenantId  String
-  userId    String
-  domain    String   @default("general")
-  title     String?
-  provider  String
-  model     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  messages  AgentMessage[]
-  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  id             String        @id @default(cuid())
+  tenantId       String
+  userId         String
+  domain         String        @default("general")
+  title          String?
+  provider       String
+  model          String
+  agentProfileId String?
+  agentProfile   AgentProfile? @relation(fields: [agentProfileId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  messages       AgentMessage[]
+  tenant         Tenant        @relation(fields: [tenantId], references: [id])
   @@index([tenantId])
   @@index([userId])
   @@map("agent_conversations")
@@ -3624,6 +3649,52 @@ model AgentTask {
   @@index([tenantId, agentType])
   @@index([tenantId, startedAt])
   @@map("agent_tasks")
+}
+
+// ─────────────────────────────────────────────
+// AGENT SCHEDULES (Automations)
+// ─────────────────────────────────────────────
+
+model AgentSchedule {
+  id             String    @id @default(cuid())
+  tenantId       String
+  name           String
+  description    String?
+  cronExpression String    // e.g. "0 8 * * 1" = every Monday at 8am
+  agentProfileId String?
+  agentProfile   AgentProfile? @relation(fields: [agentProfileId], references: [id], onDelete: SetNull)
+  taskPrompt     String    @db.Text  // the message/task to give the agent
+  domain         String    @default("general")
+  provider       String?
+  model          String?
+  isEnabled      Boolean   @default(true)
+  lastRunAt      DateTime?
+  lastRunStatus  String?   // success | failed
+  lastRunError   String?
+  nextRunAt      DateTime?
+  runCount       Int       @default(0)
+  runs           AgentScheduleRun[]
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  @@index([tenantId, isEnabled])
+  @@map("agent_schedules")
+}
+
+model AgentScheduleRun {
+  id           String          @id @default(cuid())
+  scheduleId   String
+  schedule     AgentSchedule   @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  tenantId     String
+  status       String          // running | success | failed
+  response     String?         @db.Text
+  tokensUsed   Int?
+  error        String?
+  startedAt    DateTime        @default(now())
+  completedAt  DateTime?
+  @@index([scheduleId])
+  @@index([tenantId, startedAt])
+  @@map("agent_schedule_runs")
 }
 
 // ─────────────────────────────────────────────
