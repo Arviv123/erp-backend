@@ -20,7 +20,7 @@
 import React, { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { X, MessageCircle, Mail, Send, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import api from '../services/api';
+import api from '../lib/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
