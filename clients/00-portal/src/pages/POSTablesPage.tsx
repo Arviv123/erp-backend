@@ -169,7 +169,13 @@ export default function POSTablesPage() {
 
   const createTableMut = useMutation({
     mutationFn: (data: { floorId: string; tableNumber: number; seats: number; x: number; y: number }) =>
-      api.post('/pos/tables', data),
+      api.post('/pos/tables', {
+        name: String(data.tableNumber),
+        floorId: data.floorId || undefined,
+        capacity: data.seats,
+        posX: data.x,
+        posY: data.y,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-floors'] });
       setShowAddTable(false);
@@ -181,7 +187,7 @@ export default function POSTablesPage() {
 
   const updateStatusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: TableStatus }) =>
-      api.patch(`/pos/tables/${id}/status`, { status }),
+      api.post(`/pos/tables/${id}/status`, { status }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-floors'] });
       notify('success', 'סטטוס עודכן');
