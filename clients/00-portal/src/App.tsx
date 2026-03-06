@@ -111,6 +111,8 @@ import POSZReportPage from './pages/POSZReportPage';
 import POSTablesPage from './pages/POSTablesPage';
 import POSCashPage from './pages/POSCashPage';
 import POSAnalyticsPage from './pages/POSAnalyticsPage';
+import WaiterPage from './pages/WaiterPage';
+import KitchenDisplayPage from './pages/KitchenDisplayPage';
 
 // Payment Terminals
 import PaymentTerminalsPage from './pages/PaymentTerminalsPage';
@@ -321,6 +323,8 @@ export default function App() {
               <Route path="/pos/sales" element={<ProtectedRoute module="POS"><SalesHistoryPage /></ProtectedRoute>} />
               <Route path="/pos/summary" element={<ProtectedRoute module="POS"><SalesSummaryPage /></ProtectedRoute>} />
               <Route path="/pos/tables" element={<ProtectedRoute module="POS"><POSTablesPage /></ProtectedRoute>} />
+              <Route path="/pos/waiter" element={<ProtectedRoute module="POS"><WaiterPage /></ProtectedRoute>} />
+              <Route path="/pos/kitchen" element={<ProtectedRoute module="POS"><KitchenDisplayPage /></ProtectedRoute>} />
               <Route path="/pos/cash" element={<ProtectedRoute module="POS"><POSCashPage /></ProtectedRoute>} />
               <Route path="/pos/analytics" element={<ProtectedRoute module="POS"><POSAnalyticsPage /></ProtectedRoute>} />
               <Route path="/pos/promotions" element={<ProtectedRoute module="POS"><POSPromotionsPage /></ProtectedRoute>} />

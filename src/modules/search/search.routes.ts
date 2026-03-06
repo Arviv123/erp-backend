@@ -27,7 +27,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   await Promise.allSettled([
 
     // ── INVOICES ──────────────────────────────────────────────────────────────
-    // Schema: Invoice { number, date, total, notes, status, customer relation }
+    // Searches: number, customer name, notes, AND line item descriptions
     types.includes('invoices') && prisma.invoice.findMany({
       where: {
         tenantId,
@@ -36,6 +36,8 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
           { number: { contains: q, mode: 'insensitive' } },
           { customer: { name: { contains: q, mode: 'insensitive' } } },
           { notes: { contains: q, mode: 'insensitive' } },
+          // Search inside line items (e.g. product description)
+          { lines: { some: { description: { contains: q, mode: 'insensitive' } } } },
         ],
       },
       take: limit,
@@ -54,8 +56,6 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
     }),
 
     // ── BILLS ─────────────────────────────────────────────────────────────────
-    // Schema: Bill { number, date, total, notes, status, vendor relation }
-    // NOTE: Bill has no 'notes' field in schema — using vendorRef as fallback
     types.includes('bills') && prisma.bill.findMany({
       where: {
         tenantId,
@@ -64,6 +64,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
           { number: { contains: q, mode: 'insensitive' } },
           { vendor: { name: { contains: q, mode: 'insensitive' } } },
           { vendorRef: { contains: q, mode: 'insensitive' } },
+          { lines: { some: { description: { contains: q, mode: 'insensitive' } } } },
         ],
       },
       take: limit,
@@ -135,14 +136,17 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
     }),
 
     // ── EMPLOYEES ─────────────────────────────────────────────────────────────
-    // Schema: Employee { firstName, lastName, idNumber, personalEmail, phone, jobTitle, department }
-    // NOTE: no 'name' / 'email' / 'employeeId' / 'position' fields — use firstName+lastName, personalEmail, idNumber, jobTitle
     types.includes('employees') && prisma.employee.findMany({
       where: {
         tenantId,
         OR: [
           { firstName: { contains: q, mode: 'insensitive' } },
           { lastName: { contains: q, mode: 'insensitive' } },
+          // Full name: "שם פרטי שם משפחה" — split query and check both parts
+          ...(q.includes(' ') ? [
+            { firstName: { contains: q.split(' ')[0], mode: 'insensitive' as const } },
+            { lastName:  { contains: q.split(' ')[1], mode: 'insensitive' as const } },
+          ] : []),
           { personalEmail: { contains: q, mode: 'insensitive' } },
           { phone: { contains: q, mode: 'insensitive' } },
           { idNumber: { contains: q, mode: 'insensitive' } },

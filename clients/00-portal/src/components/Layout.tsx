@@ -80,6 +80,8 @@ const PAGE_NAMES: Record<string, string> = {
   '/inventory/movements': 'תנועות מלאי',
   '/pos': 'קופה רושמת',
   '/pos/tables': 'ניהול שולחנות',
+  '/pos/waiter': 'ממשק מלצר',
+  '/pos/kitchen': 'תצוגת מטבח',
   '/pos/cash': 'ניהול קופה',
   '/pos/payment-terminals': 'מסופי תשלום',
   '/pos/promotions': 'מבצעים',
@@ -268,6 +270,8 @@ const NAV: NavItem[] = [
     children: [
       { label: 'קופה רושמת', to: '/pos' },
       { label: 'ניהול שולחנות', to: '/pos/tables', divider: 'מסעדה' },
+      { label: 'ממשק מלצר', to: '/pos/waiter' },
+      { label: 'תצוגת מטבח', to: '/pos/kitchen' },
       { label: 'ניהול קופה/משמרת', to: '/pos/cash', divider: 'ניהול' },
       { label: 'מסופי תשלום', to: '/pos/payment-terminals' },
       { label: 'מבצעים', to: '/pos/promotions', divider: 'מועדון לקוחות' },
