@@ -94,6 +94,9 @@ import paymentTerminalRouter from './modules/payment-terminal/payment-terminal.r
 // Routes — Barcode Scanner & Fast Search
 import scanRouter from './modules/scan/scan.routes';
 
+// Routes — Global Search
+import searchRouter from './modules/search/search.routes';
+
 // Routes — Phase 6 (Printers — מדפסות + תור הדפסה)
 import printersRouter from './modules/printers/printers.routes';
 
@@ -285,6 +288,7 @@ app.use('/api/receipts',         receiptsRouter);
 app.use('/api/payment-terminal', paymentTerminalRouter);
 app.use('/api/printers',        printersRouter);
 app.use('/api/scan',            scanRouter);
+app.use('/api/search',          searchRouter);
 app.use('/api/calendar',        calendarRouter);
 
 // ─── API Routes ─── POS Phase 2 ───────────────────────────────────

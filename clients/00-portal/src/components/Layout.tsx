@@ -12,6 +12,7 @@ import {
   LogOut, Building2, Menu, X, Shield, Briefcase, Upload, Bell,
   CheckCircle, AlertTriangle, Info, CreditCard, Search, RefreshCw,
   ClipboardList, Tag, Monitor, Truck, DollarSign, Brain,
+  MessageCircle, ShieldCheck,
 } from 'lucide-react';
 
 // ─── Page name map for breadcrumb ─────────────────────────────────────────────
@@ -94,6 +95,8 @@ const PAGE_NAMES: Record<string, string> = {
   '/employee/leave': 'בקשות חופשה',
   '/admin/permissions': 'הרשאות',
   '/settings/agents': 'סוכני AI',
+  '/notifications': 'הודעות ועדכונים',
+  '/audit-log': 'יומן פעולות',
 };
 
 function getPageTitle(pathname: string): string {
@@ -312,6 +315,20 @@ const NAV: NavItem[] = [
     icon: Brain,
     module: 'ACCOUNTING',
     to: '/settings/agents',
+    group: undefined,
+  },
+  {
+    label: 'הודעות ועדכונים',
+    icon: MessageCircle,
+    module: 'ACCOUNTING',
+    to: '/notifications',
+    group: undefined,
+  },
+  {
+    label: 'יומן פעולות',
+    icon: ShieldCheck,
+    module: 'ACCOUNTING',
+    to: '/audit-log',
     group: undefined,
   },
 ];

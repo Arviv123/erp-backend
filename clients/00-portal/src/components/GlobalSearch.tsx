@@ -1,110 +1,107 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Loader2, Package, User, FileText, X } from 'lucide-react';
+import {
+  Search,
+  Loader2,
+  Package,
+  User,
+  FileText,
+  Users,
+  ShoppingCart,
+  BookOpen,
+  ClipboardList,
+  Receipt,
+  X,
+} from 'lucide-react';
 import api from '../lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface ProductResult {
+interface SearchItem {
+  type: string;
   id: string;
-  name: string;
-  sku?: string;
-  category?: string;
+  label: string;
+  sublabel?: string;
+  extra?: string;
+  url: string;
+  date?: string;
 }
 
-interface CustomerResult {
-  id: string;
-  name: string;
-  email?: string;
-  phone?: string;
+interface SearchGroup {
+  type: string;
+  label: string;
+  items: SearchItem[];
 }
 
-interface InvoiceResult {
-  id: string;
-  number?: string;
-  customerName?: string;
-  total?: number;
-  status?: string;
+interface SearchResponse {
+  query: string;
+  grouped: SearchGroup[];
+  total: number;
 }
 
-interface SearchResults {
-  products: ProductResult[];
-  customers: CustomerResult[];
-  invoices: InvoiceResult[];
+// ─── Filter definitions ───────────────────────────────────────────────────────
+
+interface FilterDef {
+  key: string;
+  label: string;
+  types: string;
 }
 
-interface FlatResult {
-  type: 'product' | 'customer' | 'invoice';
-  id: string;
-  primary: string;
-  secondary?: string;
-  to: string;
-}
+const FILTERS: FilterDef[] = [
+  { key: 'all',         label: 'הכל',           types: 'all' },
+  { key: 'invoices',    label: 'חשבוניות',       types: 'invoices' },
+  { key: 'customers',   label: 'לקוחות',         types: 'customers' },
+  { key: 'vendors',     label: 'ספקים',          types: 'vendors' },
+  { key: 'employees',   label: 'עובדים',         types: 'employees' },
+  { key: 'products',    label: 'מוצרים',         types: 'products' },
+];
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Icon map ─────────────────────────────────────────────────────────────────
 
-function flattenResults(results: SearchResults): FlatResult[] {
-  const flat: FlatResult[] = [];
-
-  results.products.forEach(p =>
-    flat.push({
-      type: 'product',
-      id: p.id,
-      primary: p.name,
-      secondary: p.sku ? `מק"ט: ${p.sku}` : p.category,
-      to: `/inventory/items/${p.id}`,
-    }),
-  );
-
-  results.customers.forEach(c =>
-    flat.push({
-      type: 'customer',
-      id: c.id,
-      primary: c.name,
-      secondary: c.email ?? c.phone,
-      to: `/crm/customers/${c.id}`,
-    }),
-  );
-
-  results.invoices.forEach(inv =>
-    flat.push({
-      type: 'invoice',
-      id: inv.id,
-      primary: inv.number ? `חשבונית #${inv.number}` : `חשבונית ${inv.id.slice(0, 8)}`,
-      secondary: inv.customerName ?? (inv.total != null ? `₪${inv.total.toLocaleString('he-IL')}` : undefined),
-      to: `/invoices/${inv.id}`,
-    }),
-  );
-
-  return flat;
-}
-
-const SECTION_LABELS: Record<string, string> = {
-  product: 'מוצרים',
-  customer: 'לקוחות',
-  invoice: 'חשבוניות',
+const TYPE_ICONS: Record<string, React.ElementType> = {
+  invoice:     FileText,
+  bill:        Receipt,
+  customer:    User,
+  vendor:      Users,
+  employee:    User,
+  product:     Package,
+  quote:       ClipboardList,
+  account:     BookOpen,
+  sales_order: ShoppingCart,
 };
 
-const SECTION_ICONS: Record<string, React.ElementType> = {
-  product: Package,
-  customer: User,
-  invoice: FileText,
-};
+function getIcon(type: string): React.ElementType {
+  return TYPE_ICONS[type] ?? FileText;
+}
+
+// ─── Flat item with global index ──────────────────────────────────────────────
+
+interface IndexedItem extends SearchItem {
+  globalIndex: number;
+}
+
+interface IndexedGroup {
+  type: string;
+  label: string;
+  items: IndexedItem[];
+}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function GlobalSearch() {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<FlatResult[]>([]);
+  const [open, setOpen]               = useState(false);
+  const [query, setQuery]             = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [groups, setGroups]           = useState<IndexedGroup[]>([]);
+  const [flatItems, setFlatItems]     = useState<IndexedItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [activeFilter, setActiveFilter] = useState<string>('all');
 
-  const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const navigate = useNavigate();
+  const inputRef       = useRef<HTMLInputElement>(null);
+  const debounceTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigate       = useNavigate();
 
-  // ── Listen for Ctrl+K / Cmd+K and custom event ──
+  // ── Listen for Ctrl+K / Cmd+K and custom event ──────────────────────────────
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -123,54 +120,56 @@ export default function GlobalSearch() {
     };
   }, []);
 
-  // Auto-focus when opened
+  // Auto-focus when opened ─────────────────────────────────────────────────────
   useEffect(() => {
     if (open) {
       setQuery('');
-      setResults([]);
+      setGroups([]);
+      setFlatItems([]);
       setActiveIndex(-1);
+      setActiveFilter('all');
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [open]);
 
-  // ── Search with debounce ──
-  const runSearch = useCallback(async (q: string) => {
+  // ── Build indexed groups from API response ───────────────────────────────────
+  function buildIndexed(grouped: SearchGroup[]): { groups: IndexedGroup[]; flat: IndexedItem[] } {
+    const flat: IndexedItem[] = [];
+    const indexedGroups: IndexedGroup[] = grouped.map(g => ({
+      ...g,
+      items: g.items.map(item => {
+        const indexed: IndexedItem = { ...item, globalIndex: flat.length };
+        flat.push(indexed);
+        return indexed;
+      }),
+    }));
+    return { groups: indexedGroups, flat };
+  }
+
+  // ── Unified search call ──────────────────────────────────────────────────────
+  const runSearch = useCallback(async (q: string, types: string) => {
     if (q.trim().length < 2) {
-      setResults([]);
+      setGroups([]);
+      setFlatItems([]);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const [productsRes, customersRes, invoicesRes] = await Promise.allSettled([
-        api.get('/scan/products', { params: { q, limit: 8 } }),
-        api.get('/scan/customers', { params: { q, limit: 8 } }),
-        api.get('/invoices', { params: { search: q, pageSize: 5 } }),
-      ]);
-
-      const products: ProductResult[] =
-        productsRes.status === 'fulfilled'
-          ? (productsRes.value.data?.data ?? productsRes.value.data ?? [])
-          : [];
-
-      const customers: CustomerResult[] =
-        customersRes.status === 'fulfilled'
-          ? (customersRes.value.data?.data ?? customersRes.value.data ?? [])
-          : [];
-
-      const invoiceData =
-        invoicesRes.status === 'fulfilled'
-          ? (invoicesRes.value.data?.data ?? invoicesRes.value.data ?? [])
-          : [];
-
-      setResults(flattenResults({ products, customers, invoices: invoiceData }));
+      const res = await api.get('/search', { params: { q, types, limit: 8 } });
+      const data: SearchResponse = res.data?.data ?? res.data;
+      const { groups: g, flat } = buildIndexed(data.grouped ?? []);
+      setGroups(g);
+      setFlatItems(flat);
     } catch {
-      setResults([]);
+      setGroups([]);
+      setFlatItems([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // ── Debounced handler for input changes ──────────────────────────────────────
   function handleQueryChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
     setQuery(val);
@@ -178,64 +177,65 @@ export default function GlobalSearch() {
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     if (val.trim().length < 2) {
-      setResults([]);
+      setGroups([]);
+      setFlatItems([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    debounceTimer.current = setTimeout(() => runSearch(val), 250);
+    const typesParam = FILTERS.find(f => f.key === activeFilter)?.types ?? 'all';
+    debounceTimer.current = setTimeout(() => runSearch(val, typesParam), 250);
   }
 
+  // ── Filter button click ──────────────────────────────────────────────────────
+  function handleFilterChange(filterKey: string) {
+    setActiveFilter(filterKey);
+    setActiveIndex(-1);
+    if (query.trim().length >= 2) {
+      const typesParam = FILTERS.find(f => f.key === filterKey)?.types ?? 'all';
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      setLoading(true);
+      runSearch(query, typesParam);
+    }
+  }
+
+  // ── Close / navigate ─────────────────────────────────────────────────────────
   function handleClose() {
     setOpen(false);
     setQuery('');
-    setResults([]);
+    setGroups([]);
+    setFlatItems([]);
     setActiveIndex(-1);
   }
 
-  function goToResult(result: FlatResult) {
-    navigate(result.to);
+  function goToResult(item: SearchItem) {
+    navigate(item.url);
     handleClose();
   }
 
+  // ── Keyboard navigation ──────────────────────────────────────────────────────
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Escape') {
       handleClose();
       return;
     }
-    if (results.length === 0) return;
+    if (flatItems.length === 0) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
-      setActiveIndex(prev => (prev < results.length - 1 ? prev + 1 : 0));
+      setActiveIndex(prev => (prev < flatItems.length - 1 ? prev + 1 : 0));
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setActiveIndex(prev => (prev > 0 ? prev - 1 : results.length - 1));
+      setActiveIndex(prev => (prev > 0 ? prev - 1 : flatItems.length - 1));
     } else if (e.key === 'Enter' && activeIndex >= 0) {
       e.preventDefault();
-      goToResult(results[activeIndex]);
+      goToResult(flatItems[activeIndex]);
     }
   }
 
   if (!open) return null;
 
-  // Group results by type for section headers
-  const sections: Array<{ type: string; items: FlatResult[] }> = [];
-  let lastType = '';
-  for (const r of results) {
-    if (r.type !== lastType) {
-      sections.push({ type: r.type, items: [] });
-      lastType = r.type;
-    }
-    sections[sections.length - 1].items.push(r);
-  }
-
-  // Compute global index for each item in sections
-  let globalIdx = 0;
-  const indexedSections = sections.map(s => ({
-    ...s,
-    items: s.items.map(item => ({ ...item, globalIndex: globalIdx++ })),
-  }));
+  const hasResults = groups.some(g => g.items.length > 0);
 
   return (
     <>
@@ -270,7 +270,7 @@ export default function GlobalSearch() {
               type="text"
               value={query}
               onChange={handleQueryChange}
-              placeholder="חפש מוצרים, לקוחות, חשבוניות..."
+              placeholder="חפש לקוחות, חשבוניות, עובדים, מוצרים..."
               className="flex-1 text-sm outline-none text-slate-800 placeholder:text-slate-400 bg-transparent"
               autoComplete="off"
             />
@@ -283,36 +283,53 @@ export default function GlobalSearch() {
             </button>
           </div>
 
+          {/* Filter bar */}
+          <div className="flex items-center gap-1 px-3 py-2 border-b border-slate-100 overflow-x-auto">
+            {FILTERS.map(f => (
+              <button
+                key={f.key}
+                onClick={() => handleFilterChange(f.key)}
+                className={`flex-shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-full transition ${
+                  activeFilter === f.key
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
           {/* Results */}
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[380px] overflow-y-auto">
             {query.trim().length > 0 && query.trim().length < 2 && (
               <p className="text-center text-xs text-slate-400 py-8">
                 הקלד לפחות 2 תווים לחיפוש
               </p>
             )}
 
-            {!loading && query.trim().length >= 2 && results.length === 0 && (
+            {!loading && query.trim().length >= 2 && !hasResults && (
               <p className="text-center text-xs text-slate-400 py-8">
-                לא נמצאו תוצאות
+                לא נמצאו תוצאות עבור &quot;{query}&quot;
               </p>
             )}
 
-            {indexedSections.map(section => {
-              const SectionIcon = SECTION_ICONS[section.type];
+            {groups.map(group => {
+              const GroupIcon = getIcon(group.items[0]?.type ?? group.type);
               return (
-                <div key={section.type}>
+                <div key={group.type}>
                   {/* Section header */}
                   <div className="px-4 pt-3 pb-1 flex items-center gap-2">
-                    <SectionIcon className="w-3.5 h-3.5 text-slate-400" />
+                    <GroupIcon className="w-3.5 h-3.5 text-slate-400" />
                     <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                      {SECTION_LABELS[section.type]}
+                      {group.label}
                     </span>
                   </div>
 
                   {/* Items */}
-                  {section.items.map(item => {
+                  {group.items.map(item => {
                     const isActive = item.globalIndex === activeIndex;
-                    const ItemIcon = SECTION_ICONS[item.type];
+                    const ItemIcon = getIcon(item.type);
                     return (
                       <button
                         key={`${item.type}-${item.id}`}
@@ -332,9 +349,13 @@ export default function GlobalSearch() {
                           <ItemIcon className="w-3.5 h-3.5" />
                         </div>
                         <div className="flex-1 min-w-0 text-right">
-                          <p className="text-sm font-medium truncate">{item.primary}</p>
-                          {item.secondary && (
-                            <p className="text-xs text-slate-400 truncate">{item.secondary}</p>
+                          <p className="text-sm font-medium truncate">{item.label}</p>
+                          {(item.sublabel || item.extra) && (
+                            <p className="text-xs text-slate-400 truncate">
+                              {item.sublabel}
+                              {item.sublabel && item.extra ? ' · ' : ''}
+                              {item.extra}
+                            </p>
                           )}
                         </div>
                       </button>

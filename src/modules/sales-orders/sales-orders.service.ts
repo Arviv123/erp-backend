@@ -1,4 +1,6 @@
 import { prisma } from '../../config/database';
+import { createTransaction } from '../accounting/accounting.service';
+import { moveStock } from '../inventory/inventory.service';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -302,7 +304,7 @@ export async function convertToInvoice(
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + 30); // 30-day payment terms by default
 
-  return prisma.$transaction(async (tx) => {
+  const invoice = await prisma.$transaction(async (tx) => {
     // Create the invoice with mapped lines
     const invoice = await tx.invoice.create({
       data: {
@@ -339,4 +341,103 @@ export async function convertToInvoice(
 
     return invoice;
   });
+
+  // ── COGS GL entry: DR Cost-of-Goods-Sold CR Inventory (best-effort) ──
+  // Account 5000 = עלות המכר (COGS), Account 1400 = מלאי (Inventory)
+  try {
+    const productLines = order.lines.filter((l: any) => l.productId);
+
+    if (productLines.length > 0) {
+      // Look up products to get their cost prices
+      const productIds = [...new Set(productLines.map((l: any) => l.productId as string))];
+      const products   = await prisma.product.findMany({
+        where: { id: { in: productIds }, tenantId },
+        select: { id: true, costPrice: true, isService: true },
+      });
+      const productMap = new Map(products.map(p => [p.id, p]));
+
+      // Only inventory (non-service) products generate a COGS entry
+      const inventoryLines = productLines.filter((l: any) => {
+        const p = productMap.get(l.productId as string);
+        return p && !p.isService && Number(p.costPrice ?? 0) > 0;
+      });
+
+      if (inventoryLines.length > 0) {
+        const [cogsAcc, inventoryAcc] = await Promise.all([
+          prisma.account.findFirst({ where: { tenantId, code: '5000', isActive: true } }),
+          prisma.account.findFirst({ where: { tenantId, code: '1400', isActive: true } }),
+        ]);
+
+        if (cogsAcc && inventoryAcc) {
+          const cogsLines = inventoryLines.map((l: any) => {
+            const p        = productMap.get(l.productId as string)!;
+            const costAmt  = Math.round(Number(l.quantity) * Number(p.costPrice) * 100) / 100;
+            return {
+              debitAccountId:  cogsAcc.id,
+              creditAccountId: inventoryAcc.id,
+              amount:          costAmt,
+              description:     `עלות מכר ${invoiceNum} — ${l.description}`,
+            };
+          }).filter((l: any) => l.amount > 0);
+
+          if (cogsLines.length > 0) {
+            await createTransaction({
+              tenantId,
+              date:        order.date,
+              reference:   invoiceNum,
+              description: `עלות מכר הזמנה ${order.number} → ${invoiceNum}`,
+              sourceType:  'SO_INVOICE',
+              sourceId:    invoice.id,
+              createdBy:   userId,
+              lines:       cogsLines,
+            });
+          }
+        }
+      }
+    }
+  } catch (cogsErr) {
+    console.error('[SO→Invoice] COGS GL entry failed:', cogsErr);
+  }
+
+  // ── Inventory deduction: move stock OUT for product lines (best-effort) ──
+  try {
+    const defaultWarehouse = await prisma.warehouse.findFirst({
+      where: { tenantId, isDefault: true, isActive: true },
+    });
+
+    if (defaultWarehouse) {
+      for (const line of order.lines) {
+        const lineAny = line as any;
+        if (!lineAny.productId) continue;
+
+        // Check if product is a service (services don't have stock)
+        const product = await prisma.product.findUnique({
+          where:  { id: lineAny.productId },
+          select: { isService: true },
+        });
+        if (!product || product.isService) continue;
+
+        try {
+          await moveStock({
+            tenantId,
+            productId:   lineAny.productId,
+            warehouseId: defaultWarehouse.id,
+            type:        'OUT',
+            quantity:    Number(line.quantity),
+            reference:   invoiceNum,
+            sourceType:  'SO_INVOICE',
+            sourceId:    invoice.id,
+            createdBy:   userId,
+          });
+        } catch (lineErr) {
+          // Insufficient stock or other per-line error — log but continue
+          console.error(`[SO→Invoice] Stock deduction failed for product ${lineAny.productId}:`, lineErr);
+        }
+      }
+    }
+  } catch (stockErr) {
+    console.error('[SO→Invoice] Inventory deduction failed:', stockErr);
+  }
+
+  return invoice;
 }

@@ -139,6 +139,10 @@ import IntegrationHealthPage from './pages/IntegrationHealthPage';
 // Batch Entry
 import BatchEntryPage from './pages/BatchEntryPage';
 
+// Notifications & Audit
+import NotificationsPage from './pages/NotificationsPage';
+import AuditLogPage from './pages/AuditLogPage';
+
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
@@ -354,6 +358,10 @@ export default function App() {
               <Route path="/employee/payslips" element={<ProtectedRoute module="DASHBOARD"><PayslipsListPage /></ProtectedRoute>} />
               <Route path="/employee/form101" element={<ProtectedRoute module="DASHBOARD"><EmployeeForm101Page /></ProtectedRoute>} />
               <Route path="/employee/leave" element={<ProtectedRoute module="DASHBOARD"><LeaveRequestsPage /></ProtectedRoute>} />
+
+              {/* Notifications & Audit Log */}
+              <Route path="/notifications" element={<ProtectedRoute module="ACCOUNTING"><NotificationsPage /></ProtectedRoute>} />
+              <Route path="/audit-log" element={<ProtectedRoute module="ACCOUNTING"><AuditLogPage /></ProtectedRoute>} />
 
               {/* Admin only */}
               <Route path="/admin/permissions" element={<AdminRoute><UserPermissionsPage /></AdminRoute>} />
