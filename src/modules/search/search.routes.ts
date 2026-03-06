@@ -19,7 +19,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
   const types = typesParam === 'all'
     ? ['invoices', 'bills', 'customers', 'vendors', 'employees', 'products', 'quotes', 'accounts', 'sales_orders']
     : typesParam.split(',');
-  const limit = Math.min(parseInt(String(req.query['limit'] ?? '8')), 20);
+  const limit = Math.min(parseInt(String(req.query['limit'] ?? '10')), 20);
   const tenantId = req.user.tenantId;
 
   const results: Record<string, any[]> = {};
@@ -52,6 +52,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
         extra: `₪${Number(r.total).toFixed(2)} · ${r.status}`,
         url: `/invoices/${r.id}`,
         date: r.date,
+        status: r.status,
       }));
     }),
 
@@ -77,7 +78,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
         label: `חשבונית ספק ${r.number ?? ''}`,
         sublabel: r.vendor?.name ?? '',
         extra: `₪${Number(r.total).toFixed(2)} · ${r.status}`,
-        url: `/bills/${r.id}`,
+        url: `/purchasing/bills`,
         date: r.date,
       }));
     }),
@@ -104,7 +105,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
         label: r.name,
         sublabel: r.email ?? r.phone ?? '',
         extra: r.businessId ? `ח.פ.: ${r.businessId}` : '',
-        url: `/customers/${r.id}`,
+        url: `/crm/customers/${r.id}`,
       }));
     }),
 
@@ -131,7 +132,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
         label: r.name,
         sublabel: r.email ?? r.phone ?? '',
         extra: r.vatNumber ? `עוסק: ${r.vatNumber}` : '',
-        url: `/vendors/${r.id}`,
+        url: `/purchasing/vendors`,
       }));
     }),
 
@@ -204,6 +205,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
           { customer: { name: { contains: q, mode: 'insensitive' } } },
           { notes: { contains: q, mode: 'insensitive' } },
           { title: { contains: q, mode: 'insensitive' } },
+          { lines: { some: { description: { contains: q, mode: 'insensitive' } } } },
         ],
       },
       take: limit,
@@ -216,7 +218,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
         label: `הצעת מחיר ${r.number}`,
         sublabel: r.customer?.name ?? '',
         extra: `₪${Number(r.total).toFixed(2)} · ${r.status}`,
-        url: `/quotes`,
+        url: `/quotes/${r.id}`,
       }));
     }),
 
@@ -255,6 +257,7 @@ router.get('/', asyncHandler(async (req: AuthenticatedRequest, res: Response) =>
           { number: { contains: q, mode: 'insensitive' } },
           { customer: { name: { contains: q, mode: 'insensitive' } } },
           { notes: { contains: q, mode: 'insensitive' } },
+          { lines: { some: { description: { contains: q, mode: 'insensitive' } } } },
         ],
       },
       take: limit,

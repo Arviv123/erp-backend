@@ -48,12 +48,16 @@ interface FilterDef {
 }
 
 const FILTERS: FilterDef[] = [
-  { key: 'all',         label: 'הכל',           types: 'all' },
-  { key: 'invoices',    label: 'חשבוניות',       types: 'invoices' },
-  { key: 'customers',   label: 'לקוחות',         types: 'customers' },
-  { key: 'vendors',     label: 'ספקים',          types: 'vendors' },
-  { key: 'employees',   label: 'עובדים',         types: 'employees' },
-  { key: 'products',    label: 'מוצרים',         types: 'products' },
+  { key: 'all',          label: 'הכל',            types: 'all' },
+  { key: 'invoices',     label: 'חשבוניות',        types: 'invoices' },
+  { key: 'bills',        label: 'חשבוניות ספק',    types: 'bills' },
+  { key: 'quotes',       label: 'הצעות מחיר',      types: 'quotes' },
+  { key: 'sales_orders', label: 'הזמנות',          types: 'sales_orders' },
+  { key: 'customers',    label: 'לקוחות',          types: 'customers' },
+  { key: 'vendors',      label: 'ספקים',           types: 'vendors' },
+  { key: 'employees',    label: 'עובדים',          types: 'employees' },
+  { key: 'products',     label: 'מוצרים',          types: 'products' },
+  { key: 'accounts',     label: 'חשבונות GL',      types: 'accounts' },
 ];
 
 // ─── Icon map ─────────────────────────────────────────────────────────────────
@@ -96,6 +100,7 @@ export default function GlobalSearch() {
   const [flatItems, setFlatItems]     = useState<IndexedItem[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [searchError, setSearchError]   = useState<string | null>(null);
 
   const inputRef       = useRef<HTMLInputElement>(null);
   const debounceTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,18 +157,27 @@ export default function GlobalSearch() {
       setGroups([]);
       setFlatItems([]);
       setLoading(false);
+      setSearchError(null);
       return;
     }
     setLoading(true);
+    setSearchError(null);
     try {
-      const res = await api.get('/search', { params: { q, types, limit: 8 } });
+      const res = await api.get('/search', { params: { q, types, limit: 10 }, timeout: 10000 });
       const data: SearchResponse = res.data?.data ?? res.data;
       const { groups: g, flat } = buildIndexed(data.grouped ?? []);
       setGroups(g);
       setFlatItems(flat);
-    } catch {
+    } catch (err: any) {
       setGroups([]);
       setFlatItems([]);
+      if (err?.code === 'ECONNABORTED' || err?.message?.includes('timeout')) {
+        setSearchError('החיפוש ארך זמן רב מדי — נסה שנית');
+      } else if (err?.response?.status === 401) {
+        setSearchError('נדרשת התחברות מחדש');
+      } else {
+        setSearchError('שגיאה בחיפוש — נסה שנית');
+      }
     } finally {
       setLoading(false);
     }
@@ -174,6 +188,7 @@ export default function GlobalSearch() {
     const val = e.target.value;
     setQuery(val);
     setActiveIndex(-1);
+    setSearchError(null);
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     if (val.trim().length < 2) {
@@ -206,6 +221,7 @@ export default function GlobalSearch() {
     setGroups([]);
     setFlatItems([]);
     setActiveIndex(-1);
+    setSearchError(null);
   }
 
   function goToResult(item: SearchItem) {
@@ -301,14 +317,18 @@ export default function GlobalSearch() {
           </div>
 
           {/* Results */}
-          <div className="max-h-[380px] overflow-y-auto">
+          <div className="max-h-[480px] overflow-y-auto">
             {query.trim().length > 0 && query.trim().length < 2 && (
               <p className="text-center text-xs text-slate-400 py-8">
                 הקלד לפחות 2 תווים לחיפוש
               </p>
             )}
 
-            {!loading && query.trim().length >= 2 && !hasResults && (
+            {searchError && (
+              <p className="text-center text-xs text-red-500 py-8">{searchError}</p>
+            )}
+
+            {!loading && !searchError && query.trim().length >= 2 && !hasResults && (
               <p className="text-center text-xs text-slate-400 py-8">
                 לא נמצאו תוצאות עבור &quot;{query}&quot;
               </p>
