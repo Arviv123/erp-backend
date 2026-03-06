@@ -19,6 +19,10 @@ import { AuthenticatedRequest } from '../../shared/types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 import { asyncHandler } from '../../shared/utils/asyncHandler';
 import { NotificationChannel, NotificationType } from '@prisma/client';
+import { prisma } from '../../config/database';
+import { sendWhatsAppMessage, formatIsraeliPhone } from '../whatsapp/whatsapp.service';
+import { sendEmail } from '../../services/email.service';
+import { generateInvoicePDF } from '../invoices/invoice.pdf.service';
 
 import * as NotificationsService from './notifications.service';
 
@@ -188,6 +192,191 @@ router.post(
     );
 
     sendSuccess(res, notification, 201);
+  })
+);
+
+// ─── POST /api/notifications/send-document ────────────────────────────────────
+// Universal send: routes any document to WhatsApp and/or Email
+// The frontend sends the pre-built message text (user can edit it in the modal)
+const SendDocumentSchema = z.object({
+  documentType:   z.enum(['invoice', 'quote', 'salesOrder', 'payslip', 'receipt', 'bill']),
+  documentId:     z.string().min(1),
+  channels:       z.array(z.enum(['whatsapp', 'email'])).min(1),
+  message:        z.string().min(1),   // The actual text the user wants to send
+  recipientPhone: z.string().optional(),
+  recipientEmail: z.string().email().optional(),
+  subject:        z.string().optional(), // Email subject override
+});
+
+router.post(
+  '/send-document',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = SendDocumentSchema.safeParse(req.body);
+    if (!parsed.success) { sendError(res, parsed.error.message, 400); return; }
+
+    const { documentType, documentId, channels, message, recipientPhone, recipientEmail, subject } = parsed.data;
+    const tenantId = req.user.tenantId;
+
+    // ── Resolve the recipient info from the document ──────────────────────────
+    let resolvedPhone: string | null = recipientPhone ?? null;
+    let resolvedEmail: string | null = recipientEmail ?? null;
+    let documentNumber = '';
+    let recipientName  = '';
+    let pdfBuffer: Buffer | null = null;
+
+    if (documentType === 'invoice' || documentType === 'receipt') {
+      const inv = await prisma.invoice.findFirst({
+        where: { id: documentId, tenantId, deletedAt: null },
+        include: {
+          customer: { select: { name: true, phone: true, email: true } },
+          tenant:   { select: { name: true, vatNumber: true, businessNumber: true, address: true, phone: true, email: true } },
+          lines:    true,
+        },
+      });
+      if (!inv) { sendError(res, 'Invoice not found', 404); return; }
+      documentNumber = inv.number;
+      recipientName  = inv.customer?.name ?? '';
+      resolvedPhone  = resolvedPhone ?? inv.customer?.phone ?? null;
+      resolvedEmail  = resolvedEmail ?? inv.customer?.email ?? null;
+
+      // Generate PDF for email attachment
+      if (channels.includes('email') && resolvedEmail) {
+        try {
+          pdfBuffer = await generateInvoicePDF(
+            {
+              id: inv.id, number: inv.number, invoiceType: inv.invoiceType,
+              date: inv.date, dueDate: inv.dueDate, status: inv.status,
+              subtotal: Number(inv.subtotal), vatAmount: Number(inv.vatAmount),
+              total: Number(inv.total), discountAmount: inv.discountAmount ? Number(inv.discountAmount) : null,
+              notes: inv.notes,
+              lines: inv.lines.map(l => ({
+                description: l.description, quantity: Number(l.quantity),
+                unitPrice: Number(l.unitPrice), vatRate: Number(l.vatRate), lineTotal: Number(l.lineTotal),
+                productId: l.productId ?? undefined,
+              })),
+            },
+            {
+              name: inv.tenant?.name ?? '', vatNumber: inv.tenant?.vatNumber,
+              businessNumber: inv.tenant?.businessNumber, address: inv.tenant?.address,
+              phone: inv.tenant?.phone, email: inv.tenant?.email,
+            },
+            { name: recipientName, email: resolvedEmail }
+          );
+        } catch { /* PDF generation failed — send without attachment */ }
+      }
+
+    } else if (documentType === 'quote') {
+      const q = await prisma.quote.findFirst({
+        where: { id: documentId, tenantId },
+        include: { customer: { select: { name: true, phone: true, email: true } } },
+      });
+      if (!q) { sendError(res, 'Quote not found', 404); return; }
+      documentNumber = q.number;
+      recipientName  = q.customer?.name ?? '';
+      resolvedPhone  = resolvedPhone ?? q.customer?.phone ?? null;
+      resolvedEmail  = resolvedEmail ?? q.customer?.email ?? null;
+
+    } else if (documentType === 'salesOrder') {
+      const so = await prisma.salesOrder.findFirst({
+        where: { id: documentId, tenantId, deletedAt: null },
+        include: { customer: { select: { name: true, phone: true, email: true } } },
+      });
+      if (!so) { sendError(res, 'Sales order not found', 404); return; }
+      documentNumber = so.number;
+      recipientName  = so.customer?.name ?? '';
+      resolvedPhone  = resolvedPhone ?? so.customer?.phone ?? null;
+      resolvedEmail  = resolvedEmail ?? so.customer?.email ?? null;
+
+    } else if (documentType === 'payslip') {
+      const ps = await (prisma as any).payslip.findFirst({
+        where: { id: documentId, tenantId },
+        include: { employee: { select: { firstName: true, lastName: true, personalEmail: true, phone: true } } },
+      });
+      if (!ps) { sendError(res, 'Payslip not found', 404); return; }
+      const emp = ps.employee;
+      recipientName  = emp ? `${emp.firstName} ${emp.lastName}` : '';
+      resolvedPhone  = resolvedPhone ?? emp?.phone ?? null;
+      resolvedEmail  = resolvedEmail ?? emp?.personalEmail ?? null;
+      documentNumber = ps.period ?? '';
+
+    } else if (documentType === 'bill') {
+      const bill = await prisma.bill.findFirst({
+        where: { id: documentId, tenantId, deletedAt: null },
+        include: { vendor: { select: { name: true, phone: true, email: true } } },
+      });
+      if (!bill) { sendError(res, 'Bill not found', 404); return; }
+      documentNumber = bill.number ?? '';
+      recipientName  = bill.vendor?.name ?? '';
+      resolvedPhone  = resolvedPhone ?? bill.vendor?.phone ?? null;
+      resolvedEmail  = resolvedEmail ?? bill.vendor?.email ?? null;
+    }
+
+    // ── Send via requested channels ────────────────────────────────────────────
+    const results: Record<string, { ok: boolean; messageId?: string; error?: string }> = {};
+
+    // WhatsApp
+    if (channels.includes('whatsapp')) {
+      if (!resolvedPhone) {
+        results.whatsapp = { ok: false, error: 'אין מספר טלפון לנמען' };
+      } else {
+        const phone = formatIsraeliPhone(resolvedPhone);
+        const wa = await sendWhatsAppMessage({ to: phone, type: 'text', text: message });
+        results.whatsapp = wa.messageId
+          ? { ok: true, messageId: wa.messageId }
+          : { ok: false, error: wa.error };
+
+        // Log to WhatsAppLog table
+        try {
+          await prisma.whatsAppLog.create({
+            data: {
+              tenantId,
+              phone,
+              messageType: 'GENERAL',
+              status: wa.messageId ? 'SENT' : 'FAILED',
+              messageId: wa.messageId,
+              body: message,
+              refId: documentId,
+              errorMsg: wa.error ?? null,
+              sentAt: wa.messageId ? new Date() : null,
+            },
+          });
+        } catch { /* log failure is non-critical */ }
+      }
+    }
+
+    // Email
+    if (channels.includes('email')) {
+      if (!resolvedEmail) {
+        results.email = { ok: false, error: 'אין כתובת מייל לנמען' };
+      } else {
+        const emailSubject = subject ?? `מסמך ${documentNumber} מצורף`;
+        try {
+          if (pdfBuffer) {
+            await sendEmail({
+              to: resolvedEmail,
+              subject: emailSubject,
+              html: `<div dir="rtl" style="font-family:Arial,sans-serif">${message.replace(/\n/g, '<br/>')}</div>`,
+              attachments: [{
+                filename: `${documentType}_${documentNumber}.pdf`,
+                content: pdfBuffer,
+                contentType: 'application/pdf',
+              }],
+            });
+          } else {
+            await sendEmail({
+              to: resolvedEmail,
+              subject: emailSubject,
+              html: `<div dir="rtl" style="font-family:Arial,sans-serif">${message.replace(/\n/g, '<br/>')}</div>`,
+            });
+          }
+          results.email = { ok: true };
+        } catch (err) {
+          results.email = { ok: false, error: err instanceof Error ? err.message : String(err) };
+        }
+      }
+    }
+
+    sendSuccess(res, { results, documentNumber, recipientName });
   })
 );
 

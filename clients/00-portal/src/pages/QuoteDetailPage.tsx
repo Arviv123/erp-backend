@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Send, FileDown, Trash2, CheckCircle, XCircle, FileText, Loader2 } from 'lucide-react';
 import api from '../lib/api';
+import SendDocumentModal from '../components/SendDocumentModal';
 
 const fmtCurrency = (n: number | string | null | undefined) => {
   const num = Number(n ?? 0);
@@ -85,6 +86,7 @@ export default function QuoteDetailPage() {
     | null
   >(null);
   const [actionError, setActionError] = useState('');
+  const [showSendModal, setShowSendModal] = useState(false);
 
   const { data: quote, isLoading } = useQuery({
     queryKey: ['quote', id],
@@ -294,6 +296,14 @@ export default function QuoteDetailPage() {
             </button>
           )}
 
+          {/* Send document modal — always visible */}
+          <button
+            onClick={() => setShowSendModal(true)}
+            disabled={isPending}
+            className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm px-3 py-2 rounded-lg border border-blue-200"
+          >
+            <Send className="w-4 h-4" /> שלח מסמך
+          </button>
           {/* PDF download — always visible */}
           <button
             onClick={handleDownloadPdf}
@@ -452,6 +462,19 @@ export default function QuoteDetailPage() {
           onConfirm={activeDialog.onConfirm}
           onClose={() => setConfirmAction(null)}
           loading={isPending}
+        />
+      )}
+      {showSendModal && (
+        <SendDocumentModal
+          isOpen={showSendModal}
+          onClose={() => setShowSendModal(false)}
+          documentType="quote"
+          documentId={quote.id}
+          documentNumber={quote.quoteNumber}
+          recipientName={quote.customer?.name ?? ''}
+          recipientPhone={quote.customer?.phone}
+          recipientEmail={quote.customer?.email}
+          amount={Number(quote.total)}
         />
       )}
     </div>

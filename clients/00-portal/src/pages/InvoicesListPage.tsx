@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../lib/api';
 import { Plus, RefreshCw, Search, Eye, Send, CreditCard, Loader2 } from 'lucide-react';
+import SendDocumentModal from '../components/SendDocumentModal';
 
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 0 }).format(n);
@@ -26,6 +27,7 @@ export default function InvoicesListPage() {
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [sendModal, setSendModal] = useState<{id:string, number:string, name:string, phone?:string, email?:string, amount?:number} | null>(null);
 
   const params: Record<string, string> = {};
   if (status) params.status = status;
@@ -140,12 +142,13 @@ export default function InvoicesListPage() {
                           className="p-1.5 rounded hover:bg-gray-100 text-gray-500" title="צפה">
                           <Eye size={15} />
                         </button>
-                        {inv.status === 'DRAFT' && (
-                          <button onClick={() => navigate(`/invoices/${inv.id}`)}
-                            className="p-1.5 rounded hover:bg-blue-50 text-blue-600" title="שלח">
-                            <Send size={15} />
-                          </button>
-                        )}
+                        <button
+                          onClick={() => setSendModal({ id: inv.id, number: inv.invoiceNumber, name: inv.customer?.name ?? '', phone: inv.customer?.phone, email: inv.customer?.email, amount: Number(inv.totalAmount ?? inv.total ?? 0) })}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                          title="שלח ללקוח"
+                        >
+                          <Send size={15} />
+                        </button>
                         {['SENT', 'OVERDUE'].includes(inv.status) && (
                           <button onClick={() => navigate(`/invoices/${inv.id}`)}
                             className="p-1.5 rounded hover:bg-green-50 text-green-600" title="רשום תשלום">
@@ -161,6 +164,20 @@ export default function InvoicesListPage() {
           </table>
         )}
       </div>
+
+      {sendModal && (
+        <SendDocumentModal
+          isOpen={!!sendModal}
+          onClose={() => setSendModal(null)}
+          documentType="invoice"
+          documentId={sendModal.id}
+          documentNumber={sendModal.number}
+          recipientName={sendModal.name}
+          recipientPhone={sendModal.phone}
+          recipientEmail={sendModal.email}
+          amount={sendModal.amount}
+        />
+      )}
     </div>
   );
 }

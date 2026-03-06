@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import {
   Plus, Search, X, Loader2, Eye, ChevronDown, FileText,
-  ShoppingCart, Calendar, ArrowRight,
+  ShoppingCart, Calendar, ArrowRight, Send,
 } from 'lucide-react';
+import SendDocumentModal from '../components/SendDocumentModal';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const fmtILS = (n: number) =>
@@ -424,6 +425,7 @@ export default function SalesOrdersPage() {
   const [viewOrderId, setViewOrderId] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [convertedInvoiceId, setConvertedInvoiceId] = useState<string | null>(null);
+  const [sendModal, setSendModal] = useState<{id:string, number:string, name:string, phone?:string, email?:string, amount?:number} | null>(null);
 
   const params: Record<string, string> = { limit: '50' };
   if (statusFilter) params.status = statusFilter;
@@ -626,6 +628,14 @@ export default function SalesOrdersPage() {
                         >
                           <Eye size={15} />
                         </button>
+                        {/* Send */}
+                        <button
+                          onClick={() => setSendModal({ id: order.id, number: order.orderNumber, name: order.customer?.name ?? '', amount: Number(order.total) })}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                          title="שלח ללקוח"
+                        >
+                          <Send size={15} />
+                        </button>
                         {/* Status change */}
                         {order.status !== 'CANCELLED' && order.status !== 'INVOICED' && (
                           <StatusDropdown orderId={order.id} current={order.status} />
@@ -668,6 +678,19 @@ export default function SalesOrdersPage() {
       {/* Modals */}
       {showNew && <NewOrderModal onClose={() => setShowNew(false)} />}
       {viewOrderId && <OrderDetailModal orderId={viewOrderId} onClose={() => setViewOrderId(null)} />}
+      {sendModal && (
+        <SendDocumentModal
+          isOpen={!!sendModal}
+          onClose={() => setSendModal(null)}
+          documentType="salesOrder"
+          documentId={sendModal.id}
+          documentNumber={sendModal.number}
+          recipientName={sendModal.name}
+          recipientPhone={sendModal.phone}
+          recipientEmail={sendModal.email}
+          amount={sendModal.amount}
+        />
+      )}
     </div>
   );
 }

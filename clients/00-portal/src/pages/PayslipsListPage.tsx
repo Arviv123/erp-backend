@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Search, Printer, Eye, FileText, ChevronRight } from 'lucide-react';
+import { Search, Printer, Eye, FileText, ChevronRight, Send } from 'lucide-react';
 import api from '../lib/api';
+import SendDocumentModal from '../components/SendDocumentModal';
 
 /* ─── helpers ─────────────────────────────────────────────────────────────── */
 
@@ -37,6 +38,7 @@ export default function PayslipsListPage() {
   const [search,        setSearch]        = useState('');
   const [periodFilter,  setPeriodFilter]  = useState(periodParam);
   const [statusFilter,  setStatusFilter]  = useState('');
+  const [sendModal, setSendModal] = useState<{id:string, number:string, name:string, phone?:string, email?:string, amount?:number} | null>(null);
 
   // Load all payslips (backend filters by runId if provided for efficiency)
   const { data, isLoading } = useQuery({
@@ -202,6 +204,21 @@ export default function PayslipsListPage() {
                           className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 font-medium">
                           <Printer className="w-3.5 h-3.5" />הדפס
                         </a>
+                        {/* Send payslip */}
+                        <button
+                          onClick={() => setSendModal({
+                            id: ps.id,
+                            number: ps.period,
+                            name: `${ps.employee?.firstName ?? ''} ${ps.employee?.lastName ?? ''}`.trim(),
+                            phone: ps.employee?.phone,
+                            email: ps.employee?.personalEmail ?? ps.employee?.email,
+                            amount: Number(ps.netSalary),
+                          })}
+                          className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                          title="שלח לעובד"
+                        >
+                          <Send className="w-3.5 h-3.5" />שלח
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -228,6 +245,20 @@ export default function PayslipsListPage() {
             </strong>
           </span>
         </div>
+      )}
+
+      {sendModal && (
+        <SendDocumentModal
+          isOpen={!!sendModal}
+          onClose={() => setSendModal(null)}
+          documentType="payslip"
+          documentId={sendModal.id}
+          documentNumber={sendModal.number}
+          recipientName={sendModal.name}
+          recipientPhone={sendModal.phone}
+          recipientEmail={sendModal.email}
+          amount={sendModal.amount}
+        />
       )}
     </div>
   );

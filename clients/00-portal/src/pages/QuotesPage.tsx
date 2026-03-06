@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { Plus, Eye, Trash2, FileDown, Loader2, Search } from 'lucide-react';
+import { Plus, Eye, Trash2, FileDown, Loader2, Search, Send } from 'lucide-react';
+import SendDocumentModal from '../components/SendDocumentModal';
 
 const fmtCurrency = (n: number) =>
   new Intl.NumberFormat('he-IL', { style: 'currency', currency: 'ILS', maximumFractionDigits: 2 }).format(n);
@@ -46,6 +47,7 @@ export default function QuotesPage() {
   const [to, setTo] = useState('');
   const [search, setSearch] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [sendModal, setSendModal] = useState<{id:string, number:string, name:string, phone?:string, email?:string, amount?:number} | null>(null);
 
   const params: Record<string, string> = { page: '1', limit: '100' };
   if (status) params.status = status;
@@ -252,6 +254,13 @@ export default function QuotesPage() {
                         <Eye size={15} />
                       </button>
                       <button
+                        onClick={() => setSendModal({ id: q.id, number: q.quoteNumber, name: q.customer?.name ?? '', phone: q.customer?.phone, email: q.customer?.email, amount: Number(q.total ?? 0) })}
+                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded"
+                        title="שלח ללקוח"
+                      >
+                        <Send size={15} />
+                      </button>
+                      <button
                         onClick={(e) => handleDownloadPdf(e, q.id)}
                         className="p-1.5 rounded hover:bg-blue-50 text-blue-500"
                         title="הורד PDF"
@@ -273,6 +282,20 @@ export default function QuotesPage() {
           </table>
         )}
       </div>
+
+      {sendModal && (
+        <SendDocumentModal
+          isOpen={!!sendModal}
+          onClose={() => setSendModal(null)}
+          documentType="quote"
+          documentId={sendModal.id}
+          documentNumber={sendModal.number}
+          recipientName={sendModal.name}
+          recipientPhone={sendModal.phone}
+          recipientEmail={sendModal.email}
+          amount={sendModal.amount}
+        />
+      )}
 
       {/* Delete confirmation dialog */}
       {deleteId && (

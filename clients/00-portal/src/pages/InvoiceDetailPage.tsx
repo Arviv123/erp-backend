@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Printer, Send, CreditCard, XCircle, Plus } from 'lucide-react';
 import api from '../lib/api';
+import SendDocumentModal from '../components/SendDocumentModal';
 
 const fmt = (n: number | string | null | undefined) => {
   const num = Number(n ?? 0);
@@ -280,6 +281,7 @@ export default function InvoiceDetailPage() {
   const printRef   = useRef<HTMLDivElement>(null);
   const [showPay,  setShowPay]  = useState(false);
   const [view,     setView]     = useState<'print' | 'payments'>('print');
+  const [showSendModal, setShowSendModal] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['invoice', id], queryFn: () => getInvoice(id!), enabled: !!id,
@@ -348,6 +350,10 @@ export default function InvoiceDetailPage() {
               <XCircle className="w-4 h-4" /> בטל
             </button>
           )}
+          <button onClick={() => setShowSendModal(true)}
+            className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm px-3 py-2 rounded-lg border border-blue-200">
+            <Send className="w-4 h-4" /> שלח מסמך
+          </button>
           <button onClick={handlePrint}
             className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm px-3 py-2 rounded-lg">
             <Printer className="w-4 h-4" /> הדפס / PDF
@@ -442,6 +448,19 @@ export default function InvoiceDetailPage() {
           invoice={invoice}
           onClose={() => setShowPay(false)}
           onSuccess={() => qc.invalidateQueries({ queryKey: ['invoice', id] })}
+        />
+      )}
+      {showSendModal && (
+        <SendDocumentModal
+          isOpen={showSendModal}
+          onClose={() => setShowSendModal(false)}
+          documentType="invoice"
+          documentId={invoice.id}
+          documentNumber={invoice.number}
+          recipientName={invoice.customer?.name ?? ''}
+          recipientPhone={invoice.customer?.phone}
+          recipientEmail={invoice.customer?.email}
+          amount={Number(invoice.total)}
         />
       )}
     </div>
