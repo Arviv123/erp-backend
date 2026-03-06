@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
+import Anthropic from '@anthropic-ai/sdk';
 import { authenticate } from '../../middleware/auth';
 import { enforceTenantIsolation, withTenant } from '../../middleware/tenant';
 import { requireMinRole } from '../../middleware/rbac';
@@ -10,6 +11,7 @@ import { prisma } from '../../config/database';
 import { encryptKey, decryptKey } from './encryption';
 import { streamProvider, PROVIDERS, ChatMessage } from './providers';
 import { getSystemPrompt } from './prompts';
+import { ALL_TOOLS, executeTool } from './agent-tool-executor';
 
 const router = Router();
 router.use(authenticate as any);
@@ -119,6 +121,11 @@ router.get('/profiles', asyncHandler(async (req: AuthenticatedRequest, res: Resp
   sendSuccess(res, profiles);
 }));
 
+// GET /agents/tools — list all available tools
+router.get('/tools', (_req: Request, res: Response) => {
+  sendSuccess(res, ALL_TOOLS.map(t => ({ name: t.name, description: t.description })));
+});
+
 // POST /agents/profiles
 router.post('/profiles', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
@@ -131,6 +138,7 @@ router.post('/profiles', asyncHandler(async (req: AuthenticatedRequest, res: Res
     icon:         z.string().optional(),
     color:        z.string().optional(),
     isDefault:    z.boolean().default(false),
+    enabledTools: z.array(z.string()).default([]),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return sendError(res, parsed.error.message, 400);
@@ -153,6 +161,7 @@ router.patch('/profiles/:id', asyncHandler(async (req: AuthenticatedRequest, res
     icon:         z.string().optional(),
     color:        z.string().optional(),
     isDefault:    z.boolean().optional(),
+    enabledTools: z.array(z.string()).optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return sendError(res, parsed.error.message, 400);
@@ -197,11 +206,11 @@ router.post(
     const { message, conversationId, agentProfileId, provider: reqProvider, model: reqModel } = parsed.data;
 
     // Load agent profile if provided
-    let agentProfile: { systemPrompt: string; provider?: string | null; model?: string | null } | null = null;
+    let agentProfile: { systemPrompt: string; provider?: string | null; model?: string | null; enabledTools?: string[] } | null = null;
     if (agentProfileId) {
       agentProfile = await prisma.agentProfile.findFirst({
         where: withTenant(req, { id: agentProfileId }),
-        select: { systemPrompt: true, provider: true, model: true },
+        select: { systemPrompt: true, provider: true, model: true, enabledTools: true },
       });
     }
 
@@ -278,30 +287,119 @@ router.post(
     let fullResponse = '';
     let tokenCount = 0;
 
-    await streamProvider(provider, plainKey, model, systemPrompt, history, {
-      onChunk: (text) => {
-        fullResponse += text;
-        sendEvent({ type: 'chunk', content: text });
-      },
-      onDone: async (tokens) => {
-        tokenCount = tokens;
-        // Save assistant message
+    // ── Determine if this agent has tools enabled (Anthropic only for tool_use) ──
+    const profileTools = agentProfile?.enabledTools ?? [];
+    const canUseTools  = provider === 'anthropic' && profileTools.length > 0;
+    const activeTools  = canUseTools
+      ? ALL_TOOLS.filter(t => profileTools.includes(t.name))
+      : [];
+
+    if (canUseTools && activeTools.length > 0) {
+      // ── Agentic loop with Tool Use (Anthropic only) ───────────────────────────
+      try {
+        const anthropic = new Anthropic({ apiKey: plainKey });
+        const anthropicMessages: Anthropic.MessageParam[] = history.map(m => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content,
+        }));
+
+        let loopMessages = [...anthropicMessages];
+        let totalTokens  = 0;
+        const MAX_LOOPS  = 8;
+
+        for (let loop = 0; loop < MAX_LOOPS; loop++) {
+          const response = await anthropic.messages.create({
+            model:      model.startsWith('claude') ? model : 'claude-haiku-4-5-20251001',
+            max_tokens: 4096,
+            system:     systemPrompt,
+            tools:      activeTools,
+            messages:   loopMessages,
+          });
+
+          totalTokens += response.usage.input_tokens + response.usage.output_tokens;
+
+          if (response.stop_reason === 'end_turn') {
+            // Final text response
+            const textBlock = response.content.find(b => b.type === 'text');
+            fullResponse    = textBlock?.type === 'text' ? textBlock.text : '';
+            sendEvent({ type: 'chunk', content: fullResponse });
+            break;
+          }
+
+          if (response.stop_reason === 'tool_use') {
+            // Collect all tool calls in this response
+            const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
+            const textBlocks    = response.content.filter(b => b.type === 'text');
+
+            // Stream any text that accompanied tool calls
+            for (const tb of textBlocks) {
+              if (tb.type === 'text' && tb.text) {
+                sendEvent({ type: 'chunk', content: tb.text });
+                fullResponse += tb.text;
+              }
+            }
+
+            // Add assistant message with tool_use blocks
+            loopMessages.push({ role: 'assistant', content: response.content });
+
+            // Execute each tool and collect results
+            const toolResults: Anthropic.ToolResultBlockParam[] = [];
+            for (const toolUse of toolUseBlocks) {
+              if (toolUse.type !== 'tool_use') continue;
+              sendEvent({ type: 'tool_call', toolName: toolUse.name, toolInput: toolUse.input });
+              try {
+                const result = await executeTool(
+                  toolUse.name,
+                  toolUse.input as Record<string, any>,
+                  req.user.tenantId,
+                );
+                const resultStr = JSON.stringify(result, null, 2);
+                sendEvent({ type: 'tool_result', toolName: toolUse.name, result: result });
+                toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: resultStr });
+              } catch (toolErr: any) {
+                toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, content: `Error: ${toolErr.message}`, is_error: true });
+              }
+            }
+
+            // Add tool results as user message
+            loopMessages.push({ role: 'user', content: toolResults });
+          } else {
+            // Unexpected stop reason
+            break;
+          }
+        }
+
+        tokenCount = totalTokens;
         await prisma.agentMessage.create({
-          data: {
-            conversationId: conversation!.id,
-            role: 'assistant',
-            content: fullResponse,
-            tokensUsed: tokenCount,
-          },
+          data: { conversationId: conversation!.id, role: 'assistant', content: fullResponse, tokensUsed: tokenCount },
         });
         sendEvent({ type: 'done', conversationId: conversation!.id, tokensUsed: tokenCount });
         res.end();
-      },
-      onError: (err) => {
+      } catch (err: any) {
         sendEvent({ type: 'error', message: err.message });
         res.end();
-      },
-    });
+      }
+    } else {
+      // ── Standard streaming (no tools) ─────────────────────────────────────────
+      await streamProvider(provider, plainKey, model, systemPrompt, history, {
+        onChunk: (text) => {
+          fullResponse += text;
+          sendEvent({ type: 'chunk', content: text });
+        },
+        onDone: async (tokens) => {
+          tokenCount = tokens;
+          await prisma.agentMessage.create({
+            data: { conversationId: conversation!.id, role: 'assistant', content: fullResponse, tokensUsed: tokenCount },
+          });
+          sendEvent({ type: 'done', conversationId: conversation!.id, tokensUsed: tokenCount });
+          res.end();
+        },
+        onError: (err) => {
+          sendEvent({ type: 'error', message: err.message });
+          res.end();
+        },
+      });
+    }
   })
 );
 

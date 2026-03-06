@@ -3589,6 +3589,7 @@ model AgentProfile {
   isDefault    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  enabledTools  String[]  // list of tool names this agent can use
   conversations AgentConversation[]
   schedules     AgentSchedule[]
   tenant        Tenant   @relation(fields: [tenantId], references: [id])
