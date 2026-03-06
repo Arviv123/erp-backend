@@ -124,7 +124,7 @@ function ProfileCard({
       {/* Actions */}
       <div className="flex items-center justify-between pt-1 mt-auto">
         <button
-          onClick={() => navigate(`/agents?profileId=${profile.id}`)}
+          onClick={() => navigate(`/dashboard?profileId=${profile.id}&profileName=${encodeURIComponent(profile.name)}`)}
           className="flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
         >
           <Brain className="w-4 h-4" />

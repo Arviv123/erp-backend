@@ -396,6 +396,7 @@ export default function App() {
               <Route path="/inventory/count" element={<ProtectedRoute module="INVENTORY"><StockCountPage /></ProtectedRoute>} />
 
               {/* Agent Team */}
+              <Route path="/agents" element={<Navigate to="/agents/conversations" replace />} />
               <Route path="/agents/team" element={<ProtectedRoute module="DASHBOARD"><AgentTeamPage /></ProtectedRoute>} />
               <Route path="/agents/team/tasks/:id" element={<ProtectedRoute module="DASHBOARD"><AgentTaskDetailPage /></ProtectedRoute>} />
               <Route path="/agents/profiles" element={<ProtectedRoute module="DASHBOARD"><AgentProfilesPage /></ProtectedRoute>} />

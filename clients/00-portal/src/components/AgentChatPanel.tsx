@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   MessageCircle, X, Send, Bot, User, Loader2,
-  ChevronDown, RotateCcw, Brain
+  ChevronDown, RotateCcw, Brain, Sparkles
 } from 'lucide-react';
 import api from '../lib/api';
 
@@ -60,8 +61,12 @@ export default function AgentChatPanel() {
   const [model, setModel] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [streaming, setStreaming] = useState(false);
+  const [agentProfileId, setAgentProfileId] = useState<string | null>(null);
+  const [agentProfileName, setAgentProfileName] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const { data: providers = [] } = useQuery<Provider[]>({
     queryKey: ['agent-providers'],
@@ -75,6 +80,22 @@ export default function AgentChatPanel() {
       setModel(providers[0].models[0]?.id ?? '');
     }
   }, [providers, provider]);
+
+  // Auto-open when URL has profileId param (e.g. from AgentProfilesPage "פתח בצ'אט")
+  useEffect(() => {
+    const profileId   = searchParams.get('profileId');
+    const profileName = searchParams.get('profileName');
+    if (profileId) {
+      setAgentProfileId(profileId);
+      if (profileName) setAgentProfileName(decodeURIComponent(profileName));
+      setOpen(true);
+      // Clear the param from URL without history entry
+      const next = new URLSearchParams(searchParams);
+      next.delete('profileId');
+      next.delete('profileName');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams]); // eslint-disable-line
 
   // Auto-scroll
   useEffect(() => {
@@ -105,6 +126,7 @@ export default function AgentChatPanel() {
           conversationId,
           provider: provider || undefined,
           model: model || undefined,
+          agentProfileId: agentProfileId || undefined,
         }),
       });
 
@@ -166,6 +188,8 @@ export default function AgentChatPanel() {
   const reset = () => {
     setMessages([]);
     setConversationId(null);
+    setAgentProfileId(null);
+    setAgentProfileName(null);
   };
 
   const handleKey = (e: React.KeyboardEvent) => {
@@ -199,17 +223,23 @@ export default function AgentChatPanel() {
       <div className="bg-gradient-to-l from-purple-600 to-blue-600 px-4 py-3 flex items-center gap-3">
         <Brain size={20} className="text-white" />
         <div className="flex-1 min-w-0">
-          <p className="text-white font-semibold text-sm">סוכן AI</p>
-          <div className="flex items-center gap-2">
-            {/* Domain select */}
-            <select
-              value={domain}
-              onChange={e => setDomain(e.target.value)}
-              className="text-xs bg-white/20 text-white rounded px-1 py-0.5 outline-none cursor-pointer"
-            >
-              {DOMAINS.map(d => <option key={d.id} value={d.id} className="text-gray-800">{d.label}</option>)}
-            </select>
-          </div>
+          <p className="text-white font-semibold text-sm flex items-center gap-1.5">
+            {agentProfileName ? (
+              <><Sparkles size={13} className="shrink-0" />{agentProfileName}</>
+            ) : 'סוכן AI'}
+          </p>
+          {!agentProfileId && (
+            <div className="flex items-center gap-2">
+              {/* Domain select */}
+              <select
+                value={domain}
+                onChange={e => setDomain(e.target.value)}
+                className="text-xs bg-white/20 text-white rounded px-1 py-0.5 outline-none cursor-pointer"
+              >
+                {DOMAINS.map(d => <option key={d.id} value={d.id} className="text-gray-800">{d.label}</option>)}
+              </select>
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <button onClick={reset} className="text-white/80 hover:text-white p-1" title="שיחה חדשה">
