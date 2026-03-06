@@ -17,6 +17,8 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@google/generative-ai": "^0.24.1",
     "@hebcal/core": "^6.0.8",
     "@prisma/client": "^5.10.0",
     "@sentry/node": "^10.42.0",
@@ -36,6 +38,7 @@
     "express-rate-limit": "^7.2.0",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "openai": "^6.27.0",
     "pdfkit": "^0.17.2",
     "prisma": "^5.10.0",
     "resend": "^6.9.3",

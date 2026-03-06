@@ -11,7 +11,7 @@ import {
   Umbrella, Clock, Package, ChevronDown, ChevronLeft,
   LogOut, Building2, Menu, X, Shield, Briefcase, Upload, Bell,
   CheckCircle, AlertTriangle, Info, CreditCard, Search, RefreshCw,
-  ClipboardList, Tag, Monitor, Truck, DollarSign,
+  ClipboardList, Tag, Monitor, Truck, DollarSign, Brain,
 } from 'lucide-react';
 
 // ─── Page name map for breadcrumb ─────────────────────────────────────────────
@@ -93,6 +93,7 @@ const PAGE_NAMES: Record<string, string> = {
   '/employee/form101': 'טופס 101',
   '/employee/leave': 'בקשות חופשה',
   '/admin/permissions': 'הרשאות',
+  '/settings/agents': 'סוכני AI',
 };
 
 function getPageTitle(pathname: string): string {
@@ -304,6 +305,13 @@ const NAV: NavItem[] = [
     icon: Shield,
     module: 'ADMIN',
     to: '/admin/permissions',
+    group: undefined,
+  },
+  {
+    label: 'סוכני AI',
+    icon: Brain,
+    module: 'ACCOUNTING',
+    to: '/settings/agents',
     group: undefined,
   },
 ];

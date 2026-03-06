@@ -142,6 +142,10 @@ import BatchEntryPage from './pages/BatchEntryPage';
 // Admin
 import UserPermissionsPage from './pages/UserPermissionsPage';
 
+// AI Agents
+import AgentSettingsPage from './pages/AgentSettingsPage';
+import AgentChatPanel from './components/AgentChatPanel';
+
 // Employee Self-Service Portal (ESS)
 import EmployeePortalPage from './pages/EmployeePortalPage';
 import EmployeeForm101Page from './pages/EmployeeForm101Page';
@@ -199,6 +203,7 @@ export default function App() {
       <AuthProvider>
         <PermissionsProvider>
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <AgentChatPanel />
             <Routes>
               {/* ── Platform Admin (/platform/*) — completely separate from tenant UI */}
               <Route path="/platform/login"        element={<PlatformLoginPage />} />
@@ -250,6 +255,7 @@ export default function App() {
 
               {/* Company Settings */}
               <Route path="/settings/company" element={<ProtectedRoute module="INVOICES"><CompanySettingsPage /></ProtectedRoute>} />
+              <Route path="/settings/agents" element={<ProtectedRoute module="ACCOUNTING"><AgentSettingsPage /></ProtectedRoute>} />
 
               {/* Accounting */}
               <Route path="/accounting" element={<ProtectedRoute module="ACCOUNTING"><AccountingDashboardPage /></ProtectedRoute>} />

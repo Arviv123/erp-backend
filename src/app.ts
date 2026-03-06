@@ -112,6 +112,9 @@ import posConfigRouter from './modules/pos/pos-config.routes';
 // Routes — Holiday Calendar
 import calendarRouter from './modules/calendar/calendar.routes';
 
+// Routes — AI Agents
+import agentsRouter from './modules/agents/agents.routes';
+
 // Routes — Cash Flow Forecast
 import cashFlowForecastRouter from './modules/accounting/cash-flow-forecast.routes';
 
@@ -295,6 +298,9 @@ app.use('/api/pos', posCashRouter);    // extends existing /api/pos prefix
 
 // ─── API Routes ─── POS Config (Buttons, Variants, Combos, Templates) ──────
 app.use('/api/pos', posConfigRouter);  // extends existing /api/pos prefix
+
+// ─── API Routes ─── AI Agents ─────────────────────────────────────
+app.use('/api/agents',         agentsRouter);
 
 // ─── Sentry Error Handler (must be before custom error handler) ────
 if (process.env.SENTRY_DSN) {

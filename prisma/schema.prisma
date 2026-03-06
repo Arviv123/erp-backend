@@ -332,6 +332,9 @@ model Tenant {
   productVariants       ProductVariant[]
   comboProducts         ComboProduct[]
   posReceiptTemplate    PosReceiptTemplate?
+  // AI Agents
+  agentApiKeys          AgentApiKey[]
+  agentConversations    AgentConversation[]
 
   @@map("tenants")
 }
@@ -3541,4 +3544,52 @@ model CashierShift {
   @@index([tenantId, cashierId])
   @@index([tenantId, sessionId])
   @@map("cashier_shifts")
+}
+
+// ─────────────────────────────────────────────
+// AI AGENTS
+// ─────────────────────────────────────────────
+
+model AgentApiKey {
+  id           String   @id @default(cuid())
+  tenantId     String
+  provider     String   // "anthropic" | "openai" | "gemini" | "grok"
+  keyEncrypted String
+  label        String   @default("")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+  @@map("agent_api_keys")
+}
+
+model AgentConversation {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  domain    String   @default("general")
+  title     String?
+  provider  String
+  model     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  AgentMessage[]
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  @@index([tenantId])
+  @@index([userId])
+  @@map("agent_conversations")
+}
+
+model AgentMessage {
+  id             String            @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  tokensUsed     Int?
+  createdAt      DateTime          @default(now())
+  conversation   AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  @@index([conversationId])
+  @@map("agent_messages")
 }
