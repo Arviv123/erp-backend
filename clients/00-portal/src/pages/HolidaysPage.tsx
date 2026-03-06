@@ -248,9 +248,16 @@ export default function HolidaysPage() {
     queryKey: ['holidays', year, selectedTypes, settingsKey],
     queryFn: async () => {
       const r = await api.get('/calendar/holidays', {
-        params: { year, types: selectedTypes.join(',') },
+        params: {
+          year,
+          jewish:    selectedTypes.includes('jewish'),
+          gregorian: selectedTypes.includes('gregorian'),
+          muslim:    selectedTypes.includes('muslim'),
+        },
       });
-      return Array.isArray(r.data) ? r.data : [];
+      // API returns { data: { year, count, holidays: [...] } }
+      const holidays = r.data?.data?.holidays ?? r.data?.holidays ?? r.data;
+      return Array.isArray(holidays) ? holidays : [];
     },
   });
 

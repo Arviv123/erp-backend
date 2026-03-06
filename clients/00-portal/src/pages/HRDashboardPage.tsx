@@ -16,7 +16,12 @@ async function getLeaveRequests(status?: string) {
   return r.data;
 }
 async function getEmployees()  { const r = await api.get('/employees', { params: { isActive: true, pageSize: 200 } }); return r.data; }
-async function getHolidays()   { const r = await api.get('/hr/holidays', { params: { year: new Date().getFullYear() } }); return r.data; }
+async function getHolidays()   {
+  const r = await api.get('/calendar/holidays', { params: { year: new Date().getFullYear(), jewish: true, gregorian: true } });
+  // API returns { data: { year, count, holidays: [...] } }
+  const arr = r.data?.data?.holidays ?? r.data?.holidays ?? r.data?.data ?? r.data;
+  return Array.isArray(arr) ? arr : [];
+}
 async function getLeaveTypes() { const r = await api.get('/hr/leave-types'); return r.data; }
 async function approveRequest(id: string) { const r = await api.patch(`/hr/leave-requests/${id}/approve`); return r.data; }
 

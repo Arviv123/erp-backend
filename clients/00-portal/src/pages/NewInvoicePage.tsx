@@ -26,11 +26,13 @@ interface Product {
   sku?: string;
   barcode?: string;
   unit?: string;
+  unitOfMeasure?: string;
   sellingPrice?: number;
   costPrice?: number;
   vatRate?: number;
-  category?: string;
+  category?: string | { name: string } | null;
   stockQuantity?: number;
+  stockLevels?: { quantity: number }[];
 }
 
 const emptyLine = (): Line => ({
@@ -259,7 +261,7 @@ function DescriptionAutocomplete({
                 <div className="text-[11px] text-gray-400 flex gap-2 mt-0.5">
                   {p.sku     && <span>מקט: {p.sku}</span>}
                   {p.barcode && <span>ברקוד: {p.barcode}</span>}
-                  {p.category && <span className="text-blue-400">{p.category}</span>}
+                  {p.category && <span className="text-blue-400">{typeof p.category === 'string' ? p.category : (p.category as any)?.name}</span>}
                 </div>
               </div>
               <div className="shrink-0 text-left">
@@ -336,8 +338,14 @@ export default function NewInvoicePage() {
     queryFn: () => api.get('/inventory/products', { params: { pageSize: 1000 } }),
     staleTime: 5 * 60_000,
   });
-  const allItems: Product[] = Array.isArray(itemsData?.data?.data) ? itemsData.data.data
+  const allItemsRaw: any[] = Array.isArray(itemsData?.data?.data) ? itemsData.data.data
     : Array.isArray(itemsData?.data) ? itemsData.data : [];
+  // Normalize API response: stockLevels → stockQuantity, unitOfMeasure → unit
+  const allItems: Product[] = allItemsRaw.map((p: any) => ({
+    ...p,
+    unit: p.unit ?? p.unitOfMeasure,
+    stockQuantity: p.stockQuantity ?? (p.stockLevels ?? []).reduce((s: number, l: any) => s + (l.quantity ?? 0), 0),
+  }));
 
   const saveMutation = useMutation({
     mutationFn: async (andSend: boolean) => {
@@ -383,7 +391,7 @@ export default function NewInvoicePage() {
         description:  product.name,
         sku:          product.sku ?? l.sku,
         barcode:      product.barcode ?? l.barcode,
-        unit:         product.unit ?? 'יח',
+        unit:         product.unit ?? product.unitOfMeasure ?? 'יח',
         unitPrice:    product.sellingPrice ?? l.unitPrice,
         vatRate:      product.vatRate ?? 0.18,
       } : l);

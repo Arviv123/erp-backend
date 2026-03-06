@@ -1585,17 +1585,23 @@ model ApiKey {
 // ══════════════════════════════════════════════
 
 model PosTerminal {
-  id        String   @id @default(cuid())
-  tenantId  String
-  name      String // "קופה ראשית" / "קופה 2"
-  location  String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  tenantId        String
+  name            String   // "קופה ראשית" / "קופה 2"
+  location        String?
+  branchId        String?  // link to Branch
+  glCashCode      String?  // GL account for cash payments (default: 1100)
+  glBankCode      String?  // GL account for card/bank payments (default: 1200)
+  glRevenueCode   String?  // GL account for revenue (default: 6100)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
 
   tenant   Tenant       @relation(fields: [tenantId], references: [id])
+  branch   Branch?      @relation(fields: [branchId], references: [id])
   sessions PosSession[]
 
   @@index([tenantId])
+  @@index([branchId])
   @@map("pos_terminals")
 }
 
@@ -2352,6 +2358,7 @@ model Branch {
   receipts              Receipt[]
   paymentTerminals      PaymentTerminal[]
   printers              Printer[]
+  posTerminals          PosTerminal[]
 
   @@unique([tenantId, code])
   @@index([tenantId])

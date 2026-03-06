@@ -129,17 +129,29 @@ export default function POSCashPage() {
     setTimeout(() => setStatusMsg(null), 3500);
   };
 
-  // Queries
+  // Fetch active (open) POS session for this user
+  const { data: sessionsData } = useQuery({
+    queryKey: ['pos-open-sessions'],
+    queryFn: () => api.get('/pos/sessions', { params: { status: 'OPEN', pageSize: 5 } }).then(r => r.data?.data ?? r.data),
+    refetchInterval: 60000,
+  });
+  const sessions: any[] = Array.isArray(sessionsData) ? sessionsData : [];
+  const activeSession = sessions[0] ?? null;
+  const sessionId: string | null = activeSession?.id ?? null;
+
+  // Queries (only run when we have an active sessionId)
   const { data: drawerBalance, refetch: refetchBalance } = useQuery<DrawerBalance>({
-    queryKey: ['pos-drawer-balance'],
-    queryFn: () => api.get('/pos/drawer/balance').then(r => r.data?.data ?? r.data),
+    queryKey: ['pos-drawer-balance', sessionId],
+    queryFn: () => api.get('/pos/drawer/balance', { params: { sessionId } }).then(r => r.data?.data ?? r.data),
+    enabled: !!sessionId,
     refetchInterval: 30000,
   });
 
   const { data: drawerHistory = [] } = useQuery<DrawerEvent[]>({
-    queryKey: ['pos-drawer-history'],
+    queryKey: ['pos-drawer-history', sessionId],
     queryFn: () =>
-      api.get('/pos/drawer/history').then(r => (Array.isArray(r.data) ? r.data : r.data?.data ?? [])),
+      api.get('/pos/drawer/history', { params: { sessionId } }).then(r => (Array.isArray(r.data) ? r.data : r.data?.data ?? [])),
+    enabled: !!sessionId,
     refetchInterval: 30000,
   });
 
@@ -148,8 +160,9 @@ export default function POSCashPage() {
     refetch: refetchShift,
     isError: shiftNotFound,
   } = useQuery<ShiftData>({
-    queryKey: ['pos-current-shift'],
-    queryFn: () => api.get('/pos/shifts/current').then(r => r.data?.data ?? r.data),
+    queryKey: ['pos-current-shift', sessionId],
+    queryFn: () => api.get('/pos/shifts/current', { params: { sessionId } }).then(r => r.data?.data ?? r.data),
+    enabled: !!sessionId,
     retry: (count, err: any) => {
       if (err?.response?.status === 404) return false;
       return count < 2;
@@ -158,14 +171,15 @@ export default function POSCashPage() {
   });
 
   const invalidateAll = () => {
-    queryClient.invalidateQueries({ queryKey: ['pos-drawer-balance'] });
-    queryClient.invalidateQueries({ queryKey: ['pos-drawer-history'] });
-    queryClient.invalidateQueries({ queryKey: ['pos-current-shift'] });
+    queryClient.invalidateQueries({ queryKey: ['pos-open-sessions'] });
+    queryClient.invalidateQueries({ queryKey: ['pos-drawer-balance', sessionId] });
+    queryClient.invalidateQueries({ queryKey: ['pos-drawer-history', sessionId] });
+    queryClient.invalidateQueries({ queryKey: ['pos-current-shift', sessionId] });
   };
 
   // Mutations
   const cashInMut = useMutation({
-    mutationFn: () => api.post('/pos/drawer/cash-in', { amount: Number(drawerAmount), reason: drawerReason }),
+    mutationFn: () => api.post('/pos/drawer/cash-in', { sessionId, amount: Number(drawerAmount), reason: drawerReason }),
     onSuccess: () => {
       setShowCashIn(false);
       setDrawerAmount('');
@@ -177,7 +191,7 @@ export default function POSCashPage() {
   });
 
   const cashOutMut = useMutation({
-    mutationFn: () => api.post('/pos/drawer/cash-out', { amount: Number(drawerAmount), reason: drawerReason }),
+    mutationFn: () => api.post('/pos/drawer/cash-out', { sessionId, amount: Number(drawerAmount), reason: drawerReason }),
     onSuccess: () => {
       setShowCashOut(false);
       setDrawerAmount('');
@@ -189,7 +203,7 @@ export default function POSCashPage() {
   });
 
   const noSaleMut = useMutation({
-    mutationFn: () => api.post('/pos/drawer/no-sale'),
+    mutationFn: () => api.post('/pos/drawer/no-sale', { sessionId }),
     onSuccess: () => {
       invalidateAll();
       notify('success', 'אירוע "ללא מכירה" נרשם');
@@ -198,7 +212,7 @@ export default function POSCashPage() {
   });
 
   const openShiftMut = useMutation({
-    mutationFn: () => api.post('/pos/shifts/start', { openingFloat: Number(openingFloat) || 0 }),
+    mutationFn: () => api.post('/pos/shifts/start', { sessionId, openingFloat: Number(openingFloat) || 0 }),
     onSuccess: () => {
       setShowOpenShift(false);
       setOpeningFloat('');
@@ -239,6 +253,28 @@ export default function POSCashPage() {
   return (
     <div className="space-y-6" dir="rtl">
       <h1 className="text-2xl font-bold text-gray-900">ניהול קופה ומשמרות</h1>
+
+      {/* No active session warning */}
+      {!sessionId && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3 text-amber-800 text-sm">
+          <AlertCircle className="w-5 h-5 shrink-0 text-amber-500" />
+          <div>
+            <p className="font-medium">אין סשן קופה פתוח</p>
+            <p className="text-xs mt-0.5 text-amber-600">
+              כדי לנהל את הקופה יש קודם לפתוח סשן — עבור ל
+              <a href="/pos" className="underline mr-1">דף הקופה</a>
+              ובחר מסוף.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {activeSession && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-2 text-sm text-blue-700 flex items-center gap-2">
+          <Power className="w-4 h-4" />
+          <span>סשן פעיל: <strong>{activeSession.terminal?.name ?? activeSession.id.slice(-6)}</strong></span>
+        </div>
+      )}
 
       {/* Status message */}
       {statusMsg && (

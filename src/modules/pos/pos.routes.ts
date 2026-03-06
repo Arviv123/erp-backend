@@ -19,23 +19,67 @@ router.use(enforceTenantIsolation as any);
 router.get('/terminals', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const terminals = await prisma.posTerminal.findMany({
     where:   withTenant(req, { isActive: true }),
-    include: { sessions: { where: { status: 'OPEN' }, take: 1 } },
+    include: {
+      sessions: { where: { status: 'OPEN' }, take: 1 },
+      branch:   { select: { id: true, name: true, code: true } },
+    },
   });
   sendSuccess(res, terminals);
 }));
 
 router.post('/terminals', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const schema = z.object({
-    name:     z.string().min(1),
-    location: z.string().optional(),
+    name:           z.string().min(1),
+    location:       z.string().optional(),
+    branchId:       z.string().cuid().optional(),
+    glCashCode:     z.string().optional(),
+    glBankCode:     z.string().optional(),
+    glRevenueCode:  z.string().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { sendError(res, parsed.error.message); return; }
 
+  // Validate branchId belongs to this tenant
+  if (parsed.data.branchId) {
+    const branch = await prisma.branch.findUnique({ where: { id: parsed.data.branchId } });
+    if (!branch || branch.tenantId !== req.user.tenantId) { sendError(res, 'Branch not found', 404); return; }
+  }
+
   const terminal = await prisma.posTerminal.create({
     data: { ...parsed.data, tenantId: req.user.tenantId },
+    include: { branch: { select: { id: true, name: true, code: true } } },
   });
   sendSuccess(res, terminal, 201);
+}));
+
+// PATCH /pos/terminals/:id — update terminal settings
+router.patch('/terminals/:id', requireMinRole('ADMIN') as any, asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const terminal = await prisma.posTerminal.findUnique({ where: { id: req.params.id } });
+  if (!terminal || terminal.tenantId !== req.user.tenantId) { sendError(res, 'Terminal not found', 404); return; }
+
+  const schema = z.object({
+    name:           z.string().min(1).optional(),
+    location:       z.string().optional(),
+    branchId:       z.string().cuid().nullable().optional(),
+    glCashCode:     z.string().optional(),
+    glBankCode:     z.string().optional(),
+    glRevenueCode:  z.string().optional(),
+    isActive:       z.boolean().optional(),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) { sendError(res, parsed.error.message); return; }
+
+  if (parsed.data.branchId) {
+    const branch = await prisma.branch.findUnique({ where: { id: parsed.data.branchId } });
+    if (!branch || branch.tenantId !== req.user.tenantId) { sendError(res, 'Branch not found', 404); return; }
+  }
+
+  const updated = await prisma.posTerminal.update({
+    where: { id: req.params.id },
+    data: parsed.data,
+    include: { branch: { select: { id: true, name: true, code: true } } },
+  });
+  sendSuccess(res, updated);
 }));
 
 // ─── Sessions ─────────────────────────────────────────────────────
@@ -147,8 +191,11 @@ router.post('/transactions', asyncHandler(async (req: AuthenticatedRequest, res:
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) { sendError(res, parsed.error.message); return; }
 
-  // Validate session
-  const session = await prisma.posSession.findUnique({ where: { id: parsed.data.sessionId } });
+  // Validate session + fetch terminal for GL account codes
+  const session = await prisma.posSession.findUnique({
+    where: { id: parsed.data.sessionId },
+    include: { terminal: { select: { glCashCode: true, glBankCode: true, glRevenueCode: true, name: true, branch: { select: { name: true } } } } },
+  });
   if (!session || session.tenantId !== req.user.tenantId) { sendError(res, 'Session not found', 404); return; }
   if (session.status !== 'OPEN') { sendError(res, 'Session is closed', 400); return; }
 
@@ -225,11 +272,18 @@ router.post('/transactions', asyncHandler(async (req: AuthenticatedRequest, res:
   // ── GL journal entry (best-effort) ──────────────────────────────
   try {
     const isCash = parsed.data.paymentMethod === 'CASH';
+    // Use per-terminal GL account codes if configured, otherwise use defaults
+    const term       = (session as any).terminal;
+    const cashCode    = term?.glCashCode    || '1100';
+    const bankCode    = term?.glBankCode    || '1200';
+    const revenueCode = term?.glRevenueCode || '6100';
+    const branchLabel = term?.branch?.name ? ` [${term.branch.name}]` : '';
+
     const [cashAcc, bankAcc, revenueAcc, vatAcc] = await Promise.all([
-      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '1100', isActive: true } }),
-      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '1200', isActive: true } }),
-      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '6100', isActive: true } }),
-      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '3200', isActive: true } }),
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: cashCode,    isActive: true } }),
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: bankCode,    isActive: true } }),
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: revenueCode, isActive: true } }),
+      prisma.account.findFirst({ where: { tenantId: req.user.tenantId, code: '3200',      isActive: true } }),
     ]);
 
     const debitAcc       = isCash ? cashAcc : bankAcc;
@@ -243,7 +297,7 @@ router.post('/transactions', asyncHandler(async (req: AuthenticatedRequest, res:
           debitAccountId:  isSale ? debitAcc.id   : revenueAcc.id,
           creditAccountId: isSale ? revenueAcc.id : debitAcc.id,
           amount:          rSubtotal,
-          description:     `קופה ${transaction.receiptNumber} — הכנסות`,
+          description:     `קופה ${transaction.receiptNumber}${branchLabel} — הכנסות`,
         },
       ];
 
@@ -252,7 +306,7 @@ router.post('/transactions', asyncHandler(async (req: AuthenticatedRequest, res:
           debitAccountId:  isSale ? debitAcc.id : vatAcc.id,
           creditAccountId: isSale ? vatAcc.id   : debitAcc.id,
           amount:          rVat,
-          description:     `קופה ${transaction.receiptNumber} — מע"מ`,
+          description:     `קופה ${transaction.receiptNumber}${branchLabel} — מע"מ`,
         });
       }
 
@@ -260,7 +314,7 @@ router.post('/transactions', asyncHandler(async (req: AuthenticatedRequest, res:
         tenantId:    req.user.tenantId,
         date:        new Date(),
         reference:   transaction.receiptNumber!,
-        description: `${isSale ? 'מכירה' : 'החזר'} קופה — ${transaction.receiptNumber}`,
+        description: `${isSale ? 'מכירה' : 'החזר'} קופה — ${transaction.receiptNumber}${branchLabel}`,
         sourceType:  'POS',
         sourceId:    transaction.id,
         createdBy:   req.user.userId,
