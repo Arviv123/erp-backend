@@ -43,10 +43,10 @@ interface FloorData {
 
 interface TableData {
   id: string;
-  tableNumber: number;
-  seats: number;
+  name: string;           // backend field (was tableNumber)
+  capacity: number;       // backend field (was seats)
   status: TableStatus;
-  currentOrderId?: string;
+  currentOrder?: { id: string; orderNumber: string; type: string; guestsCount?: number; createdAt: string; total: number };
 }
 
 interface OrderItem {
@@ -112,7 +112,7 @@ export default function POSTablesPage() {
   // --- Data queries ---
   const { data: floorsData = [] } = useQuery<FloorData[]>({
     queryKey: ['pos-floors'],
-    queryFn: () => api.get('/pos/floors').then(r => (Array.isArray(r.data) ? r.data : r.data?.data ?? [])),
+    queryFn: () => api.get('/pos/floor-map').then(r => (Array.isArray(r.data) ? r.data : r.data?.data ?? [])),
     refetchInterval: 15000,
   });
 
@@ -134,13 +134,13 @@ export default function POSTablesPage() {
   });
 
   const { data: orderDetail, refetch: refetchOrder } = useQuery<OrderDetail>({
-    queryKey: ['pos-order-detail', selectedOrder?.id ?? selectedTable?.currentOrderId],
+    queryKey: ['pos-order-detail', selectedOrder?.id ?? selectedTable?.currentOrder?.id],
     queryFn: () => {
-      const id = selectedOrder?.id ?? selectedTable?.currentOrderId;
+      const id = selectedOrder?.id ?? selectedTable?.currentOrder?.id;
       if (!id) return Promise.resolve(null as any);
       return api.get(`/pos/orders/${id}`).then(r => r.data?.data ?? r.data);
     },
-    enabled: !!(selectedOrder?.id ?? selectedTable?.currentOrderId),
+    enabled: !!(selectedOrder?.id ?? selectedTable?.currentOrder?.id),
     refetchInterval: 10000,
   });
 
@@ -212,7 +212,7 @@ export default function POSTablesPage() {
     mutationFn: ({ orderId, productId, quantity, notes }: { orderId: string; productId: string; quantity: number; notes: string }) =>
       api.post(`/pos/orders/${orderId}/items`, { productId, quantity, notes }),
     onSuccess: () => {
-      const id = selectedOrder?.id ?? selectedTable?.currentOrderId;
+      const id = selectedOrder?.id ?? selectedTable?.currentOrder?.id;
       if (id) queryClient.invalidateQueries({ queryKey: ['pos-order-detail', id] });
       setProductSearch('');
       setItemQty(1);
@@ -226,7 +226,7 @@ export default function POSTablesPage() {
     mutationFn: (orderId: string) => api.post(`/pos/orders/${orderId}/send-to-kitchen`),
     onSuccess: () => {
       notify('success', 'נשלח למטבח!');
-      const id = selectedOrder?.id ?? selectedTable?.currentOrderId;
+      const id = selectedOrder?.id ?? selectedTable?.currentOrder?.id;
       if (id) queryClient.invalidateQueries({ queryKey: ['pos-order-detail', id] });
     },
     onError: () => notify('error', 'שגיאה בשליחה למטבח'),
@@ -247,7 +247,7 @@ export default function POSTablesPage() {
   });
 
   const releaseTableMut = useMutation({
-    mutationFn: (id: string) => api.patch(`/pos/tables/${id}/status`, { status: 'AVAILABLE' }),
+    mutationFn: (id: string) => api.post(`/pos/tables/${id}/status`, { status: 'AVAILABLE' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pos-floors'] });
       setSelectedTable(null);
@@ -257,7 +257,7 @@ export default function POSTablesPage() {
     onError: () => notify('error', 'שגיאה בשחרור שולחן'),
   });
 
-  const activeOrderId = selectedOrder?.id ?? selectedTable?.currentOrderId;
+  const activeOrderId = selectedOrder?.id ?? selectedTable?.currentOrder?.id;
   const currentOrder = orderDetail ?? null;
 
   const handleTableClick = (table: TableData) => {
@@ -307,7 +307,7 @@ export default function POSTablesPage() {
   ) ?? 0;
 
   const getTableOrder = (table: TableData) =>
-    openOrders.find((o: any) => o.tableId === table.id);
+    table.currentOrder ?? openOrders.find((o: any) => o.tableId === table.id);
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -396,11 +396,11 @@ export default function POSTablesPage() {
                         isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''
                       }`}
                     >
-                      <span className="text-2xl font-bold">{table.tableNumber}</span>
+                      <span className="text-2xl font-bold">{table.name}</span>
                       <span className="text-xs font-medium mt-0.5">{statusInfo.label}</span>
                       <div className="flex items-center gap-1 text-xs mt-1 opacity-70">
                         <Users className="w-3 h-3" />
-                        {table.seats}
+                        {table.capacity}
                       </div>
                       {tableOrder && (
                         <div className="mt-1 text-xs font-semibold">
@@ -438,7 +438,7 @@ export default function POSTablesPage() {
               {/* Table header */}
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-bold text-gray-900">
-                  שולחן {selectedTable.tableNumber}
+                  שולחן {selectedTable.name}
                 </h2>
                 <button
                   onClick={() => { setSelectedTable(null); setSelectedOrder(null); }}
