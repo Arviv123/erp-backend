@@ -157,6 +157,7 @@ import AgentProfilesPage from './pages/AgentProfilesPage';
 import AgentConversationsPage from './pages/AgentConversationsPage';
 import AgentBuilderPage from './pages/AgentBuilderPage';
 import AgentSchedulePage from './pages/AgentSchedulePage';
+import AgentAuditPage from './pages/AgentAuditPage';
 
 // RFID
 import RfidDashboardPage from './pages/RfidDashboardPage';
@@ -403,6 +404,7 @@ export default function App() {
               <Route path="/agents/conversations" element={<ProtectedRoute module="DASHBOARD"><AgentConversationsPage /></ProtectedRoute>} />
               <Route path="/agents/builder" element={<ProtectedRoute module="DASHBOARD"><AgentBuilderPage /></ProtectedRoute>} />
               <Route path="/agents/schedules" element={<ProtectedRoute module="DASHBOARD"><AgentSchedulePage /></ProtectedRoute>} />
+              <Route path="/agents/audit" element={<ProtectedRoute module="DASHBOARD"><AgentAuditPage /></ProtectedRoute>} />
 
               {/* Admin only */}
               <Route path="/admin/permissions" element={<AdminRoute><UserPermissionsPage /></AdminRoute>} />
