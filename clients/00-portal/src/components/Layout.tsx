@@ -112,6 +112,7 @@ const PAGE_NAMES: Record<string, string> = {
   '/agents/builder': 'בונה סוכנים',
   '/agents/schedules': 'אוטומציות',
   '/agents/audit': 'צוות סוכני ביקורת',
+  '/agents/software-audit': 'בדיקת שלמות תוכנה',
 };
 
 function getPageTitle(pathname: string): string {
@@ -354,6 +355,7 @@ const NAV: NavItem[] = [
       { label: 'אוטומציות', to: '/agents/schedules' },
       { label: 'צוות סוכנים אוטונומי', to: '/agents/team' },
       { label: 'צוות סוכני ביקורת', to: '/agents/audit' },
+      { label: 'בדיקת שלמות תוכנה', to: '/agents/software-audit' },
       { label: 'הגדרות סוכנים', to: '/settings/agents' },
     ],
   },

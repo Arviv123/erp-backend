@@ -120,6 +120,7 @@ import agentsRouter from './modules/agents/agents.routes';
 import agentTeamRouter from './modules/agents/agent-team.routes';
 import agentSchedulesRouter from './modules/agents/agent-schedules.routes';
 import agentAuditRouter from './modules/agents/agent-audit.routes';
+import softwareAuditRouter from './modules/agents/agent-software-audit.routes';
 
 // Routes — RFID
 import rfidRouter from './modules/rfid/rfid.routes';
@@ -314,6 +315,7 @@ app.use('/api/agents',           agentsRouter);
 app.use('/api/agents/team',      agentTeamRouter);
 app.use('/api/agents/schedules', agentSchedulesRouter);
 app.use('/api/agents/audit',     agentAuditRouter);
+app.use('/api/agents/software-audit', softwareAuditRouter);
 
 // ─── API Routes ─── RFID ──────────────────────────────────────────
 app.use('/api/rfid',           rfidRouter);
