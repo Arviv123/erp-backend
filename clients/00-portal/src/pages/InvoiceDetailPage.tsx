@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Printer, Send, CreditCard, XCircle, Plus } from 'lucide-react';
+import { ArrowRight, Printer, Send, CreditCard, XCircle, Plus, Hash, Loader2, CheckCircle2 } from 'lucide-react';
 import api from '../lib/api';
 import SendDocumentModal from '../components/SendDocumentModal';
 
@@ -78,6 +78,7 @@ function PrintView({ invoice, company }: { invoice: any; company: any }) {
                 ['לתשלום עד:', fmtDate(invoice.dueDate)],
                 invoice.reference ? ['אסמכתא:', invoice.reference] : null,
                 invoice.paymentTerms ? ['תנאי תשלום:', invoice.paymentTerms] : null,
+                invoice.allocationNumber ? ['מספר הקצאה:', invoice.allocationNumber] : null,
               ].filter(Boolean).map((row, i) => (
                 <tr key={i} style={{ background: i % 2 === 1 ? '#f9fafb' : 'white' }}>
                   <td style={{ color: '#666', padding: '3px 6px' }}>{(row as string[])[0]}</td>
@@ -297,6 +298,17 @@ export default function InvoiceDetailPage() {
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['invoice', id] }),
   });
 
+  const allocMut = useMutation({
+    mutationFn: () => api.post(`/invoices/${id}/allocation-number`),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['invoice', id] }),
+    onError:    (e: any) => alert(`שגיאה בבקשת מספר הקצאה: ${e.response?.data?.error ?? e.message}`),
+  });
+
+  const simulateMut = useMutation({
+    mutationFn: () => api.post(`/invoices/${id}/allocation-number?simulate=true`),
+    onSuccess:  () => qc.invalidateQueries({ queryKey: ['invoice', id] }),
+  });
+
   const handlePrint = () => {
     const html = printRef.current?.innerHTML;
     if (!html) return;
@@ -349,6 +361,32 @@ export default function InvoiceDetailPage() {
               className="flex items-center gap-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm px-3 py-2 rounded-lg border border-red-200">
               <XCircle className="w-4 h-4" /> בטל
             </button>
+          )}
+          {/* Allocation Number Button — shown when ≥25,000 NIS and not yet obtained */}
+          {Number(invoice.total) >= 25000 && !invoice.allocationNumber && (
+            <button
+              onClick={() => {
+                const hasToken = window.confirm(
+                  'לבקש מספר הקצאה מרשות המיסים?\n\nלחץ אישור להגשה לרשות המיסים, בטל לסימולציה (לבדיקה).'
+                );
+                if (hasToken) allocMut.mutate();
+                else simulateMut.mutate();
+              }}
+              disabled={allocMut.isPending || simulateMut.isPending}
+              className="flex items-center gap-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 text-sm px-3 py-2 rounded-lg border border-orange-200 disabled:opacity-50"
+              title="בקש מספר הקצאה מרשות המיסים (נדרש לחשבוניות מעל 25,000 ₪)"
+            >
+              {(allocMut.isPending || simulateMut.isPending)
+                ? <Loader2 className="w-4 h-4 animate-spin" />
+                : <Hash className="w-4 h-4" />}
+              מספר הקצאה
+            </button>
+          )}
+          {invoice.allocationNumber && (
+            <div className="flex items-center gap-1.5 bg-green-50 text-green-700 text-sm px-3 py-2 rounded-lg border border-green-200">
+              <CheckCircle2 className="w-4 h-4" />
+              הקצאה: <strong>{invoice.allocationNumber}</strong>
+            </div>
           )}
           <button onClick={() => setShowSendModal(true)}
             className="flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm px-3 py-2 rounded-lg border border-blue-200">

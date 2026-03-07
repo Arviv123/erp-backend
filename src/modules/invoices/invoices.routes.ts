@@ -11,6 +11,7 @@ import * as InvoiceService from './invoices.service';
 import { generateInvoicePDF } from './invoice.pdf.service';
 import { sendInvoiceEmail } from '../../services/email.service';
 import paymentAllocationRouter from './payment-allocation.routes';
+import { requestAllocationNumber, simulateAllocationNumber, requiresAllocationNumber } from './allocation-number.service';
 
 const router = Router();
 router.use(authenticate as any);
@@ -341,6 +342,45 @@ router.post(
     }
 
     sendSuccess(res, { success: true, message: 'חשבונית נשלחה בדוא"ל' });
+  })
+);
+
+// ─── POST /:id/allocation-number — בקשת מספר הקצאה מרשות המיסים ──────────────
+router.post(
+  '/:id/allocation-number',
+  authenticate as any,
+  asyncHandler(async (req, res) => {
+    const { tenantId } = (req as AuthenticatedRequest).user;
+    const invoiceId = req.params.id;
+    const simulate  = req.query.simulate === 'true';  // for demo/testing
+
+    if (simulate) {
+      const fakeNum = await simulateAllocationNumber(invoiceId, tenantId);
+      return sendSuccess(res, { allocationNumber: fakeNum, status: 'APPROVED', simulated: true });
+    }
+
+    const result = await requestAllocationNumber(invoiceId, tenantId);
+    return sendSuccess(res, result);
+  })
+);
+
+// ─── GET /:id/allocation-number — status of allocation number ─────────────────
+router.get(
+  '/:id/allocation-number',
+  authenticate as any,
+  asyncHandler(async (req, res) => {
+    const { tenantId } = (req as AuthenticatedRequest).user;
+    const invoice = await prisma.invoice.findFirst({
+      where: { tenantId, id: req.params.id },
+      select: { total: true, allocationNumber: true, allocationStatus: true, allocationRequestedAt: true },
+    });
+    if (!invoice) return sendError(res, 'חשבונית לא נמצאה', 404);
+    return sendSuccess(res, {
+      allocationNumber:      invoice.allocationNumber,
+      allocationStatus:      invoice.allocationStatus,
+      allocationRequestedAt: invoice.allocationRequestedAt,
+      requiresAllocation:    requiresAllocationNumber(Number(invoice.total)),
+    });
   })
 );
 

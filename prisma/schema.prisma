@@ -767,6 +767,11 @@ model Invoice {
   invoiceType     String  @default("TAX_INVOICE") // TAX_INVOICE | CREDIT_NOTE | RECEIPT | COMMERCIAL
   creditNoteForId String? // Reference to original invoice when this is a credit note
 
+  // מספר הקצאה מרשות המיסים (Israel Tax Authority — required for B2B invoices ≥ 25,000 NIS)
+  allocationNumber      String?   // מספר הקצאה
+  allocationRequestedAt DateTime? // מתי בוקש
+  allocationStatus      String?   // PENDING | APPROVED | REJECTED | NOT_REQUIRED
+
   // Optimistic locking
   version Int @default(0)
 
